@@ -1,6 +1,6 @@
 # Going Steady: TV show swiping plan
 
-Status: approved, to be built after `docs/PLEX_AND_REDESIGN_SPEC.md`.
+Status: built.
 
 ## The idea
 
@@ -86,7 +86,7 @@ Reuses the new Filters screen, with TV additions:
 
 ### Plex
 
-- 395 shows are already in the Plex Request library, keyed by TVDB id (movies use TMDB ids), so Movie Date converts through `external_ids`.
+- Plex Request keys shows by TVDB id (movies use TMDB ids), so Movie Date converts through `external_ids`.
 - The library index gains TV. The Plex filter applies to shows too.
 - Status adds a partial state: some seasons on Plex, others missing.
 - Request on Plex gains a season picker, defaulting to all seasons. Plex Request already supports `seasons`.
@@ -103,4 +103,4 @@ Plex Request's search returns the **TVDB** id for shows and saves it in the `tmd
 4. **Plex:** confirm and fix the Sonarr lookup, then TV library index, statuses and season picker.
 5. **Verify:** live two-user run covering both modes in one room, including a match in the other mode.
 
-Choices made along the way are recorded in `docs/DECISIONS_FOR_REVIEW.md`.
+Choices made along the way are recorded in the decisions file.

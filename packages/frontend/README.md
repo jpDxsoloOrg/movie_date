@@ -1,7 +1,7 @@
 # @movie-date/frontend
 
 React 18 + Vite + react-router 6 PWA. This is the briefing for screen builders.
-`docs/REWRITE_SPEC.md`, `docs/PLEX_AND_REDESIGN_SPEC.md` and `graphql/schema.graphql` are
+`docs/REWRITE_SPEC.md` and `graphql/schema.graphql` are
 the contract. `docs/DESIGN_NOTES.md` has the look, the primitives and who owns which file;
 read it before building a screen.
 
