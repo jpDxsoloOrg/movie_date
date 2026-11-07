@@ -18,6 +18,12 @@ enum MediaType {
   TV
 }
 
+"Which list clearHistory applies to."
+enum HistoryKind {
+  MATCHES
+  SWIPES
+}
+
 "The status choice on the TV filters. Unset means either."
 enum ShowStatusFilter {
   RUNNING
@@ -318,10 +324,16 @@ type Query {
   plexStatus(movieId: Int!, mediaType: MediaType = MOVIE): PlexStatus
   genres(mediaType: MediaType = MOVIE): [Genre!]!
   searchPeople(query: String!): [Person!]!
-  "One mode's matches in the caller's room, newest first, across all rounds."
-  matches(limit: Int, nextToken: String, mediaType: MediaType = MOVIE): MatchPage!
+  "One mode's matches in the caller's room, newest first, across all rounds, from when the caller joined. search matches on title. ignoreCleared also returns what the caller cleared from their history, for finding one match."
+  matches(limit: Int, nextToken: String, mediaType: MediaType = MOVIE, search: String, ignoreCleared: Boolean): MatchPage!
   "The caller's own swipes in one mode in the current room, newest first."
-  swipeHistory(limit: Int, nextToken: String, mediaType: MediaType = MOVIE): HistoryPage!
+  swipeHistory(
+    limit: Int
+    nextToken: String
+    mediaType: MediaType = MOVIE
+    search: String
+    direction: SwipeDirection
+  ): HistoryPage!
   "The current round's earliest uncleared match made since the caller joined, for clients that were offline when it happened."
   pendingMatch(mediaType: MediaType = MOVIE): Match
 }
@@ -339,6 +351,8 @@ type Mutation {
   startNewRound(expectedRound: Int!, mediaType: MediaType = MOVIE): Room!
   "Stops one match of the mode's current round being announced, leaving the deck and round as they are. False if it isn't in the current round."
   clearMatch(matchId: ID!, mediaType: MediaType = MOVIE): Boolean!
+  "Hides one list from the caller's own history. Nobody else's history, the deck, swipes and matches are unaffected."
+  clearHistory(kind: HistoryKind!, mediaType: MediaType = MOVIE): Boolean!
   updateProfile(displayName: String, avatarKey: String): Profile!
   createAvatarUpload(contentType: String!): AvatarUpload!
   "Emails a code to the caller's own profile address if it has a Plex Request account."

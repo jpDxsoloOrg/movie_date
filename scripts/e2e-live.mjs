@@ -1017,6 +1017,8 @@ const SWIPE_API = `mutation Like($id: Int!, $mediaType: MediaType) {
     movieId mediaType direction match { id mediaType round movie { id title } show { id title } }
   }
 }`;
+const MATCHES_QUERY = "query Matches { matches { matches { id } } }";
+const CLEAR_HISTORY = "mutation Clear { clearHistory(kind: MATCHES) }";
 const PENDING_QUERY = `query Pending($mediaType: MediaType) {
   pendingMatch(mediaType: $mediaType) { id mediaType round movie { id title } show { id title } }
 }`;
@@ -1553,6 +1555,14 @@ async function main() {
       await cleared;
       await onPath(A, "/");
       assert((await pendingOf(A, "MOVIE")) === null, "a cleared match is still pending");
+      const beforeClear = await callApi(B, MATCHES_QUERY);
+      assert(beforeClear.data?.matches?.matches?.length > 0, `B's matches: ${JSON.stringify(beforeClear)}`);
+      const clearedList = await callApi(A, CLEAR_HISTORY);
+      assert(clearedList.data?.clearHistory === true, `clearHistory: ${JSON.stringify(clearedList)}`);
+      const afterClear = await callApi(A, MATCHES_QUERY);
+      assert(afterClear.data?.matches?.matches?.length === 0, `A's list after clearing: ${JSON.stringify(afterClear)}`);
+      const stillThere = await callApi(B, MATCHES_QUERY);
+      assert(stillThere.data?.matches?.matches?.length === beforeClear.data.matches.matches.length, "A's clear touched B's history");
       await backToStart(B);
       note(`second match "${heading}" reached A over the websocket, and A cleared it`);
     });

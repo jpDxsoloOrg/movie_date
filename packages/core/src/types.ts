@@ -14,6 +14,8 @@ export type CommitmentLevel = "SHORT_AND_SWEET" | "A_FEW_SEASONS" | "LONG_HAUL";
 
 export type PlexAvailability = "AVAILABLE" | "MONITORED" | "REQUESTED" | "NOT_IN_LIBRARY";
 
+export type HistoryKind = "MATCHES" | "SWIPES";
+
 export type RoomEventType =
   | "MATCH_FOUND"
   | "MATCH_CLEARED"
@@ -227,8 +229,18 @@ export interface FieldArguments {
   plexStatus: { movieId: number } & MediaTypeArgument;
   genres: MediaTypeArgument;
   searchPeople: { query: string };
-  matches: { limit?: number | null; nextToken?: string | null } & MediaTypeArgument;
-  swipeHistory: { limit?: number | null; nextToken?: string | null } & MediaTypeArgument;
+  matches: {
+    limit?: number | null;
+    nextToken?: string | null;
+    search?: string | null;
+    ignoreCleared?: boolean | null;
+  } & MediaTypeArgument;
+  swipeHistory: {
+    limit?: number | null;
+    nextToken?: string | null;
+    search?: string | null;
+    direction?: SwipeDirection | null;
+  } & MediaTypeArgument;
   pendingMatch: MediaTypeArgument;
   swipe: { movieId: number; direction: SwipeDirection } & MediaTypeArgument;
   undoSwipe: { movieId: number } & MediaTypeArgument;
@@ -238,6 +250,7 @@ export interface FieldArguments {
   leaveRoom: Record<string, never>;
   startNewRound: { expectedRound: number } & MediaTypeArgument;
   clearMatch: { matchId: string } & MediaTypeArgument;
+  clearHistory: { kind: HistoryKind } & MediaTypeArgument;
   updateProfile: { displayName?: string | null; avatarKey?: string | null };
   createAvatarUpload: { contentType: string };
   startPlexLink: Record<string, never>;

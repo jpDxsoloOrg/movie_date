@@ -62,7 +62,9 @@ function allPass(expression: string, row: Row | undefined, names: Names, values:
     const actual = row?.[attribute(comparison[1] ?? "", names)];
     const expected = value(comparison[3] ?? "", values);
     if (comparison[2] === "=") return actual === expected;
-    if (comparison[2] === "<") return typeof actual === "number" && actual < (expected as number);
+    if (comparison[2] === "<") {
+      return typeof actual === typeof expected && (actual as number) < (expected as number);
+    }
     return typeof actual === "number" && actual >= (expected as number);
   });
 }

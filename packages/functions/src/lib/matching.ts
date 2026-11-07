@@ -31,6 +31,7 @@ import {
   toMatch,
   type MatchedItem,
   type MatchItem,
+  type MemberItem,
   type SwipeItem,
   type TallyItem,
 } from "./rooms.js";
@@ -41,6 +42,14 @@ async function loadMatch(roomId: string, sentinel: MatchedItem): Promise<Match |
     { consistent: true },
   );
   return row ? toMatch(row, roomId) : null;
+}
+
+/** Cleared matches and ones from before the caller joined aren't announced to them. */
+async function announcedMatch(roomId: string, sentinel: MatchedItem, userId: string): Promise<Match | null> {
+  if (sentinel.clearedAt) return null;
+  const member = await getItem<MemberItem>(keys.member(roomId, userId), { consistent: true });
+  if (keys.matchedAtOfSk(sentinel.matchSk) < (member?.joinedAt ?? "")) return null;
+  return loadMatch(roomId, sentinel);
 }
 
 interface MatchClaim {
@@ -164,6 +173,7 @@ export async function evaluateMovie(
   round: number,
   movieId: number,
   mediaType: MediaType,
+  userId: string,
 ): Promise<Match | null> {
   const media = mediaKey(mediaType, movieId);
   const [sentinel, tally, meta, memberRows] = await Promise.all([
@@ -172,8 +182,7 @@ export async function evaluateMovie(
     requireRoomMeta(roomId),
     loadMemberRows(roomId),
   ]);
-  // A cleared match is over: liking it again, as someone new can, doesn't announce it.
-  if (sentinel) return sentinel.clearedAt ? null : loadMatch(roomId, sentinel);
+  if (sentinel) return announcedMatch(roomId, sentinel, userId);
   if (!tally || roundOf(meta, mediaType) !== round) return null;
   const threshold = effectiveThreshold(meta, memberRows.length);
   if (!isMatch(tally.likes, threshold)) return null;
@@ -183,7 +192,7 @@ export async function evaluateMovie(
     consistent: true,
   });
   const earlier = sentinels.filter(inMode(mediaType)).find((row) => row.movieId === movieId);
-  if (earlier) return earlier.clearedAt ? null : loadMatch(roomId, earlier);
+  if (earlier) return announcedMatch(roomId, earlier, userId);
   return claimMatch({
     roomId,
     round,

@@ -17,6 +17,7 @@ import type {
   PersonFieldsFragment,
   ShowFieldsFragment,
   SwipeDirection,
+  HistoryKind,
   TypedDocumentString,
   WatchOptionsQuery as WatchOptionsResult,
   GenresQuery as GenresResult,
@@ -43,7 +44,7 @@ export type DeckCard = DeckPage["cards"][number];
 export type FilterPreview = FilterPreviewResult["filterPreview"];
 export type PlexStatus = PlexStatusFieldsFragment;
 export type RoomEvent = NonNullable<OnRoomEventSubscription["onRoomEvent"]>;
-export type { FiltersInput, MediaType, PlexAvailability, RoomEventType, SwipeDirection };
+export type { FiltersInput, HistoryKind, MediaType, PlexAvailability, RoomEventType, SwipeDirection };
 
 export type ApiErrorCode =
   | "NOT_FOUND"
@@ -391,8 +392,14 @@ const SearchPeopleQuery = graphql(`
 `);
 
 const MatchesQuery = graphql(`
-  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {
-    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {
+  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {
+    matches(
+      limit: $limit
+      nextToken: $nextToken
+      mediaType: $mediaType
+      search: $search
+      ignoreCleared: $ignoreCleared
+    ) {
       nextToken
       matches {
         ...MatchFields
@@ -402,8 +409,20 @@ const MatchesQuery = graphql(`
 `);
 
 const SwipeHistoryQuery = graphql(`
-  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {
-    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {
+  query SwipeHistory(
+    $limit: Int
+    $nextToken: String
+    $mediaType: MediaType
+    $search: String
+    $direction: SwipeDirection
+  ) {
+    swipeHistory(
+      limit: $limit
+      nextToken: $nextToken
+      mediaType: $mediaType
+      search: $search
+      direction: $direction
+    ) {
       nextToken
       entries {
         ...HistoryEntryFields
@@ -535,6 +554,12 @@ const RequestOnPlexMutation = graphql(`
   }
 `);
 
+const ClearHistoryMutation = graphql(`
+  mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {
+    clearHistory(kind: $kind, mediaType: $mediaType)
+  }
+`);
+
 const ClearMatchMutation = graphql(`
   mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {
     clearMatch(matchId: $matchId, mediaType: $mediaType)
@@ -559,6 +584,15 @@ export const OnRoomEventDocument = graphql(`
 export interface PageRequest {
   limit?: number;
   nextToken?: string | null;
+  search?: string;
+}
+
+export interface MatchPageRequest extends PageRequest {
+  ignoreCleared?: boolean;
+}
+
+export interface SwipePageRequest extends PageRequest {
+  direction?: SwipeDirection;
 }
 
 export type AvatarContentType = "image/jpeg" | "image/png" | "image/webp";
@@ -586,9 +620,9 @@ export const api = {
     (await execute(PlexStatusQuery, { movieId, mediaType })).plexStatus ?? null,
   genres: async (mediaType?: MediaType) => (await execute(GenresQuery, { mediaType })).genres,
   searchPeople: async (query: string) => (await execute(SearchPeopleQuery, { query })).searchPeople,
-  matches: async (page: PageRequest = {}, mediaType?: MediaType) =>
+  matches: async (page: MatchPageRequest = {}, mediaType?: MediaType) =>
     (await execute(MatchesQuery, { ...page, mediaType })).matches,
-  swipeHistory: async (page: PageRequest = {}, mediaType?: MediaType) =>
+  swipeHistory: async (page: SwipePageRequest = {}, mediaType?: MediaType) =>
     (await execute(SwipeHistoryQuery, { ...page, mediaType })).swipeHistory,
   pendingMatch: async (mediaType?: MediaType) =>
     (await execute(PendingMatchQuery, { mediaType })).pendingMatch ?? null,
@@ -619,6 +653,8 @@ export const api = {
   /** Leave seasons out for every season. */
   requestOnPlex: async (movieId: number, mediaType: MediaType = "MOVIE", seasons?: number[]) =>
     (await execute(RequestOnPlexMutation, { movieId, mediaType, seasons })).requestOnPlex,
+  clearHistory: async (kind: HistoryKind, mediaType: MediaType = "MOVIE") =>
+    (await execute(ClearHistoryMutation, { kind, mediaType })).clearHistory,
   clearMatch: async (matchId: string, mediaType: MediaType = "MOVIE") =>
     (await execute(ClearMatchMutation, { matchId, mediaType })).clearMatch,
 
@@ -650,7 +686,7 @@ export const api = {
     if (pending?.id === matchId) return pending;
     let nextToken: string | null | undefined;
     do {
-      const page = await api.matches({ limit: MATCH_LOOKUP_PAGE_SIZE, nextToken }, mediaType);
+      const page = await api.matches({ limit: MATCH_LOOKUP_PAGE_SIZE, nextToken, ignoreCleared: true }, mediaType);
       const found = page.matches.find((match) => match.id === matchId);
       if (found) return found;
       nextToken = page.nextToken;

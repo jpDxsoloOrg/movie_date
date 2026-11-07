@@ -23,14 +23,16 @@ import {
   getOrCreateProfile,
   MAX_TRANSACTION_ATTEMPTS,
   requireRoomMeta,
+  type MemberItem,
   type SwipeItem,
 } from "../lib/rooms.js";
 
 /**
  * The delete is conditional so two undos can't both decrement, and the sentinel
  * check rides in the same transaction so an undo can't take back a like a match
- * was just built on. Only a like is checked: a refused pass would tell someone
- * about a match they weren't part of, and so would a refusal on a cleared one.
+ * was just built on. Only a like is checked, and only against a match that could
+ * rest on it: refusing a pass, a cleared match or one from before the caller joined
+ * would tell them about a match they weren't part of.
  * The order of these writes is relied on below.
  */
 function undoWrites(
@@ -38,6 +40,7 @@ function undoWrites(
   round: number,
   mediaType: MediaType,
   row: SwipeItem,
+  joinedAt: string,
 ): TransactItems {
   const media = mediaKey(mediaType, row.movieId);
   const writes: TransactItems = [
@@ -54,7 +57,8 @@ function undoWrites(
       ConditionCheck: {
         TableName: tableName(),
         Key: keys.matched(roomId, round, media),
-        ConditionExpression: "attribute_not_exists(pk) OR attribute_exists(clearedAt)",
+        ConditionExpression: "attribute_not_exists(pk) OR attribute_exists(clearedAt) OR matchSk < :joined",
+        ExpressionAttributeValues: { ":joined": `MATCH#${joinedAt}` },
       },
     });
     writes.push({
@@ -83,9 +87,10 @@ export async function undoSwipe(
       { consistent: true },
     );
     if (!row) return { movieId, mediaType, undone: false };
+    const member = await getItem<MemberItem>(keys.member(roomId, context.userId), { consistent: true });
 
     try {
-      await transactWrite(undoWrites(roomId, round, mediaType, row));
+      await transactWrite(undoWrites(roomId, round, mediaType, row, member?.joinedAt ?? ""));
       return { movieId, mediaType, undone: true };
     } catch (error) {
       if (!isTransactionCancelled(error)) throw error;

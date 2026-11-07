@@ -59,7 +59,7 @@ describe("resolver", () => {
     const fields = rootBlocks.flatMap((block) =>
       [...(block[1] ?? "").matchAll(/^ {2}(\w+)[(:]/gm)].map((field) => field[1] ?? ""),
     );
-    expect(fields).toHaveLength(30);
+    expect(fields).toHaveLength(31);
 
     const source = readFileSync(
       new URL("../../../functions/src/resolver.ts", import.meta.url),

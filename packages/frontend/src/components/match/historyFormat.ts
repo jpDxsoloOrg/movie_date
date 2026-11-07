@@ -2,6 +2,7 @@ import type { Match } from "../../services/api";
 import { showYears, type MediaItem } from "../deck/movieFacts";
 
 export const HISTORY_PAGE_SIZE = 20;
+export const SEARCH_DELAY_MS = 300;
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 

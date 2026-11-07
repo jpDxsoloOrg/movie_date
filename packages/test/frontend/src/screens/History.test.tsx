@@ -1,9 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  clearHistory: vi.fn(),
   matches: vi.fn(),
   swipeHistory: vi.fn(),
   watchOptions: vi.fn(),
@@ -109,8 +110,8 @@ describe("History tabs", () => {
     const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
     expect(within(panel).getByText("Alien")).toBeInTheDocument();
     expect(within(panel).getAllByText("1995")).toHaveLength(2);
-    expect(within(panel).getByText("Liked")).toBeInTheDocument();
-    expect(within(panel).getByText("Passed")).toBeInTheDocument();
+    expect(within(within(panel).getByRole("list", { name: "Your swipes" })).getByText("Liked")).toBeInTheDocument();
+    expect(within(within(panel).getByRole("list", { name: "Your swipes" })).getByText("Passed")).toBeInTheDocument();
     expect(screen.queryByRole("tabpanel", { name: "Matches" })).not.toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/history?tab=swipes");
   });
@@ -159,6 +160,82 @@ describe("History tabs", () => {
 
     expect(screen.getByRole("button", { name: /Heat/ })).toBeInTheDocument();
     expect(mocks.matches).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Filtering", () => {
+  it("searches matches by title once typing settles, keeping focus in the field", async () => {
+    renderScreen();
+    await within(matchesPanel()).findByRole("button", { name: /Heat \(1995\)/ });
+    mocks.matches.mockResolvedValue({ matches: [], nextToken: null });
+    const field = within(matchesPanel()).getByLabelText("Search by title");
+    await userEvent.type(field, "zzz");
+
+    expect(await within(matchesPanel()).findByText("No matches found")).toBeInTheDocument();
+    expect(mocks.matches).toHaveBeenLastCalledWith(expect.objectContaining({ search: "zzz" }), "MOVIE");
+    expect(field).toHaveFocus();
+    expect(within(matchesPanel()).queryByRole("button", { name: "Start swiping" })).not.toBeInTheDocument();
+  });
+
+  it("filters swipes by direction", async () => {
+    renderScreen("/history?tab=swipes");
+    const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
+    await within(panel).findByText("Alien");
+    await userEvent.click(within(panel).getByRole("radio", { name: "Passed" }));
+    await waitFor(() =>
+      expect(mocks.swipeHistory).toHaveBeenLastCalledWith(expect.objectContaining({ direction: "PASS" }), "MOVIE"),
+    );
+  });
+});
+
+describe("Clearing", () => {
+  it("asks first, and sends nothing on Cancel", async () => {
+    renderScreen();
+    await userEvent.click(await within(matchesPanel()).findByRole("button", { name: "Clear match history" }));
+    const dialog = screen.getByRole("dialog", { name: "Clear your match history?" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(mocks.clearHistory).not.toHaveBeenCalled();
+  });
+
+  it("clears matches and reloads the list empty", async () => {
+    mocks.clearHistory.mockResolvedValue(true);
+    renderScreen();
+    await userEvent.click(await within(matchesPanel()).findByRole("button", { name: "Clear match history" }));
+    mocks.matches.mockResolvedValue({ matches: [], nextToken: null });
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear" }));
+
+    expect(await within(matchesPanel()).findByText("No matches yet")).toBeInTheDocument();
+    expect(mocks.clearHistory).toHaveBeenCalledWith("MATCHES", "MOVIE");
+    expect(within(matchesPanel()).queryByRole("button", { name: "Clear match history" })).not.toBeInTheDocument();
+  });
+
+  it("says swipes still count, and names the mode it covers", async () => {
+    renderScreen("/history?tab=swipes&media=shows");
+    const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
+    await userEvent.click(await within(panel).findByRole("button", { name: "Clear swipe history" }));
+    const dialog = screen.getByRole("dialog", { name: "Clear your swipe history?" });
+    expect(dialog).toHaveTextContent("Your swipes still count");
+    expect(dialog).toHaveTextContent("Shows only");
+  });
+
+  it("isn't offered while a filter is on, since it clears more than is shown", async () => {
+    renderScreen("/history?tab=swipes");
+    const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
+    await within(panel).findByRole("button", { name: "Clear swipe history" });
+    await userEvent.click(within(panel).getByRole("radio", { name: "Liked" }));
+    await waitFor(() =>
+      expect(within(panel).queryByRole("button", { name: "Clear swipe history" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps the list when clearing fails", async () => {
+    mocks.clearHistory.mockRejectedValue(new Error("Nope"));
+    renderScreen();
+    await userEvent.click(await within(matchesPanel()).findByRole("button", { name: "Clear match history" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Clear" }));
+
+    expect(await screen.findByText("Nope")).toBeInTheDocument();
+    expect(within(matchesPanel()).getByRole("button", { name: /Heat \(1995\)/ })).toBeInTheDocument();
   });
 });
 

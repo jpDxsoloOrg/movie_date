@@ -1,6 +1,7 @@
 import { resolveMediaType, type FieldArguments, type MatchPage } from "@movie-date/core";
 import { decodePageToken, encodePageToken, queryAll } from "../lib/db.js";
 import { ValidationError } from "../lib/errors.js";
+import { historyStart, titleMatcher } from "../lib/history.js";
 import type { ResolverContext } from "../lib/identity.js";
 import * as keys from "../lib/keys.js";
 import { inMode } from "../lib/mediaMode.js";
@@ -24,11 +25,14 @@ export async function matches(
   const mediaType = resolveMediaType(args.mediaType);
   const { roomId } = await getOrCreateProfile(context);
   const pk = keys.roomPk(roomId);
-  const rows = await queryAll<MatchItem>(pk, {
-    skPrefix: keys.prefixes.matches(),
-    descending: true,
-  });
-  const inThisMode = rows.filter(inMode(mediaType));
+  const [rows, start] = await Promise.all([
+    queryAll<MatchItem>(pk, { skPrefix: keys.prefixes.matches(), descending: true }),
+    historyStart(roomId, context.userId, "MATCHES", mediaType, args.ignoreCleared === true),
+  ]);
+  const hasTitle = titleMatcher(args.search);
+  const inThisMode = rows
+    .filter(inMode(mediaType))
+    .filter((row) => row.matchedAt >= start && hasTitle(row.movie.title));
 
   const cursor = args.nextToken ? readCursor(args.nextToken, pk) : undefined;
   const remaining = cursor ? inThisMode.filter((row) => row.sk < cursor) : inThisMode;

@@ -74,7 +74,7 @@ export default function MatchFound(): JSX.Element {
     setClearing(true);
     try {
       await api.clearMatch(match.id, match.mediaType);
-      toast.success("Match cleared. It stays in your history.");
+      toast.success("Match cleared");
       navigate(home, { replace: true });
     } catch (caught) {
       toast.error(errorMessage(caught));

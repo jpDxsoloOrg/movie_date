@@ -1,6 +1,7 @@
 import { resolveMediaType, type FieldArguments, type HistoryPage } from "@movie-date/core";
 import { decodePageToken, encodePageToken, queryAll } from "../lib/db.js";
 import { ValidationError } from "../lib/errors.js";
+import { historyStart, titleMatcher } from "../lib/history.js";
 import type { ResolverContext } from "../lib/identity.js";
 import * as keys from "../lib/keys.js";
 import { getOrCreateProfile, pageSize, type SwipeItem } from "../lib/rooms.js";
@@ -32,12 +33,18 @@ export async function swipeHistory(
   const pk = keys.roomPk(roomId);
   const limit = pageSize(args.limit);
 
-  const rows = await queryAll<SwipeItem>(pk, { skPrefix: keys.prefixes.swipes() });
+  const [rows, start] = await Promise.all([
+    queryAll<SwipeItem>(pk, { skPrefix: keys.prefixes.swipes() }),
+    historyStart(roomId, userId, "SWIPES", mediaType),
+  ]);
+  const hasTitle = titleMatcher(args.search);
   const own = rows
     .filter((row) => {
       const parts = keys.parseSwipeSk(row.sk);
       return parts.sub === userId && parts.mediaType === mediaType;
     })
+    .filter((row) => row.swipedAt >= start && hasTitle(row.movie.title))
+    .filter((row) => !args.direction || row.direction === args.direction)
     .sort(newestFirst);
 
   // A cursor rather than an offset: swipes arrive at the head of this list while

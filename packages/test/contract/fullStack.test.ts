@@ -424,6 +424,7 @@ describe("the client against the real backend", () => {
     expect(await api.findMatch(match?.id ?? "")).toEqual(match);
     expect((await api.matches()).matches).toEqual([match]);
     expect(await api.clearMatch("not-a-match")).toBe(false);
+    expect(await api.clearHistory("SWIPES", "TV")).toBe(true);
     expect(await api.undoSwipe(SPARSE_MOVIE_ID)).toEqual({
       movieId: SPARSE_MOVIE_ID,
       mediaType: "MOVIE",

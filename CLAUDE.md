@@ -89,7 +89,7 @@ never inline.
 | `USER#<sub>` | `PLEX_LINK`, `PLEX_LINK_COOLDOWN` | Pending emailed code, send limit |
 | `USER#<sub>` | `LIMIT#<name>#<window>` | Per-user limits |
 | `ROOM#<id>` | `META` | Code, `filters`, `tvFilters`, threshold, `round`, `tvRound` |
-| `ROOM#<id>` | `MEMBER#<sub>` | Membership |
+| `ROOM#<id>` | `MEMBER#<sub>` | Membership, and `historyClearedAt<kind><mediaType>` start times |
 | `ROOM#<id>` | `SWIPE#<round>#<sub>#<media>` | Direction and title snapshot |
 | `ROOM#<id>` | `TALLY#<round>#<media>` | Atomic `likes` and title snapshot |
 | `ROOM#<id>` | `MATCH#<matchedAt>#<media>` | A match, newest first on a reverse query |
@@ -109,7 +109,8 @@ Decision 7 in `docs/DECISIONS_FOR_REVIEW.md` covers what the bare rows still aff
 
 Nobody learns what anyone else liked until there's a match. Likes must never reach a client
 or change a deck's contents or order: see decision 83. `pendingMatch` skips cleared matches
-and matches made before the caller joined (decisions 84 and 85).
+and matches made before the caller joined (decisions 84 and 85). `matches` also starts when the
+caller joined, and Clear history only hides a list from that person (decisions 86 and 87).
 
 ## Two modes
 

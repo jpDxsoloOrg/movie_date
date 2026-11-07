@@ -219,7 +219,8 @@
     grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
   }
 
-  .history-list--wall > li:first-child {
+  /* Only the featured card has the layout to fill two columns. */
+  .history-list--wall > li:has(> .history-stub--featured) {
     grid-column: span 2;
   }
 
@@ -280,4 +281,25 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
   }
+}
+
+.history-filters {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* Takes focus after a clear, when the button that was pressed has gone. */
+.history-filters:focus {
+  outline: none;
+}
+
+@media (min-width: 640px) {
+  .history-filters {
+    max-width: 20rem;
+  }
+}
+
+.history-clear {
+  margin-top: var(--space-4);
 }

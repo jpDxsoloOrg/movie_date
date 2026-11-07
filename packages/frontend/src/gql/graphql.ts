@@ -104,6 +104,11 @@ export type HistoryEntry = {
   swipedAt: Scalars['AWSDateTime']['output'];
 };
 
+/** Which list clearHistory applies to. */
+export type HistoryKind =
+  | 'MATCHES'
+  | 'SWIPES';
+
 export type HistoryPage = {
   entries: Array<HistoryEntry>;
   nextToken?: Maybe<Scalars['String']['output']>;
@@ -155,6 +160,8 @@ export type Movie = {
 };
 
 export type Mutation = {
+  /** Hides one list from the caller's own history. Nobody else's history, the deck, swipes and matches are unaffected. */
+  clearHistory: Scalars['Boolean']['output'];
   /** Stops one match of the mode's current round being announced, leaving the deck and round as they are. False if it isn't in the current round. */
   clearMatch: Scalars['Boolean']['output'];
   confirmPlexLink: Profile;
@@ -179,6 +186,12 @@ export type Mutation = {
   updateFilters: Room;
   updateProfile: Profile;
   updateRoomSettings: Room;
+};
+
+
+export type MutationClearHistoryArgs = {
+  kind: HistoryKind;
+  mediaType?: InputMaybe<MediaType>;
 };
 
 
@@ -308,7 +321,7 @@ export type Query = {
   /** Takes draft filters because deck() only reads the saved ones. Call it debounced. */
   filterPreview: FilterPreview;
   genres: Array<Genre>;
-  /** One mode's matches in the caller's room, newest first, across all rounds. */
+  /** One mode's matches in the caller's room, newest first, across all rounds, from when the caller joined. search matches on title. ignoreCleared also returns what the caller cleared from their history, for finding one match. */
   matches: MatchPage;
   /** Creates the profile and a first room on first call, so sign-up needs no extra step. */
   me: Profile;
@@ -346,9 +359,11 @@ export type QueryGenresArgs = {
 
 
 export type QueryMatchesArgs = {
+  ignoreCleared?: InputMaybe<Scalars['Boolean']['input']>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   mediaType?: InputMaybe<MediaType>;
   nextToken?: InputMaybe<Scalars['String']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -374,9 +389,11 @@ export type QuerySearchPeopleArgs = {
 
 
 export type QuerySwipeHistoryArgs = {
+  direction?: InputMaybe<SwipeDirection>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   mediaType?: InputMaybe<MediaType>;
   nextToken?: InputMaybe<Scalars['String']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -603,6 +620,8 @@ export type MatchesQueryVariables = Exact<{
   limit?: InputMaybe<Scalars['Int']['input']>;
   nextToken?: InputMaybe<Scalars['String']['input']>;
   mediaType?: InputMaybe<MediaType>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  ignoreCleared?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 
@@ -612,6 +631,8 @@ export type SwipeHistoryQueryVariables = Exact<{
   limit?: InputMaybe<Scalars['Int']['input']>;
   nextToken?: InputMaybe<Scalars['String']['input']>;
   mediaType?: InputMaybe<MediaType>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  direction?: InputMaybe<SwipeDirection>;
 }>;
 
 
@@ -717,6 +738,14 @@ export type RequestOnPlexMutationVariables = Exact<{
 
 
 export type RequestOnPlexMutation = { requestOnPlex: { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null, seasonCount?: number | null } };
+
+export type ClearHistoryMutationVariables = Exact<{
+  kind: HistoryKind;
+  mediaType?: InputMaybe<MediaType>;
+}>;
+
+
+export type ClearHistoryMutation = { clearHistory: boolean };
 
 export type ClearMatchMutationVariables = Exact<{
   matchId: Scalars['ID']['input'];
@@ -1139,8 +1168,14 @@ export const SearchPeopleDocument = new TypedDocumentString(`
   knownForDepartment
 }`) as unknown as TypedDocumentString<SearchPeopleQuery, SearchPeopleQueryVariables>;
 export const MatchesDocument = new TypedDocumentString(`
-    query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {
-  matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {
+    query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {
+  matches(
+    limit: $limit
+    nextToken: $nextToken
+    mediaType: $mediaType
+    search: $search
+    ignoreCleared: $ignoreCleared
+  ) {
     nextToken
     matches {
       ...MatchFields
@@ -1189,8 +1224,14 @@ fragment MatchFields on Match {
   }
 }`) as unknown as TypedDocumentString<MatchesQuery, MatchesQueryVariables>;
 export const SwipeHistoryDocument = new TypedDocumentString(`
-    query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {
-  swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {
+    query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $direction: SwipeDirection) {
+  swipeHistory(
+    limit: $limit
+    nextToken: $nextToken
+    mediaType: $mediaType
+    search: $search
+    direction: $direction
+  ) {
     nextToken
     entries {
       ...HistoryEntryFields
@@ -1659,6 +1700,11 @@ export const RequestOnPlexDocument = new TypedDocumentString(`
   missingSeasons
   seasonCount
 }`) as unknown as TypedDocumentString<RequestOnPlexMutation, RequestOnPlexMutationVariables>;
+export const ClearHistoryDocument = new TypedDocumentString(`
+    mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {
+  clearHistory(kind: $kind, mediaType: $mediaType)
+}
+    `) as unknown as TypedDocumentString<ClearHistoryMutation, ClearHistoryMutationVariables>;
 export const ClearMatchDocument = new TypedDocumentString(`
     mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {
   clearMatch(matchId: $matchId, mediaType: $mediaType)

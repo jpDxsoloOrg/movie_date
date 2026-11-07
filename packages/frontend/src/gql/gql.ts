@@ -35,8 +35,8 @@ type Documents = {
     "\n  query PlexStatus($movieId: Int!, $mediaType: MediaType) {\n    plexStatus(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.PlexStatusDocument,
     "\n  query Genres($mediaType: MediaType) {\n    genres(mediaType: $mediaType) {\n      id\n      name\n    }\n  }\n": typeof types.GenresDocument,
     "\n  query SearchPeople($query: String!) {\n    searchPeople(query: $query) {\n      ...PersonFields\n    }\n  }\n": typeof types.SearchPeopleDocument,
-    "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.MatchesDocument,
-    "\n  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": typeof types.SwipeHistoryDocument,
+    "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {\n    matches(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      ignoreCleared: $ignoreCleared\n    ) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.MatchesDocument,
+    "\n  query SwipeHistory(\n    $limit: Int\n    $nextToken: String\n    $mediaType: MediaType\n    $search: String\n    $direction: SwipeDirection\n  ) {\n    swipeHistory(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      direction: $direction\n    ) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": typeof types.SwipeHistoryDocument,
     "\n  query PendingMatch($mediaType: MediaType) {\n    pendingMatch(mediaType: $mediaType) {\n      ...MatchFields\n    }\n  }\n": typeof types.PendingMatchDocument,
     "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!, $mediaType: MediaType) {\n    swipe(movieId: $movieId, direction: $direction, mediaType: $mediaType) {\n      movieId\n      mediaType\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.SwipeDocument,
     "\n  mutation UndoSwipe($movieId: Int!, $mediaType: MediaType) {\n    undoSwipe(movieId: $movieId, mediaType: $mediaType) {\n      movieId\n      mediaType\n      undone\n    }\n  }\n": typeof types.UndoSwipeDocument,
@@ -51,6 +51,7 @@ type Documents = {
     "\n  mutation ConfirmPlexLink($code: String!) {\n    confirmPlexLink(code: $code) {\n      ...ProfileFields\n    }\n  }\n": typeof types.ConfirmPlexLinkDocument,
     "\n  mutation UnlinkPlex {\n    unlinkPlex {\n      ...ProfileFields\n    }\n  }\n": typeof types.UnlinkPlexDocument,
     "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.RequestOnPlexDocument,
+    "\n  mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {\n    clearHistory(kind: $kind, mediaType: $mediaType)\n  }\n": typeof types.ClearHistoryDocument,
     "\n  mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {\n    clearMatch(matchId: $matchId, mediaType: $mediaType)\n  }\n": typeof types.ClearMatchDocument,
     "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      mediaType\n      matchId\n      round\n      actorId\n    }\n  }\n": typeof types.OnRoomEventDocument,
 };
@@ -75,8 +76,8 @@ const documents: Documents = {
     "\n  query PlexStatus($movieId: Int!, $mediaType: MediaType) {\n    plexStatus(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": types.PlexStatusDocument,
     "\n  query Genres($mediaType: MediaType) {\n    genres(mediaType: $mediaType) {\n      id\n      name\n    }\n  }\n": types.GenresDocument,
     "\n  query SearchPeople($query: String!) {\n    searchPeople(query: $query) {\n      ...PersonFields\n    }\n  }\n": types.SearchPeopleDocument,
-    "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": types.MatchesDocument,
-    "\n  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": types.SwipeHistoryDocument,
+    "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {\n    matches(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      ignoreCleared: $ignoreCleared\n    ) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": types.MatchesDocument,
+    "\n  query SwipeHistory(\n    $limit: Int\n    $nextToken: String\n    $mediaType: MediaType\n    $search: String\n    $direction: SwipeDirection\n  ) {\n    swipeHistory(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      direction: $direction\n    ) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": types.SwipeHistoryDocument,
     "\n  query PendingMatch($mediaType: MediaType) {\n    pendingMatch(mediaType: $mediaType) {\n      ...MatchFields\n    }\n  }\n": types.PendingMatchDocument,
     "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!, $mediaType: MediaType) {\n    swipe(movieId: $movieId, direction: $direction, mediaType: $mediaType) {\n      movieId\n      mediaType\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n": types.SwipeDocument,
     "\n  mutation UndoSwipe($movieId: Int!, $mediaType: MediaType) {\n    undoSwipe(movieId: $movieId, mediaType: $mediaType) {\n      movieId\n      mediaType\n      undone\n    }\n  }\n": types.UndoSwipeDocument,
@@ -91,6 +92,7 @@ const documents: Documents = {
     "\n  mutation ConfirmPlexLink($code: String!) {\n    confirmPlexLink(code: $code) {\n      ...ProfileFields\n    }\n  }\n": types.ConfirmPlexLinkDocument,
     "\n  mutation UnlinkPlex {\n    unlinkPlex {\n      ...ProfileFields\n    }\n  }\n": types.UnlinkPlexDocument,
     "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {\n      ...PlexStatusFields\n    }\n  }\n": types.RequestOnPlexDocument,
+    "\n  mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {\n    clearHistory(kind: $kind, mediaType: $mediaType)\n  }\n": types.ClearHistoryDocument,
     "\n  mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {\n    clearMatch(matchId: $matchId, mediaType: $mediaType)\n  }\n": types.ClearMatchDocument,
     "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      mediaType\n      matchId\n      round\n      actorId\n    }\n  }\n": types.OnRoomEventDocument,
 };
@@ -178,11 +180,11 @@ export function graphql(source: "\n  query SearchPeople($query: String!) {\n    
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n"): typeof import('./graphql').MatchesDocument;
+export function graphql(source: "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {\n    matches(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      ignoreCleared: $ignoreCleared\n    ) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n"): typeof import('./graphql').MatchesDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n"): typeof import('./graphql').SwipeHistoryDocument;
+export function graphql(source: "\n  query SwipeHistory(\n    $limit: Int\n    $nextToken: String\n    $mediaType: MediaType\n    $search: String\n    $direction: SwipeDirection\n  ) {\n    swipeHistory(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      direction: $direction\n    ) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n"): typeof import('./graphql').SwipeHistoryDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -239,6 +241,10 @@ export function graphql(source: "\n  mutation UnlinkPlex {\n    unlinkPlex {\n  
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {\n      ...PlexStatusFields\n    }\n  }\n"): typeof import('./graphql').RequestOnPlexDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {\n    clearHistory(kind: $kind, mediaType: $mediaType)\n  }\n"): typeof import('./graphql').ClearHistoryDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
