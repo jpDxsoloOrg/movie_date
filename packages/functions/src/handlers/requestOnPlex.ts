@@ -1,5 +1,10 @@
-import type { FieldArguments, Movie, PlexStatus } from "@movie-date/core";
-import { ForbiddenError, RateLimitedError } from "../lib/errors.js";
+import {
+  resolveMediaType,
+  type FieldArguments,
+  type Movie,
+  type PlexStatus,
+} from "@movie-date/core";
+import { ForbiddenError, RateLimitedError, ValidationError } from "../lib/errors.js";
 import type { ResolverContext } from "../lib/identity.js";
 import { userLimit } from "../lib/keys.js";
 import { consume, dayWindow, refund } from "../lib/limits.js";
@@ -26,10 +31,14 @@ function toDraft(movie: Movie, userId: string, email: string): RequestDraft {
   };
 }
 
+/** Movies only until Plex Request's Sonarr fix is live. A TV id must say so, or it reads as the movie with that number. */
 export async function requestOnPlex(
-  { movieId }: FieldArguments["requestOnPlex"],
+  { movieId, mediaType }: FieldArguments["requestOnPlex"],
   context: ResolverContext,
 ): Promise<PlexStatus> {
+  if (resolveMediaType(mediaType) === "TV") {
+    throw new ValidationError("Shows can't be requested on Plex yet.");
+  }
   checkedMovieId(movieId);
   const { plexUserId, plexEmail } = await getOrCreateProfile(context);
   if (!plexUserId || !plexEmail) throw new ForbiddenError("Link Plex Request first.");

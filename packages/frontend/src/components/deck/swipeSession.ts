@@ -1,4 +1,4 @@
-import type { DeckCard, SwipeDirection } from "../../services/api";
+import type { DeckCard, MediaType, SwipeDirection } from "../../services/api";
 
 /** A dealt card. `seq` is its place in the deal, so a card put back lands where it was. */
 export interface DeckEntry {
@@ -26,7 +26,8 @@ export interface SwipeSession {
   tails: Map<number, Promise<void>>;
 }
 
-let current: SwipeSession | null = null;
+/** One per mode: hopping to the other deck and back keeps this one's undo stack. */
+const current = new Map<MediaType, SwipeSession>();
 
 /**
  * Lives outside React because Home unmounts on every trip to Filters, and the deck
@@ -34,11 +35,12 @@ let current: SwipeSession | null = null;
  * key (another person, room or round) starts clean, which is what drops the old
  * round's undo stack.
  */
-export function swipeSessionFor(key: string): SwipeSession {
-  if (current?.key !== key) {
-    current = { key, records: [], nextSeq: 0, tails: new Map() };
-  }
-  return current;
+export function swipeSessionFor(key: string, mediaType: MediaType = "MOVIE"): SwipeSession {
+  const existing = current.get(mediaType);
+  if (existing?.key === key) return existing;
+  const fresh: SwipeSession = { key, records: [], nextSeq: 0, tails: new Map() };
+  current.set(mediaType, fresh);
+  return fresh;
 }
 
 /**

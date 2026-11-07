@@ -325,7 +325,7 @@ describe("watchOptions", () => {
   it("doesn't put Plex in the cache every room shares", async () => {
     await givenRoomFilters(filtersWith({}));
     await watchOptions({ movieId: 1 }, ANA);
-    expect(getWatchOptions).toHaveBeenCalledWith(1, ANA.userId);
+    expect(getWatchOptions).toHaveBeenCalledWith(1, ANA.userId, "MOVIE");
     expect(dynamo.findByPkPrefix("CACHE#")).toEqual([]);
   });
 

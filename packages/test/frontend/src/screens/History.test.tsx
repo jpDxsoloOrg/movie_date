@@ -44,12 +44,21 @@ function makeMatch(id: number, title: string): Match {
     roomId: "room-1",
     round: 2,
     matchedAt: "2026-01-15T12:00:00Z",
+    mediaType: "MOVIE",
     movie: makeMovie(id, title),
+    show: null,
   };
 }
 
 function makeEntry(id: number, title: string, direction: HistoryEntry["direction"]): HistoryEntry {
-  return { movie: makeMovie(id, title), direction, round: 1, swipedAt: "2026-01-14T12:00:00Z" };
+  return {
+    mediaType: "MOVIE",
+    movie: makeMovie(id, title),
+    show: null,
+    direction,
+    round: 1,
+    swipedAt: "2026-01-14T12:00:00Z",
+  };
 }
 
 function Location(): JSX.Element {
@@ -97,7 +106,8 @@ describe("History tabs", () => {
     await userEvent.click(screen.getByRole("tab", { name: "My Swipes" }));
 
     const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
-    expect(within(panel).getByText("Alien (1995)")).toBeInTheDocument();
+    expect(within(panel).getByText("Alien")).toBeInTheDocument();
+    expect(within(panel).getAllByText("1995")).toHaveLength(2);
     expect(within(panel).getByText("Liked")).toBeInTheDocument();
     expect(within(panel).getByText("Passed")).toBeInTheDocument();
     expect(screen.queryByRole("tabpanel", { name: "Matches" })).not.toBeInTheDocument();
@@ -108,7 +118,7 @@ describe("History tabs", () => {
     renderScreen("/history?tab=swipes");
 
     expect(screen.getByRole("tab", { name: "My Swipes" })).toHaveAttribute("aria-selected", "true");
-    expect(await screen.findByText("Alien (1995)")).toBeInTheDocument();
+    expect(await screen.findByText("Alien")).toBeInTheDocument();
   });
 
   it("moves between tabs with the arrow keys", async () => {
@@ -164,7 +174,7 @@ describe("Past matches", () => {
     expect(within(sheet).getByRole("heading", { name: "Heat, 1995" })).toBeInTheDocument();
     expect(within(sheet).getByText("Heat overview")).toBeInTheDocument();
     expect(await within(sheet).findByRole("link", { name: /Watch Heat on Netflix/ })).toBeInTheDocument();
-    expect(mocks.watchOptions).toHaveBeenCalledWith(1);
+    expect(mocks.watchOptions).toHaveBeenCalledWith(1, "MOVIE");
     expect(within(sheet).queryByRole("button", { name: "Back to Start" })).not.toBeInTheDocument();
     expect(screen.queryByText("Match Found")).not.toBeInTheDocument();
     expect(mocks.startNewRound).not.toHaveBeenCalled();
@@ -214,7 +224,7 @@ describe("Plex on a past match", () => {
 
     const sheet = screen.getByRole("dialog", { name: "Heat details" });
     expect(await within(sheet).findByText("Requested on Plex")).toBeInTheDocument();
-    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1);
+    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "MOVIE");
   });
 
   it("closes only the confirmation on Escape", async () => {
@@ -262,7 +272,7 @@ describe("Paging", () => {
 
     expect(await within(matchesPanel()).findByRole("button", { name: /Alien/ })).toBeInTheDocument();
     expect(within(matchesPanel()).getByRole("button", { name: /Heat/ })).toBeInTheDocument();
-    expect(mocks.matches).toHaveBeenLastCalledWith({ limit: 20, nextToken: "page-2" });
+    expect(mocks.matches).toHaveBeenLastCalledWith({ limit: 20, nextToken: "page-2" }, "MOVIE");
     expect(within(matchesPanel()).queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 
@@ -274,8 +284,8 @@ describe("Paging", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Load more" }));
 
-    expect(await screen.findByText("Cats (1995)")).toBeInTheDocument();
-    expect(mocks.swipeHistory).toHaveBeenLastCalledWith({ limit: 20, nextToken: "swipes-2" });
+    expect(await screen.findByText("Cats")).toBeInTheDocument();
+    expect(mocks.swipeHistory).toHaveBeenLastCalledWith({ limit: 20, nextToken: "swipes-2" }, "MOVIE");
   });
 
   it("keeps the list and the button when a later page fails", async () => {

@@ -137,7 +137,8 @@
   gap: var(--space-2);
 }
 
-/* A phone on its side: all six entries still fit, at the minimum touch size. */
+/* A phone on its side: all seven entries still fit, at the minimum touch size. That costs
+   the brand, whose only job is a link home that's already in the list. */
 @media (max-height: 480px) {
   .md-side-nav--rail {
     padding-top: calc(var(--safe-top) + var(--space-2));
@@ -145,7 +146,15 @@
   }
 
   .md-side-nav--rail .md-side-nav__brand {
-    margin-bottom: var(--space-1);
+    display: none;
+  }
+
+  .md-side-nav--rail .md-side-nav__scroll {
+    gap: var(--space-1);
+  }
+
+  .md-side-nav--rail .md-side-nav__list {
+    gap: 0;
   }
 
   .md-side-nav--rail .md-side-nav__item {

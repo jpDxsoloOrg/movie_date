@@ -10,6 +10,12 @@ const YEARS_AHEAD = 2;
 
 export type ReleaseDates = Pick<FiltersInput, "releaseDateGte" | "releaseDateLte">;
 
+/**
+ * What an empty range means. Saving a movie deck fills in this year; a show deck stays
+ * open, because a series worth starting has rarely begun this year.
+ */
+export type RangeDefault = "this-year" | "any-time";
+
 export interface ReleasePick {
   id: string;
   label: string;
@@ -17,6 +23,8 @@ export interface ReleasePick {
   /** Decades join up into a range; the other picks replace whatever is there. */
   joins: boolean;
 }
+
+const DEFAULT_PICK_IDS = ["this-year", "any-time"] as const;
 
 const startOfYear = (year: number): string => `${year}-01-01`;
 const endOfYear = (year: number): string => `${year}-12-31`;
@@ -33,7 +41,7 @@ export function longDate(isoDate: string): string {
   });
 }
 
-export function releasePicks(now: Date): ReleasePick[] {
+export function releasePicks(now: Date, rangeDefault: RangeDefault = "this-year"): ReleasePick[] {
   const latestDecade = Math.floor(now.getFullYear() / 10) * 10;
   const decades = Array.from({ length: DECADES_SHOWN }, (_, index): ReleasePick => {
     const start = latestDecade - index * 10;
@@ -45,22 +53,28 @@ export function releasePicks(now: Date): ReleasePick[] {
     };
   });
   const oldestDecade = latestDecade - (DECADES_SHOWN - 1) * 10;
+  const classics: ReleasePick = {
+    id: "classics",
+    label: `Before ${oldestDecade}`,
+    dates: { releaseDateGte: MIN_DATE, releaseDateLte: endOfYear(oldestDecade - 1) },
+    joins: true,
+  };
+  const empty: ReleaseDates = { releaseDateGte: null, releaseDateLte: null };
+  if (rangeDefault === "any-time") {
+    return [{ id: DEFAULT_PICK_IDS[1], label: "Any time", dates: empty, joins: false }, ...decades, classics];
+  }
   return [
-    { id: "this-year", label: "This year", dates: { releaseDateGte: null, releaseDateLte: null }, joins: false },
+    { id: DEFAULT_PICK_IDS[0], label: "This year", dates: empty, joins: false },
     ...decades,
-    {
-      id: "classics",
-      label: `Before ${oldestDecade}`,
-      dates: { releaseDateGte: MIN_DATE, releaseDateLte: endOfYear(oldestDecade - 1) },
-      joins: true,
-    },
+    classics,
     { id: "all-time", label: "All time", dates: { releaseDateGte: MIN_DATE, releaseDateLte: null }, joins: false },
   ];
 }
 
 /** Saving fills in Jan 1, so a saved room with no picks looks like this too. */
-export function isDefaultRange(dates: ReleaseDates, now: Date): boolean {
+export function isDefaultRange(dates: ReleaseDates, now: Date, rangeDefault: RangeDefault = "this-year"): boolean {
   if (dates.releaseDateLte) return false;
+  if (rangeDefault === "any-time") return !dates.releaseDateGte;
   return !dates.releaseDateGte || dates.releaseDateGte === defaultReleaseDateGte(now);
 }
 
@@ -72,8 +86,13 @@ function isJoinedSpan(dates: ReleaseDates, picks: readonly ReleasePick[]): boole
   );
 }
 
-export function isPickActive(pick: ReleasePick, dates: ReleaseDates, now: Date): boolean {
-  if (pick.id === "this-year") return isDefaultRange(dates, now);
+export function isPickActive(
+  pick: ReleasePick,
+  dates: ReleaseDates,
+  now: Date,
+  rangeDefault: RangeDefault = "this-year",
+): boolean {
+  if (DEFAULT_PICK_IDS.some((id) => id === pick.id)) return isDefaultRange(dates, now, rangeDefault);
   const { releaseDateGte: start, releaseDateLte: end } = dates;
   if (!pick.joins) return start === pick.dates.releaseDateGte && !end;
   const { releaseDateGte: pickStart, releaseDateLte: pickEnd } = pick.dates;
@@ -98,10 +117,10 @@ export function pressPick(pick: ReleasePick, dates: ReleaseDates, now: Date): Re
 }
 
 /** What the active summary calls the range. Null when it's only the default. */
-export function rangeLabel(dates: ReleaseDates, now: Date): string | null {
-  if (isDefaultRange(dates, now)) return null;
+export function rangeLabel(dates: ReleaseDates, now: Date, rangeDefault: RangeDefault = "this-year"): string | null {
+  if (isDefaultRange(dates, now, rangeDefault)) return null;
   const { releaseDateGte: start, releaseDateLte: end } = dates;
-  const exactPick = releasePicks(now).find(
+  const exactPick = releasePicks(now, rangeDefault).find(
     (pick) => pick.dates.releaseDateGte === start && (pick.dates.releaseDateLte ?? null) === (end ?? null),
   );
   if (exactPick) return exactPick.label;
@@ -140,9 +159,13 @@ export function needsExactDates(dates: ReleaseDates): boolean {
   return Boolean((start && !isYearStart(start)) || (end && !isYearEnd(end)));
 }
 
-export function releaseDateError(dates: ReleaseDates, now: Date): string | null {
-  const start = dates.releaseDateGte || defaultReleaseDateGte(now);
-  return dates.releaseDateLte && dates.releaseDateLte < start
+export function releaseDateError(
+  dates: ReleaseDates,
+  now: Date,
+  rangeDefault: RangeDefault = "this-year",
+): string | null {
+  const start = dates.releaseDateGte || (rangeDefault === "this-year" ? defaultReleaseDateGte(now) : null);
+  return start && dates.releaseDateLte && dates.releaseDateLte < start
     ? `End date must be on or after ${longDate(start)}`
     : null;
 }

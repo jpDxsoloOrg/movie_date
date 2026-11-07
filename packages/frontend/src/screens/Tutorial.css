@@ -47,6 +47,28 @@
   font-size: var(--font-size-sm);
 }
 
+/* The real switch's shape, with no controls: this scene is only ever looked at. */
+.tutorial__mode {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-app-bar);
+  color: var(--color-on-app-bar);
+  font-size: var(--font-size-sm);
+}
+
+.tutorial__mode-option {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+}
+
+.tutorial__mode-option--current {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-weight: 700;
+}
+
 .tutorial__code strong {
   letter-spacing: 0.08em;
 }

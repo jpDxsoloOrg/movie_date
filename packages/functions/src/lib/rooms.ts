@@ -9,6 +9,7 @@ import {
   type Movie,
   type Profile,
   type Room,
+  type Show,
   type SwipeDirection,
 } from "@movie-date/core";
 import {
@@ -41,9 +42,13 @@ export interface ProfileItem extends Item {
 export interface RoomMetaItem extends Item {
   code: string;
   filters: Filters;
+  /** Absent until first saved, as on every room made before Going Steady. */
+  tvFilters?: Filters;
   matchThreshold: number;
   requireMajority: boolean;
   round: number;
+  /** Absent until the first Keep Looking, which reads as FIRST_ROUND. */
+  tvRound?: number;
   createdAt: string;
 }
 
@@ -60,12 +65,14 @@ export interface SwipeItem extends Item {
   direction: SwipeDirection;
   swipedAt: string;
   movie: Movie;
+  show?: Show;
 }
 
 export interface TallyItem extends Item {
   movieId: number;
   likes: number;
   movie: Movie;
+  show?: Show;
 }
 
 export interface MatchItem extends Item {
@@ -74,6 +81,7 @@ export interface MatchItem extends Item {
   round: number;
   matchedAt: string;
   movie: Movie;
+  show?: Show;
 }
 
 export interface MatchedItem extends Item {
@@ -81,6 +89,8 @@ export interface MatchedItem extends Item {
   movieId: number;
   matchSk: string;
 }
+
+export const FIRST_ROUND = 1;
 
 const CONDITION_FAILED = "ConditionalCheckFailed";
 const TRANSACTION_CONFLICT = "TransactionConflict";
@@ -131,7 +141,9 @@ export function toMatch(item: MatchItem, roomId: string): Match {
     roomId,
     round: item.round,
     matchedAt: item.matchedAt,
+    mediaType: keys.mediaRefOfSk(item.sk).mediaType,
     movie: item.movie,
+    show: item.show ?? null,
   };
 }
 
@@ -143,7 +155,7 @@ export function newRoomWrites(roomId: string, code: string, now: string): Transa
     filters: emptyFilters(),
     matchThreshold: DEFAULT_MATCH_THRESHOLD,
     requireMajority: false,
-    round: 1,
+    round: FIRST_ROUND,
     createdAt: now,
   };
   return [
@@ -272,10 +284,12 @@ export async function loadRoom(roomId: string, callerId: string): Promise<Room> 
     id: roomId,
     code: meta.code,
     filters: meta.filters,
+    tvFilters: meta.tvFilters ?? emptyFilters(),
     // The value in force, not the stored one, which can sit above a shrunken room.
     matchThreshold: effectiveThreshold(meta, memberRows.length),
     requireMajority: meta.requireMajority,
     round: meta.round,
+    tvRound: meta.tvRound ?? FIRST_ROUND,
     members: profiles.map(([userId, profile]) => ({
       userId,
       displayName: profile.displayName,

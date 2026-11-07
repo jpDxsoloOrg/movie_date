@@ -2,22 +2,24 @@ import { NavLink } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useLogOut } from "../hooks/useLogOut";
+import { useMode } from "../mode/ModeProvider";
 import { Icon } from "./Icon";
 import {
   APP_VERSION,
+  NAV_GOING_STEADY,
   NAV_HISTORY,
-  NAV_HOME,
   NAV_MEMBERS,
   NAV_PROFILE,
   NAV_SETTINGS,
   NAV_TUTORIAL,
   TMDB_ATTRIBUTION,
+  navHome,
   type NavItem,
 } from "./navigation";
 import { Wordmark } from "./Wordmark";
 import "./Drawer.css";
 
-const PRIMARY_LINKS: readonly NavItem[] = [NAV_HOME, NAV_PROFILE, NAV_MEMBERS, NAV_HISTORY];
+const ROOM_LINKS: readonly NavItem[] = [NAV_PROFILE, NAV_MEMBERS, NAV_HISTORY];
 const SECONDARY_LINKS: readonly NavItem[] = [NAV_TUTORIAL, NAV_SETTINGS];
 
 export interface DrawerProps {
@@ -26,8 +28,9 @@ export interface DrawerProps {
 }
 
 export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
+  const { mode } = useMode();
   const logOut = useLogOut();
-  const trap = useFocusTrap<HTMLElement>(open, onClose);
+  const trap = useFocusTrap<HTMLDivElement>(open, onClose);
   if (!open) return null;
 
   const closeAndLogOut = async (): Promise<void> => {
@@ -35,9 +38,9 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
     await logOut();
   };
 
-  const renderLink = ({ to, label, icon }: NavItem): JSX.Element => (
+  const renderLink = ({ to, label, icon, state }: NavItem): JSX.Element => (
     <li key={to}>
-      <NavLink to={to} end className="md-drawer__item" onClick={onClose}>
+      <NavLink to={to} state={state} end className="md-drawer__item" onClick={onClose}>
         <Icon name={icon} />
         {label}
       </NavLink>
@@ -46,7 +49,7 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
 
   return createPortal(
     <div className="md-drawer" onClick={onClose}>
-      <nav
+      <div
         ref={trap.ref}
         className="md-drawer__panel"
         role="dialog"
@@ -59,23 +62,25 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
         <div className="md-drawer__header">
           <Wordmark />
         </div>
-        <ul className="md-drawer__list">
-          <li>
-            <button type="button" className="md-drawer__item" onClick={() => void closeAndLogOut()}>
-              <Icon name="logout" />
-              Log Out
-            </button>
-          </li>
-          <li className="md-drawer__divider" aria-hidden="true" />
-          {PRIMARY_LINKS.map(renderLink)}
-          <li className="md-drawer__divider" aria-hidden="true" />
-          {SECONDARY_LINKS.map(renderLink)}
-        </ul>
+        <nav className="md-drawer__nav" aria-label="Main">
+          <ul className="md-drawer__list">
+            <li>
+              <button type="button" className="md-drawer__item" onClick={() => void closeAndLogOut()}>
+                <Icon name="logout" />
+                Log Out
+              </button>
+            </li>
+            <li className="md-drawer__divider" aria-hidden="true" />
+            {[navHome(mode), NAV_GOING_STEADY, ...ROOM_LINKS].map(renderLink)}
+            <li className="md-drawer__divider" aria-hidden="true" />
+            {SECONDARY_LINKS.map(renderLink)}
+          </ul>
+        </nav>
         <footer className="md-drawer__footer">
           <p className="md-drawer__version">Version v{APP_VERSION}</p>
           <p className="md-drawer__attribution">{TMDB_ATTRIBUTION}</p>
         </footer>
-      </nav>
+      </div>
     </div>,
     document.body,
   );

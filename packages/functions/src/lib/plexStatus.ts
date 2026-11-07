@@ -1,6 +1,6 @@
 import type { PlexStatus } from "@movie-date/core";
 import { ValidationError } from "./errors.js";
-import { hasFileOnPlex } from "./plexIndex.js";
+import { hasFileOnPlex, showPresence } from "./plexIndex.js";
 import { movieStatus } from "./plexRequest.js";
 
 export const AVAILABLE: PlexStatus = { availability: "AVAILABLE", canRequest: false };
@@ -25,4 +25,16 @@ export async function loadPlexStatus(movieId: number, plexUserId: string): Promi
   if (hasActiveRequest) return REQUESTED;
   if (inLibrary) return { availability: "MONITORED", canRequest: false };
   return { availability: "NOT_IN_LIBRARY", canRequest: true };
+}
+
+/**
+ * The index alone: Plex Request has no status op for shows yet, and `movieStatus`
+ * would answer for the movie with this number. So a show can't read as REQUESTED,
+ * nor say which seasons are missing, and requests stay off until its Sonarr fix ships.
+ */
+export async function loadShowPlexStatus(showId: number): Promise<PlexStatus> {
+  const presence = await showPresence(showId);
+  if (presence === "WATCHABLE") return AVAILABLE;
+  if (presence === "WAITING") return { availability: "MONITORED", canRequest: false };
+  return REQUESTS_DOWN;
 }

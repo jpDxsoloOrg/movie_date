@@ -17,6 +17,7 @@ import {
   withEndYear,
   withStartYear,
   yearChoices,
+  type RangeDefault,
   type ReleaseDates,
 } from "./releaseRange";
 import "./ReleaseRange.css";
@@ -63,23 +64,32 @@ export interface ReleaseRangeProps {
   title: string;
   dates: ReleaseDates;
   error: string | null;
+  /** What leaving it empty means. */
+  rangeDefault?: RangeDefault;
   onChange: (dates: ReleaseDates) => void;
 }
 
-export function ReleaseRange({ title, dates, error, onChange }: ReleaseRangeProps): JSX.Element {
+export function ReleaseRange({
+  title,
+  dates,
+  error,
+  rangeDefault = "this-year",
+  onChange,
+}: ReleaseRangeProps): JSX.Element {
   const now = new Date();
   const defaultStart = defaultReleaseDateGte(now);
   const [exactOpen, setExactOpen] = useState(() => needsExactDates(dates));
   const years = yearChoices(now, dates);
+  const defaultLabel = rangeDefault === "this-year" ? "This year" : "Any time";
 
   return (
-    <FilterSection title={title} meta={rangeLabel(dates, now) ?? "This year"}>
+    <FilterSection title={title} meta={rangeLabel(dates, now, rangeDefault) ?? defaultLabel}>
       <div className="release-range__picks" role="group" aria-label="Quick picks">
-        {releasePicks(now).map((pick) => (
+        {releasePicks(now, rangeDefault).map((pick) => (
           <Chip
             key={pick.id}
             label={pick.label}
-            selected={isPickActive(pick, dates, now)}
+            selected={isPickActive(pick, dates, now, rangeDefault)}
             onClick={() => onChange(pressPick(pick, dates, now))}
           />
         ))}
@@ -91,7 +101,7 @@ export function ReleaseRange({ title, dates, error, onChange }: ReleaseRangeProp
           label="From"
           value={startYear(dates)}
           years={years}
-          emptyLabel="This year"
+          emptyLabel={rangeDefault === "this-year" ? "This year" : "Any year"}
           onChange={(year) => onChange({ ...dates, releaseDateGte: withStartYear(year) })}
         />
         <YearSelect
@@ -123,7 +133,7 @@ export function ReleaseRange({ title, dates, error, onChange }: ReleaseRangeProp
             min={MIN_DATE}
             max={MAX_DATE}
             value={dates.releaseDateGte ?? ""}
-            hint={dates.releaseDateGte ? undefined : `Defaults to ${longDate(defaultStart)}`}
+            hint={dates.releaseDateGte || rangeDefault !== "this-year" ? undefined : `Defaults to ${longDate(defaultStart)}`}
             onChange={(event) => onChange({ ...dates, releaseDateGte: event.target.value || null })}
           />
           <TextField

@@ -4,6 +4,10 @@
   padding-bottom: calc(var(--space-4) + var(--safe-bottom));
 }
 
+.history__media {
+  margin: var(--space-3) var(--space-4) 0;
+}
+
 .history__tabs {
   position: sticky;
   top: var(--space-2);
@@ -48,6 +52,11 @@
 }
 
 @media (min-width: 640px) {
+  .history__media {
+    align-self: flex-start;
+    width: 20rem;
+  }
+
   .history__tabs {
     align-self: flex-start;
     width: 20rem;

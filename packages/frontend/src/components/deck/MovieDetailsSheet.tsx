@@ -3,9 +3,11 @@ import { Icon } from "../Icon";
 import { Skeleton } from "../Skeleton";
 import { ErrorState } from "../StateMessage";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { api, errorMessage, type Movie } from "../../services/api";
+import { api, errorMessage, type MediaType, type Movie } from "../../services/api";
+import { MODE_COPY } from "../../mode/modeCopy";
+import { useMode } from "../../mode/ModeProvider";
 import { PlexStatusPanel } from "../match/PlexStatusPanel";
-import { runtimeAndRating } from "./movieFacts";
+import { networkAndRating, runtimeAndRating, showSummary, type MediaItem } from "./movieFacts";
 import "./MovieDetailsSheet.css";
 
 /** Only ever mounted by a deliberate tap, because it starts playing with sound. */
@@ -22,8 +24,8 @@ export function TrailerPlayer({ movie, trailerId }: { movie: Movie; trailerId: s
   );
 }
 
-function Trailer({ movie }: { movie: Movie }): JSX.Element {
-  const { data: trailerId, error, reload } = useAsyncData(() => api.trailer(movie.id), [movie.id]);
+function Trailer({ movie, mediaType }: { movie: Movie; mediaType: MediaType }): JSX.Element {
+  const { data: trailerId, error, reload } = useAsyncData(() => api.trailer(movie.id, mediaType), [movie.id, mediaType]);
 
   if (error && trailerId === undefined) {
     return <ErrorState title="Couldn't load the trailer" message={errorMessage(error)} onRetry={() => void reload()} />;
@@ -41,37 +43,43 @@ function Trailer({ movie }: { movie: Movie }): JSX.Element {
   return <TrailerPlayer movie={movie} trailerId={trailerId} />;
 }
 
-function MovieDetails({ movie }: { movie: Movie }): JSX.Element {
-  const facts = runtimeAndRating(movie);
+function MovieDetails({ item }: { item: MediaItem }): JSX.Element {
+  const { movie, show, mediaType } = item;
+  const factLines = show
+    ? [showSummary(show), networkAndRating(show), movie.runtime ? `${movie.runtime} min an episode` : ""]
+    : [runtimeAndRating(movie)];
   return (
     <div className="deck-details">
-      <Trailer movie={movie} />
+      <Trailer movie={movie} mediaType={mediaType} />
       <div className="deck-details__summary">
         {movie.posterUrl ? (
           <img className="deck-details__poster" src={movie.posterUrl} alt="" />
         ) : (
           <div className="deck-details__poster deck-details__poster--missing">
-            <Icon name="movie" />
+            <Icon name={MODE_COPY[mediaType].icon} />
           </div>
         )}
         <div className="deck-details__facts">
           <h2 className="deck-details__title">{movie.title}</h2>
           {movie.genres.length > 0 && <p>{movie.genres.join(", ")}</p>}
-          {facts && <p>{facts}</p>}
-          {movie.releaseYear && <p className="deck-details__year">{movie.releaseYear}</p>}
+          {factLines.filter(Boolean).map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+          {movie.releaseYear && !show && <p className="deck-details__year">{movie.releaseYear}</p>}
         </div>
       </div>
-      <PlexStatusPanel movieId={movie.id} movieTitle={movie.title} />
+      <PlexStatusPanel movieId={movie.id} movieTitle={movie.title} mediaType={mediaType} />
       <p className="deck-details__overview">{movie.overview}</p>
     </div>
   );
 }
 
-/** The trailer iframe exists only while `movie` is set, so closing stops playback. */
-export function MovieDetailsSheet({ movie, onClose }: { movie: Movie | null; onClose: () => void }): JSX.Element {
+/** The trailer iframe exists only while `item` is set, so closing stops playback. */
+export function MovieDetailsSheet({ item, onClose }: { item: MediaItem | null; onClose: () => void }): JSX.Element {
+  const { copy } = useMode();
   return (
-    <BottomSheet open={movie !== null} onClose={onClose} label={movie ? `${movie.title} details` : "Movie details"}>
-      {movie && <MovieDetails key={movie.id} movie={movie} />}
+    <BottomSheet open={item !== null} onClose={onClose} label={item ? `${item.movie.title} details` : copy.detailsFallback}>
+      {item && <MovieDetails key={`${item.mediaType}:${item.movie.id}`} item={item} />}
     </BottomSheet>
   );
 }

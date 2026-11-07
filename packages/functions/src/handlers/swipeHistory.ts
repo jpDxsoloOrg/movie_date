@@ -1,4 +1,4 @@
-import type { FieldArguments, HistoryPage } from "@movie-date/core";
+import { resolveMediaType, type FieldArguments, type HistoryPage } from "@movie-date/core";
 import { decodePageToken, encodePageToken, queryAll } from "../lib/db.js";
 import { ValidationError } from "../lib/errors.js";
 import type { ResolverContext } from "../lib/identity.js";
@@ -26,13 +26,19 @@ export async function swipeHistory(
   args: FieldArguments["swipeHistory"],
   context: ResolverContext,
 ): Promise<HistoryPage> {
+  const mediaType = resolveMediaType(args.mediaType);
   const { userId } = context;
   const { roomId } = await getOrCreateProfile(context);
   const pk = keys.roomPk(roomId);
   const limit = pageSize(args.limit);
 
   const rows = await queryAll<SwipeItem>(pk, { skPrefix: keys.prefixes.swipes() });
-  const own = rows.filter((row) => keys.parseSwipeSk(row.sk).sub === userId).sort(newestFirst);
+  const own = rows
+    .filter((row) => {
+      const parts = keys.parseSwipeSk(row.sk);
+      return parts.sub === userId && parts.mediaType === mediaType;
+    })
+    .sort(newestFirst);
 
   // A cursor rather than an offset: swipes arrive at the head of this list while
   // someone pages through it, which would shift an offset into duplicates.
@@ -43,7 +49,9 @@ export async function swipeHistory(
 
   return {
     entries: page.map((row) => ({
+      mediaType,
       movie: row.movie,
+      show: row.show ?? null,
       direction: row.direction,
       round: keys.parseSwipeSk(row.sk).round,
       swipedAt: row.swipedAt,

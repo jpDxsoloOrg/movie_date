@@ -4,6 +4,7 @@ import { Icon } from "../Icon";
 import { Skeleton } from "../Skeleton";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { useToast } from "../../hooks/useToast";
+import { useMode } from "../../mode/ModeProvider";
 import "./InviteSheet.css";
 
 function QrCode({ link }: { link: string }): JSX.Element {
@@ -24,6 +25,7 @@ function QrCode({ link }: { link: string }): JSX.Element {
 
 function InviteBody({ code }: { code: string }): JSX.Element {
   const toast = useToast();
+  const { copy } = useMode();
   const link = `${window.location.origin}/join/${code}`;
   const canShare = typeof navigator.share === "function";
 
@@ -38,7 +40,7 @@ function InviteBody({ code }: { code: string }): JSX.Element {
 
   const shareLink = async (): Promise<void> => {
     try {
-      await navigator.share({ title: "Movie Date", text: "Pick a movie with me on Movie Date", url: link });
+      await navigator.share({ title: copy.appTitle, text: copy.inviteText, url: link });
     } catch (error) {
       // Dismissing the share sheet rejects too, and that isn't a failure.
       if (!(error instanceof DOMException && error.name === "AbortError")) await copyLink();

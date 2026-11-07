@@ -1,5 +1,6 @@
 import { findProvider } from "@movie-date/core";
 import type { Genre, Room } from "../../services/api";
+import { commitmentLabel, showStatusLabel } from "../filters/showFilters";
 
 function yearOf(isoDate: string): string {
   return isoDate.slice(0, 4);
@@ -24,6 +25,9 @@ export function filterLabels(filters: Room["filters"], genres: readonly Genre[] 
     ...filters.services.map((service) => findProvider(service)?.label ?? service),
     ...filters.cast.map((person) => person.name),
     dateRangeLabel(filters.releaseDateGte, filters.releaseDateLte),
+    dateRangeLabel(filters.firstAirDateGte, filters.firstAirDateLte),
+    filters.showStatus ? showStatusLabel(filters.showStatus) : null,
+    filters.commitment ? commitmentLabel(filters.commitment) : null,
   ];
   return [...new Set(labels.filter((label): label is string => label !== null))];
 }

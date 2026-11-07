@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const frontend = (path: string): string => readFileSync(resolve(__dirname, "../../../../frontend", path), "utf8");
@@ -72,6 +72,29 @@ describe("theme contract", () => {
     for (const name of THEMES.movies.keys()) expect(name).toMatch(/^--theme-/);
   });
 
+  it("keeps the movie status bar black, as it's always been", () => {
+    expect(THEMES.movies.get("--theme-status-bar")).toBe("#000000");
+    expect(frontend("index.html")).toContain('<meta name="theme-color" content="#000000" />');
+  });
+
+  it("keeps mode colours in themes.css", () => {
+    const source = resolve(__dirname, "../../../../frontend/src");
+    const modeColours = new Set(
+      [...THEMES.movies.values(), ...THEMES.shows.values()]
+        .map((value) => value.toLowerCase())
+        .filter((value) => value.startsWith("#") && value !== "#000000"),
+    );
+    const files = (readdirSync(source, { recursive: true }) as string[])
+      .map((file) => join(source, file))
+      .filter((file) => /\.(css|ts|tsx)$/.test(file) && !file.endsWith("themes.css"));
+
+    const offenders = files.flatMap((file) => {
+      const text = readFileSync(file, "utf8").toLowerCase();
+      return [...modeColours].filter((colour) => text.includes(colour)).map((colour) => `${relative(source, file)}: ${colour}`);
+    });
+    expect(offenders).toEqual([]);
+  });
+
   it("keeps the identity colours from the specs", () => {
     expect(THEMES.movies.get("--theme-gradient-start")).toBe("#ff5f6d");
     expect(THEMES.movies.get("--theme-gradient-end")).toBe("#ffc371");
@@ -123,12 +146,35 @@ describe.each(Object.entries(THEMES))("%s contrast", (_name, theme) => {
     expect(contrast(shared("--color-on-gradient"), plate)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
+  it("the system's white status icons pass on the status bar", () => {
+    expect(contrast(shared("--color-on-app-bar"), colour("--theme-status-bar"))).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  it.each(["--theme-gradient-start", "--theme-gradient-end"])(
+    "the mode switch's checked segment stands off its scrim over %s",
+    (stop) => {
+      const track = over(colour("--theme-scrim"), colour(stop));
+      expect(contrast(colour("--theme-accent"), track)).toBeGreaterThanOrEqual(AA_LARGE);
+    },
+  );
+
+  it("the match banner's text and headline pass on its raised surface", () => {
+    expect(contrast(colour("--theme-text"), colour("--theme-surface-raised"))).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrast(colour("--theme-accent-text"), colour("--theme-surface-raised"))).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
   it("the brand end of the wordmark passes on the black chrome", () => {
     expect(contrast(colour("--theme-brand-start"), shared("--color-app-bar"))).toBeGreaterThanOrEqual(AA_TEXT);
   });
 });
 
 describe("where the tokens are used", () => {
+  it("draws the match banner from tokens, so it can wear the other mode's theme", () => {
+    const css = frontend("src/components/MatchBanner.css");
+    expect(css).toContain("background: var(--color-surface-raised)");
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+  });
+
   it("draws field and chip edges with the control border, not the divider", () => {
     expect(frontend("src/components/TextField.css")).toContain("border: 2px solid var(--color-border-control)");
     expect(frontend("src/components/Chip.css")).toContain("border: 1px solid var(--color-border-control)");

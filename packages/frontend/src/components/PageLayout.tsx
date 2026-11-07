@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+import { useMode } from "../mode/ModeProvider";
 import { AppBar } from "./AppBar";
 import { BottomNav } from "./BottomNav";
 import { Drawer } from "./Drawer";
@@ -44,6 +45,7 @@ export function PageLayout({
   children,
 }: PageLayoutProps): JSX.Element {
   const breakpoint = useBreakpoint();
+  const { copy } = useMode();
   const { pathname } = useLocation();
   const content = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -61,6 +63,12 @@ export function PageLayout({
     if (isDesktop) setMenuOpen(false);
   }, [isDesktop]);
 
+  // The router owns the URL, so the jump happens here and not through the hash.
+  const skipToContent = (event: MouseEvent<HTMLAnchorElement>): void => {
+    event.preventDefault();
+    content.current?.focus();
+  };
+
   const pageClasses = ["md-page", gradient && "md-page--gradient"].filter(Boolean).join(" ");
   const contentClasses = [
     "md-page__content",
@@ -72,15 +80,20 @@ export function PageLayout({
 
   return (
     <div className={pageClasses}>
+      {!bare && (
+        <a className="md-skip-link" href="#main" onClick={skipToContent}>
+          Skip to content
+        </a>
+      )}
       {!bare && isMobile && <AppBar title={title} onOpenMenu={() => setMenuOpen(true)} />}
       {!bare && !isMobile && <SideNav rail={!isDesktop} onOpenMenu={() => setMenuOpen(true)} />}
       {!bare && !isDesktop && <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
-      <main ref={content} className={contentClasses}>
+      <main ref={content} id="main" className={contentClasses} tabIndex={-1}>
         <PageActionsContext.Provider value={actionsSlot}>
           <RouteTransition className="md-page__column">
             {!bare && title && !isMobile && <PageHeader level={1} title={title} actionsRef={setActionsSlot} />}
             {!bare && title && isMobile && <div ref={setActionsSlot} className="md-page__actions" />}
-            {!bare && !title && !isMobile && <h1 className="sr-only">Movie Date</h1>}
+            {!bare && !title && !isMobile && <h1 className="sr-only">{copy.appTitle}</h1>}
             {children ?? <Outlet />}
           </RouteTransition>
         </PageActionsContext.Provider>

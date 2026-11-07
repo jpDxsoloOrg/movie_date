@@ -131,7 +131,13 @@
   font-size: var(--font-size-sm);
 }
 
+.history-row__years {
+  color: var(--color-text-muted);
+}
+
+/* Always its own line, so a long label doesn't decide which rows wrap. */
 .history-row__stamp {
+  flex-basis: 100%;
   color: var(--color-text-muted);
 }
 
@@ -221,6 +227,8 @@
   .history-stub--featured .history-stub__card {
     position: relative;
     display: block;
+    /* Everything inside is absolute, so alone in its row it would have no height. */
+    min-height: calc(19.5rem + var(--stub-height));
     mask: none;
   }
 

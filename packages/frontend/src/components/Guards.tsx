@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { RoomProvider } from "../context/RoomProvider";
 import { useAuth } from "../hooks/useAuth";
 import { currentPath, returnPathFrom, type ReturnState } from "../hooks/useReturnPath";
+import { ModeProvider } from "../mode/ModeProvider";
 import { hasSeenTutorial } from "../services/tutorial";
 import { SkeletonPage } from "./Skeleton";
 
@@ -10,15 +11,21 @@ export function RequireAuth(): JSX.Element {
   const { status } = useAuth();
   const location = useLocation();
 
-  if (status === "loading") return <SkeletonPage />;
   if (status === "signedOut") {
     const state: ReturnState = { from: currentPath(location) };
     return <Navigate to="/login" replace state={state} />;
   }
+  // Around the loading state too, so someone in Going Steady doesn't get a Movies skeleton.
   return (
-    <RoomProvider>
-      <Outlet />
-    </RoomProvider>
+    <ModeProvider>
+      {status === "loading" ? (
+        <SkeletonPage />
+      ) : (
+        <RoomProvider>
+          <Outlet />
+        </RoomProvider>
+      )}
+    </ModeProvider>
   );
 }
 

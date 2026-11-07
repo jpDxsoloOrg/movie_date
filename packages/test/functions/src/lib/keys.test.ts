@@ -3,6 +3,7 @@ import {
   cache,
   match,
   matched,
+  mediaRefOfSk,
   member,
   parseSwipeSk,
   prefixes,
@@ -53,6 +54,17 @@ describe("key builders", () => {
       mediaType: "TV",
       id: 550,
     });
+  });
+
+  it.each([
+    ["MATCH#2026-01-01T00:00:00.000Z#550", "MOVIE"],
+    ["MATCH#2026-01-01T00:00:00.000Z#movie:550", "MOVIE"],
+    ["MATCH#2026-01-01T00:00:00.000Z#tv:550", "TV"],
+    ["MATCHED#3#550", "MOVIE"],
+    ["TALLY#3#tv:550", "TV"],
+    ["SWIPE#3#u1#550", "MOVIE"],
+  ])("reads the title off %s, typed or bare", (sk, mediaType) => {
+    expect(mediaRefOfSk(sk)).toEqual({ mediaType, id: 550 });
   });
 
   it("still reads swipe rows written before keys carried a media type", () => {

@@ -13,8 +13,11 @@ const SUBSCRIBE_FIELD = "onRoomEvent";
 
 /** The deepest operation the site sends is well inside this. */
 const QUERY_DEPTH_LIMIT = 10;
-/** Only root fields have resolvers and the site sends one per request. */
-const RESOLVER_COUNT_LIMIT = 5;
+/**
+ * Only root fields have resolvers and every operation in the site has one. Aliases
+ * count, so this is also what stops one request carrying several deck walks.
+ */
+const RESOLVER_COUNT_LIMIT = 1;
 
 const ROOT_TYPES = ["Query", "Mutation", "Subscription"];
 

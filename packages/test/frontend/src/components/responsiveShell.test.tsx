@@ -12,6 +12,7 @@ vi.mock("@movie-date/frontend/components/JoinRoomDialog", () => ({
 
 import { PageActions } from "@movie-date/frontend/components/PageHeader";
 import { PageLayout } from "@movie-date/frontend/components/PageLayout";
+import { ModeContext, modeValue } from "@movie-date/frontend/mode/ModeProvider";
 import { fakeViewport } from "../support/viewport";
 
 const DESKTOP = 1280;
@@ -104,6 +105,46 @@ describe("desktop shell", () => {
   });
 });
 
+describe("Going Steady in the sidebar", () => {
+  beforeEach(() => {
+    fakeViewport(DESKTOP);
+  });
+
+  it("links it, active only on the deck and not on the show filters", () => {
+    renderLayout(<PageLayout>content</PageLayout>, "/shows/filters");
+    expect(within(mainNav()).getByRole("link", { name: "Going Steady" })).toHaveAttribute("href", "/shows");
+    expect(within(mainNav()).getByRole("link", { name: "Going Steady" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("points Search at the mode's own filters and offers Movies from Going Steady", () => {
+    renderLayout(
+      <ModeContext.Provider value={modeValue("TV")}>
+        <PageLayout>content</PageLayout>
+      </ModeContext.Provider>,
+      "/shows",
+    );
+    expect(within(mainNav()).getByRole("link", { name: "Search" })).toHaveAttribute("href", "/shows/filters");
+    expect(within(mainNav()).getByRole("link", { name: "Movies" })).toHaveAttribute("href", "/");
+    expect(within(mainNav()).getByRole("link", { name: "Going Steady" })).toHaveAttribute("aria-current", "page");
+  });
+});
+
+describe("skipping the menu", () => {
+  it("puts a skip link first, which moves focus to the screen", async () => {
+    renderLayout(<PageLayout>content</PageLayout>);
+    const skip = screen.getByRole("link", { name: "Skip to content" });
+    await userEvent.tab();
+    expect(skip).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
+
+  it("has nothing to skip on a bare screen", () => {
+    renderLayout(<PageLayout bare>content</PageLayout>);
+    expect(screen.queryByRole("link", { name: "Skip to content" })).not.toBeInTheDocument();
+  });
+});
+
 describe("tablet shell", () => {
   beforeEach(() => {
     fakeViewport(TABLET);
@@ -133,6 +174,11 @@ describe("tablet shell", () => {
   it("keeps the full name on the Join button, whose rail label is shortened too", () => {
     renderLayout(<PageLayout>content</PageLayout>);
     expect(within(mainNav()).getByRole("button", { name: "Join Room" })).toHaveTextContent("Join");
+  });
+
+  it("keeps the full name on the Going Steady link", () => {
+    renderLayout(<PageLayout>content</PageLayout>);
+    expect(within(mainNav()).getByRole("link", { name: "Going Steady" })).toHaveTextContent("Shows");
   });
 
   it("keeps the full name on a link whose rail label is shortened", () => {

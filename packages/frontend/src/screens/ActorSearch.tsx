@@ -12,11 +12,10 @@ import { EmptyState, ErrorState } from "../components/StateMessage";
 import { TextField } from "../components/TextField";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { useRoom } from "../hooks/useRoom";
+import { useMode } from "../mode/ModeProvider";
+import { actorsPath, filtersPath } from "../mode/modeRoutes";
 import { api, errorMessage, type Person } from "../services/api";
 import "./ActorSearch.css";
-
-const ACTORS_PATH = "/filters/actors";
-const FILTERS_PATH = "/filters";
 
 /** Marks the sacrificial history entry described in the guard effect below. */
 interface ActorRouteState {
@@ -25,13 +24,16 @@ interface ActorRouteState {
 
 export default function ActorSearch(): JSX.Element {
   const { room } = useRoom();
+  const { mode: mediaType } = useMode();
   const navigate = useNavigate();
   const location = useLocation();
   const guarded = (location.state as ActorRouteState | null)?.unsavedGuard === true;
 
   // Pinned so that a room change while this is open can't file the draft under it.
   const [roomId] = useState(room.id);
-  const [baseDraft] = useState(() => peekFilterDraft(room.id) ?? room.filters);
+  const [baseDraft] = useState(
+    () => peekFilterDraft(room.id, mediaType) ?? (mediaType === "TV" ? room.tvFilters : room.filters),
+  );
   const [selected, setSelected] = useState<Person[]>(baseDraft.cast);
   const [modified, setModified] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
@@ -59,19 +61,19 @@ export default function ActorSearch(): JSX.Element {
     }
     guardPushed.current = true;
     const state: ActorRouteState = { unsavedGuard: true };
-    navigate(ACTORS_PATH, { state });
-  }, [modified, guarded, navigate]);
+    navigate(actorsPath(mediaType), { state });
+  }, [modified, guarded, navigate, mediaType]);
 
   const exit = (): void => {
     if (openedDirectly.current) {
-      navigate(FILTERS_PATH, { replace: true });
+      navigate(filtersPath(mediaType), { replace: true });
       return;
     }
     navigate(guarded ? -2 : -1);
   };
 
   const saveAndExit = (): void => {
-    if (modified) stashFilterDraft(roomId, { ...baseDraft, cast: selected });
+    if (modified) stashFilterDraft(roomId, { ...baseDraft, cast: selected }, mediaType);
     exit();
   };
 
@@ -84,7 +86,7 @@ export default function ActorSearch(): JSX.Element {
     setPromptOpen(false);
     if (!guarded) {
       const state: ActorRouteState = { unsavedGuard: true };
-      navigate(ACTORS_PATH, { state });
+      navigate(actorsPath(mediaType), { state });
     }
   };
 
@@ -156,7 +158,7 @@ export default function ActorSearch(): JSX.Element {
         <IconButton label="Back to filters" onClick={requestExit}>
           <Icon name="back" />
         </IconButton>
-        <h2 className="actor-search__title">Select Actors</h2>
+        <h1 className="actor-search__title">Select Actors</h1>
         <Button onClick={saveAndExit}>Save</Button>
       </header>
 

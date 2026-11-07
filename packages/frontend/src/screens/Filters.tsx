@@ -8,7 +8,6 @@ import { ActiveFilters, type ActiveFilter } from "../components/filters/ActiveFi
 import { ActorFace } from "../components/filters/ActorFace";
 import { ActorPicker } from "../components/filters/ActorPicker";
 import { ApplyBar, type ApplyControlProps } from "../components/filters/ApplyBar";
-import type { ItemNoun } from "../components/filters/FilterCount";
 import {
   activeServices,
   clearFilterDraft,
@@ -19,17 +18,19 @@ import {
 import { GenrePicker } from "../components/filters/GenrePicker";
 import { PreviewTicket } from "../components/filters/PreviewTicket";
 import { ReleaseRange } from "../components/filters/ReleaseRange";
-import { rangeLabel, releaseDateError } from "../components/filters/releaseRange";
+import { rangeLabel, releaseDateError, type RangeDefault, type ReleaseDates } from "../components/filters/releaseRange";
 import { ServicePicker } from "../components/filters/ServicePicker";
+import { CommitmentPicker, ShowStatusPicker } from "../components/filters/ShowPicks";
+import { commitmentLabel, showStatusLabel } from "../components/filters/showFilters";
 import { useFilterPreview } from "../components/filters/useFilterPreview";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useRoom } from "../hooks/useRoom";
 import { useToast } from "../hooks/useToast";
-import { api, errorMessage, type FiltersInput } from "../services/api";
+import { useMode } from "../mode/ModeProvider";
+import { actorsPath, homePath } from "../mode/modeRoutes";
+import { api, errorMessage, type FiltersInput, type MediaType } from "../services/api";
 import "./Filters.css";
-
-const MOVIES: ItemNoun = { one: "movie", other: "movies" };
 
 interface Edits {
   roomId: string;
@@ -44,16 +45,34 @@ function isUnfiltered(filters: FiltersInput): boolean {
 }
 
 /** Exactly what Apply would save, so the preview counts the same thing. */
-function toSavedFilters(form: FiltersInput): FiltersInput {
-  return withDefaultReleaseDate({ ...form, services: normaliseServices(form.services) }, new Date());
+function toSavedFilters(form: FiltersInput, mediaType: MediaType): FiltersInput {
+  const saved = { ...form, services: normaliseServices(form.services) };
+  return mediaType === "TV" ? saved : withDefaultReleaseDate(saved, new Date());
 }
 
-export default function Filters(): JSX.Element {
+/** The date fields speak in release dates; a show's live under first-air names. */
+function formDates(form: FiltersInput, mediaType: MediaType): ReleaseDates {
+  return mediaType === "TV"
+    ? { releaseDateGte: form.firstAirDateGte, releaseDateLte: form.firstAirDateLte }
+    : { releaseDateGte: form.releaseDateGte, releaseDateLte: form.releaseDateLte };
+}
+
+function datesPatch(dates: ReleaseDates, mediaType: MediaType): Partial<FiltersInput> {
+  return mediaType === "TV"
+    ? { firstAirDateGte: dates.releaseDateGte, firstAirDateLte: dates.releaseDateLte }
+    : dates;
+}
+
+function ModeFilters(): JSX.Element {
   const { room, setRoom } = useRoom();
+  const { mode: mediaType, copy } = useMode();
+  const isShows = mediaType === "TV";
+  const rangeDefault: RangeDefault = isShows ? "any-time" : "this-year";
+  const roomFilters = isShows ? room.tvFilters : room.filters;
   const navigate = useNavigate();
   const toast = useToast();
   const breakpoint = useBreakpoint();
-  const genres = useAsyncData(() => api.genres(), []);
+  const genres = useAsyncData(() => api.genres(mediaType), []);
   const [saving, setSaving] = useState(false);
 
   // The phone sheet and the page are different trees. The fields live in this one node,
@@ -73,33 +92,34 @@ export default function Filters(): JSX.Element {
   // Null until the person changes something, so an untouched form follows the
   // live room when a roommate saves, while real edits aren't overwritten.
   const [edits, setEdits] = useState<Edits | null>(() => {
-    const draft = peekFilterDraft(room.id);
+    const draft = peekFilterDraft(room.id, mediaType);
     return draft ? { roomId: room.id, draft } : null;
   });
   const hasEdits = edits?.roomId === room.id;
-  const form = hasEdits ? edits.draft : room.filters;
+  const form = hasEdits ? edits.draft : roomFilters;
 
   useEffect(() => clearFilterDraft(), []);
 
   const now = new Date();
-  const dateError = releaseDateError(form, now);
-  const preview = useFilterPreview(dateError ? null : toSavedFilters(form));
+  const dates = formDates(form, mediaType);
+  const dateError = releaseDateError(dates, now, rangeDefault);
+  const preview = useFilterPreview(dateError ? null : toSavedFilters(form, mediaType), mediaType);
 
   const change = (patch: Partial<FiltersInput>): void => {
     setEdits({ roomId: room.id, draft: { ...form, ...patch } });
   };
 
   const openActors = (): void => {
-    if (hasEdits) stashFilterDraft(room.id, form);
-    navigate("/filters/actors");
+    if (hasEdits) stashFilterDraft(room.id, form, mediaType);
+    navigate(actorsPath(mediaType));
   };
 
   const apply = async (): Promise<void> => {
     if (dateError) return;
     setSaving(true);
     try {
-      setRoom(await api.updateFilters(toSavedFilters(form)));
-      navigate("/");
+      setRoom(await api.updateFilters(toSavedFilters(form, mediaType), mediaType));
+      navigate(homePath(mediaType));
     } catch (caught) {
       toast.error(errorMessage(caught));
       setSaving(false);
@@ -112,7 +132,7 @@ export default function Filters(): JSX.Element {
   };
 
   const services = activeServices(form.services, room.plexAvailable);
-  const dateLabel = rangeLabel(form, now);
+  const dateLabel = rangeLabel(dates, now, rangeDefault);
   const activeFilters: ActiveFilter[] = [
     ...(genres.data ?? [])
       .filter((genre) => form.genreIds.includes(genre.id))
@@ -137,16 +157,23 @@ export default function Filters(): JSX.Element {
           {
             id: "dates",
             label: dateLabel,
-            onRemove: () => change({ releaseDateGte: null, releaseDateLte: null }),
+            onRemove: () => change(datesPatch({ releaseDateGte: null, releaseDateLte: null }, mediaType)),
           },
         ]
+      : []),
+    ...(form.showStatus
+      ? [{ id: "status", label: showStatusLabel(form.showStatus), onRemove: () => change({ showStatus: null }) }]
+      : []),
+    ...(form.commitment
+      ? [{ id: "commitment", label: commitmentLabel(form.commitment), onRemove: () => change({ commitment: null }) }]
       : []),
   ];
 
   // Only saving fills in the default start, so a room that's never saved deals everything.
-  const emptyText = isUnfiltered(room.filters)
-    ? `The deck has every ${MOVIES.one} for now. Apply with nothing picked narrows it to this year’s.`
-    : `Nothing picked, so Apply deals this year’s ${MOVIES.other} on any service.`;
+  const movieEmptyText = isUnfiltered(room.filters)
+    ? `The deck has every ${copy.noun.one} for now. Apply with nothing picked narrows it to this year’s.`
+    : `Nothing picked, so Apply deals this year’s ${copy.noun.other} on any service.`;
+  const emptyText = isShows ? `Nothing picked, so the deck has every ${copy.noun.one}.` : movieEmptyText;
 
   const summary = (
     <ActiveFilters
@@ -172,19 +199,26 @@ export default function Filters(): JSX.Element {
         onChange={(picked) => change({ services: picked })}
       />
       <ActorPicker selected={form.cast} onChange={(cast) => change({ cast })} onBrowse={openActors} />
+      {isShows && (
+        <>
+          <ShowStatusPicker value={form.showStatus} onChange={(showStatus) => change({ showStatus })} />
+          <CommitmentPicker value={form.commitment} onChange={(commitment) => change({ commitment })} />
+        </>
+      )}
       <ReleaseRange
-        title="Release Date"
-        dates={form}
+        title={copy.dateTitle}
+        dates={dates}
         error={dateError}
-        onChange={(dates) => change(dates)}
+        rangeDefault={rangeDefault}
+        onChange={(next) => change(datesPatch(next, mediaType))}
       />
     </form>
   );
 
   const applyControl: ApplyControlProps = {
     preview,
-    noun: MOVIES,
-    problem: dateError ? "Check the release dates" : null,
+    noun: copy.noun,
+    problem: dateError ? copy.dateProblem : null,
     saving,
     onApply: () => void apply(),
   };
@@ -197,7 +231,7 @@ export default function Filters(): JSX.Element {
           open
           fullScreen
           title="Filters"
-          onClose={() => navigate("/")}
+          onClose={() => navigate(homePath(mediaType))}
           actions={<ApplyBar {...applyControl} />}
         >
           <div className="filters__sheet-summary">{summary}</div>
@@ -222,4 +256,10 @@ export default function Filters(): JSX.Element {
       )}
     </>
   );
+}
+
+/** Keyed so a form can't carry one mode's draft or genres into the other. */
+export default function Filters(): JSX.Element {
+  const { mode } = useMode();
+  return <ModeFilters key={mode} />;
 }

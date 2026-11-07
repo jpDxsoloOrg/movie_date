@@ -1,4 +1,5 @@
-import type { Match, Movie } from "../../services/api";
+import type { Match } from "../../services/api";
+import { showYears, type MediaItem } from "../deck/movieFacts";
 
 export const HISTORY_PAGE_SIZE = 20;
 
@@ -8,8 +9,15 @@ export function formatHistoryDate(isoDate: string): string {
   return dateFormat.format(new Date(isoDate));
 }
 
-export function movieLabel(movie: Movie): string {
-  return movie.releaseYear ? `${movie.title} (${movie.releaseYear})` : movie.title;
+type TitleItem = Pick<MediaItem, "movie" | "show">;
+
+export function yearsLabel({ movie, show }: TitleItem): string {
+  return String((show ? showYears(show) : movie.releaseYear) ?? "");
+}
+
+export function titleLabel(item: TitleItem): string {
+  const years = yearsLabel(item);
+  return years ? `${item.movie.title} (${years})` : item.movie.title;
 }
 
 /** The line printed on a match's ticket. */

@@ -7,12 +7,24 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearFilterDraft } from "../components/filters/filterDraft";
+import { MatchBanner } from "../components/MatchBanner";
 import { ErrorState } from "../components/StateMessage";
 import { SkeletonPage } from "../components/Skeleton";
 import { useToast } from "../hooks/useToast";
-import { api, type Match, type Member, type Profile, type Room, type RoomEvent } from "../services/api";
+import { useMode } from "../mode/ModeProvider";
+import { isFiltersPath, matchIdOfPath, matchPath } from "../mode/modeRoutes";
+import {
+  api,
+  type Match,
+  type MediaType,
+  type Member,
+  type Profile,
+  type Room,
+  type RoomEvent,
+} from "../services/api";
 import { subscribeToRoom, type RealtimeStatus } from "../services/realtime";
 
 export type RoomEventListener = (event: RoomEvent) => void;
@@ -21,7 +33,7 @@ export interface RoomContextValue {
   me: Profile;
   room: Room;
   realtimeStatus: RealtimeStatus;
-  /** Changes whenever the deck is out of date. Use it as a dependency or a key. */
+  /** Changes whenever the current mode's deck is out of date. Use it as a dependency or a key. */
   deckVersion: number;
   /** Apply the Room a mutation returned. */
   setRoom: (room: Room) => void;
@@ -33,19 +45,44 @@ export interface RoomContextValue {
   subscribeEvents: (listener: RoomEventListener) => () => void;
 }
 
-/** What /match/:matchId receives in router state when the app has the match in hand. */
+/** What the match route receives in router state when the app has the match in hand. */
 export interface MatchRouteState {
   match?: Match;
+  /** The person pressed View, and the button they pressed is gone. */
+  focusHeadline?: boolean;
 }
 
 export const RoomContext = createContext<RoomContextValue | null>(null);
 
-const MATCH_PATH = /^\/match\/([^/]+)/;
-const FILTERS_PATH = "/filters";
+/** Home's place for the other-mode banner. Off Home, it sits at the screen's edge instead. */
+export const MatchBannerSlotContext = createContext<(slot: HTMLElement | null) => void>(() => undefined);
 
-/** A threshold or member change leaves the deck valid; these don't. */
-function deckKey(room: Room): string {
-  return JSON.stringify([room.id, room.round, room.filters]);
+/** A match found in the mode this person isn't in. */
+interface OtherModeMatch {
+  matchId: string;
+  mediaType: MediaType;
+  match?: Match;
+  /** The round it belongs to. Undefined until the room has loaded, and then it's the room's. */
+  round?: number;
+}
+
+function roundIn(room: Room, mediaType: MediaType): number {
+  return mediaType === "TV" ? room.tvRound : room.round;
+}
+
+/** Once that mode's round moves on, the match is over for everyone. */
+function isCurrent(banner: OtherModeMatch, room: Room): boolean {
+  return (banner.round ?? roundIn(room, banner.mediaType)) >= roundIn(room, banner.mediaType);
+}
+
+/**
+ * A threshold or member change leaves a deck valid; these don't. Each mode has its own
+ * round and filters, so a reset in one can't restart a deck in the other.
+ */
+function deckKey(room: Room, mediaType: MediaType): string {
+  return mediaType === "TV"
+    ? JSON.stringify([room.id, room.tvRound, room.tvFilters])
+    : JSON.stringify([room.id, room.round, room.filters]);
 }
 
 function memberChanges(before: Member[], after: Member[]): { joined: Member[]; left: Member[] } {
@@ -65,12 +102,18 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
   const toast = useToast();
+  const { mode } = useMode();
+  // Read when an event lands, so changing mode doesn't redial the socket either.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const [me, setMe] = useState<Profile | null>(null);
   const [room, setRoomState] = useState<Room | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
-  const [deckVersion, setDeckVersion] = useState(0);
+  const [deckVersions, setDeckVersions] = useState<Record<MediaType, number>>({ MOVIE: 0, TV: 0 });
+  const [otherModeMatch, setOtherModeMatch] = useState<OtherModeMatch | null>(null);
+  const [bannerSlot, setBannerSlot] = useState<HTMLElement | null>(null);
 
   const roomRef = useRef<Room | null>(null);
   const roomRequest = useRef(0);
@@ -79,15 +122,22 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
   pathnameRef.current = pathname;
   const listeners = useRef(new Set<RoomEventListener>());
   // Each match routes a person once, so leaving the match screen by the drawer
-  // doesn't bounce them back on the next focus while the round still has it.
+  // doesn't bounce them back on the next focus while the round still has it. A
+  // dismissed banner counts: they've seen it and said no.
   const routedMatchIds = useRef(new Set<string>());
 
   const applyRoom = useCallback((next: Room) => {
     const previous = roomRef.current;
     roomRef.current = next;
     setRoomState(next);
-    if (previous && deckKey(previous) !== deckKey(next)) {
-      setDeckVersion((version) => version + 1);
+    if (previous) {
+      const bump = (mediaType: MediaType): number =>
+        deckKey(previous, mediaType) === deckKey(next, mediaType) ? 0 : 1;
+      const movieBump = bump("MOVIE");
+      const showBump = bump("TV");
+      if (movieBump + showBump > 0) {
+        setDeckVersions((versions) => ({ MOVIE: versions.MOVIE + movieBump, TV: versions.TV + showBump }));
+      }
     }
   }, []);
 
@@ -113,24 +163,47 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
     await fetchRoom();
   }, [fetchRoom]);
 
+  const openMatch = useCallback((matchId: string, mediaType: MediaType, match?: Match, focusHeadline = false) => {
+    routedMatchIds.current.add(matchId);
+    setOtherModeMatch((shown) => (shown?.matchId === matchId ? null : shown));
+    const state: MatchRouteState = { match, focusHeadline };
+    navigateRef.current(matchPath(mediaType, matchId), { state });
+  }, []);
+
   const routeToMatch = useCallback(
-    (matchId: string, match?: Match) => {
+    (matchId: string, mediaType: MediaType, match?: Match) => {
       if (routedMatchIds.current.has(matchId)) return;
+      // Nobody is pulled out of a swipe in the other mode.
+      if (mediaType !== modeRef.current) {
+        const room = roomRef.current;
+        const round = match?.round ?? (room ? roundIn(room, mediaType) : undefined);
+        setOtherModeMatch((shown) =>
+          shown?.matchId === matchId && (shown.match || !match) ? shown : { matchId, mediaType, match, round },
+        );
+        return;
+      }
       // Someone reading a match isn't pulled off it. Leaving the screen re-checks
       // pendingMatch, so this one isn't lost.
-      if (MATCH_PATH.test(pathnameRef.current)) return;
-      routedMatchIds.current.add(matchId);
-      const state: MatchRouteState = { match };
-      navigateRef.current(`/match/${matchId}`, { state });
+      if (matchIdOfPath(pathnameRef.current)) return;
+      openMatch(matchId, mediaType, match);
     },
-    [],
+    [openMatch],
   );
 
-  const goToMatch = useCallback((match: Match) => routeToMatch(match.id, match), [routeToMatch]);
+  const goToMatch = useCallback(
+    (match: Match) => routeToMatch(match.id, match.mediaType, match),
+    [routeToMatch],
+  );
 
   const checkPendingMatch = useCallback(async () => {
-    const pending = await api.pendingMatch();
-    if (pending) routeToMatch(pending.id, pending);
+    // A show check that fails must not cost someone their room. The next resync retries it.
+    const [movie, show] = await Promise.all([
+      api.pendingMatch("MOVIE"),
+      api.pendingMatch("TV").catch(() => null),
+    ]);
+    for (const pending of [movie, show]) {
+      if (pending) routeToMatch(pending.id, pending.mediaType, pending);
+    }
   }, [routeToMatch]);
 
   const load = useCallback(async () => {
@@ -166,7 +239,7 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
       for (const listener of listeners.current) listener(event);
       try {
         if (event.type === "MATCH_FOUND") {
-          if (event.matchId) routeToMatch(event.matchId);
+          if (event.matchId) routeToMatch(event.matchId, event.mediaType ?? "MOVIE");
         } else if (event.type === "MEMBERS_CHANGED") {
           await announceMemberChanges();
         } else {
@@ -197,19 +270,28 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
   // A draft only means anything between Filters and ActorSearch. Left anywhere else
   // (a match pulling someone out), it mustn't reappear on the next visit to Filters.
   useEffect(() => {
-    if (!pathname.startsWith(FILTERS_PATH)) clearFilterDraft();
+    if (!isFiltersPath(pathname)) clearFilterDraft();
   }, [pathname]);
 
   const wasOnMatchScreen = useRef(false);
   useEffect(() => {
-    const matchId = MATCH_PATH.exec(pathname)?.[1];
+    const matchId = matchIdOfPath(pathname);
     if (matchId) {
       routedMatchIds.current.add(matchId);
+      setOtherModeMatch((shown) => (shown?.matchId === matchId ? null : shown));
     } else if (wasOnMatchScreen.current) {
       void checkPendingMatch().catch(() => undefined);
     }
     wasOnMatchScreen.current = matchId !== undefined;
   }, [pathname, checkPendingMatch]);
+
+  // Arriving in a mode is when its waiting match can route, as opening the app does.
+  const previousMode = useRef(mode);
+  useEffect(() => {
+    if (previousMode.current === mode) return;
+    previousMode.current = mode;
+    void checkPendingMatch().catch(() => undefined);
+  }, [mode, checkPendingMatch]);
 
   const subscribeEvents = useCallback((listener: RoomEventListener) => {
     listeners.current.add(listener);
@@ -218,6 +300,7 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
     };
   }, []);
 
+  const deckVersion = deckVersions[mode];
   const value = useMemo(
     () =>
       me && room
@@ -242,5 +325,24 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
     }
     return <SkeletonPage />;
   }
-  return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;
+
+  const banner =
+    otherModeMatch && isCurrent(otherModeMatch, value.room) ? (
+      <MatchBanner
+        mediaType={otherModeMatch.mediaType}
+        atFoot={!bannerSlot && !isFiltersPath(pathname)}
+        onView={() => openMatch(otherModeMatch.matchId, otherModeMatch.mediaType, otherModeMatch.match, true)}
+        onDismiss={() => {
+          routedMatchIds.current.add(otherModeMatch.matchId);
+          setOtherModeMatch(null);
+        }}
+      />
+    ) : null;
+
+  return (
+    <RoomContext.Provider value={value}>
+      <MatchBannerSlotContext.Provider value={setBannerSlot}>{children}</MatchBannerSlotContext.Provider>
+      {bannerSlot && banner ? createPortal(banner, bannerSlot) : banner}
+    </RoomContext.Provider>
+  );
 }

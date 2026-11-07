@@ -153,3 +153,40 @@ describe("validation and exact dates", () => {
     expect(needsExactDates({ releaseDateLte: "1999-06-30" })).toBe(true);
   });
 });
+
+describe("a range that defaults to any time", () => {
+  const anyPick = (label: string): ReleasePick => {
+    const found = releasePicks(now, "any-time").find((item) => item.label === label);
+    if (!found) throw new Error(`No pick called ${label}`);
+    return found;
+  };
+
+  it("swaps This year and All time for one Any time pick", () => {
+    const labels = releasePicks(now, "any-time").map((item) => item.label);
+    expect(labels[0]).toBe("Any time");
+    expect(labels).not.toContain("This year");
+    expect(labels).not.toContain("All time");
+  });
+
+  it("treats only an empty range as the default", () => {
+    expect(isDefaultRange(none, now, "any-time")).toBe(true);
+    expect(isDefaultRange({ releaseDateGte: "2026-01-01", releaseDateLte: null }, now, "any-time")).toBe(false);
+    expect(isPickActive(anyPick("Any time"), none, now, "any-time")).toBe(true);
+  });
+
+  it("labels this year's start as a real choice, not the default", () => {
+    expect(rangeLabel({ releaseDateGte: "2026-01-01", releaseDateLte: null }, now, "any-time")).toBe("From 2026");
+    expect(rangeLabel(none, now, "any-time")).toBeNull();
+  });
+
+  it("allows an end date with no start, which this year's default would refuse", () => {
+    const dates: ReleaseDates = { releaseDateGte: null, releaseDateLte: "2015-12-31" };
+    expect(releaseDateError(dates, now)).not.toBeNull();
+    expect(releaseDateError(dates, now, "any-time")).toBeNull();
+  });
+
+  it("still refuses an end before the start", () => {
+    const dates: ReleaseDates = { releaseDateGte: "2020-01-01", releaseDateLte: "2015-12-31" };
+    expect(releaseDateError(dates, now, "any-time")).not.toBeNull();
+  });
+});

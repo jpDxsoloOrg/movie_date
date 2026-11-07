@@ -6,7 +6,7 @@ import { getTmdbKey } from "./secrets.js";
 const API_BASE = "https://api.themoviedb.org/3";
 const IMAGE_BASE = "https://image.tmdb.org/t/p";
 const REQUEST_TIMEOUT_MS = 5_000;
-const DETAILS_TTL_SECONDS = 7 * DAY_SECONDS;
+export const DETAILS_TTL_SECONDS = 7 * DAY_SECONDS;
 /** TMDB allows far more, but a deck page shouldn't monopolise the Lambda's sockets. */
 const HYDRATE_CONCURRENCY = 6;
 
@@ -27,7 +27,7 @@ export function asText(value: unknown): string | null {
   return typeof value === "string" && value !== "" ? value : null;
 }
 
-function asNumber(value: unknown): number | null {
+export function asNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
@@ -65,7 +65,7 @@ export async function fetchJson(
   }
 }
 
-async function tmdbGet(path: string, query: Record<string, string> = {}): Promise<JsonRecord> {
+export async function tmdbGet(path: string, query: Record<string, string> = {}): Promise<JsonRecord> {
   const url = new URL(`${API_BASE}/${path}`);
   url.search = new URLSearchParams({ ...query, api_key: await getTmdbKey() }).toString();
   return asRecord(await fetchJson(url, `TMDB ${path}`));
@@ -76,7 +76,8 @@ function moviePath(movieId: number): string {
   return `movie/${movieId}`;
 }
 
-function releaseYear(releaseDate: unknown): number | null {
+/** The year of any TMDB date. */
+export function yearOf(releaseDate: unknown): number | null {
   const year = /^\d{4}/.exec(asText(releaseDate) ?? "");
   return year ? Number(year[0]) : null;
 }
@@ -87,7 +88,7 @@ function toMovie(movieId: number, details: JsonRecord): Movie {
     id: movieId,
     title: asText(details.title) ?? asText(details.original_title) ?? "",
     overview: asText(details.overview) ?? "",
-    releaseYear: releaseYear(details.release_date),
+    releaseYear: yearOf(details.release_date),
     // TMDB uses 0 for "unknown" here, and a 0 rating on no votes isn't a rating.
     runtime: asNumber(details.runtime) || null,
     voteAverage: voteCount === 0 ? null : asNumber(details.vote_average),
@@ -104,7 +105,7 @@ export function getMovie(movieId: number): Promise<Movie> {
 }
 
 /** Enough for a filter to find a title by actor without tripling the index's size. */
-const INDEXED_CAST = 20;
+export const INDEXED_CAST = 20;
 
 export interface LibraryDetails {
   genreIds: number[];
@@ -130,32 +131,41 @@ export async function getLibraryDetails(movieId: number): Promise<LibraryDetails
 }
 
 /**
- * Details for many movies at once, in the order given. One bad title is dropped
+ * Details for many titles at once, in the order given. One bad title is dropped
  * so it can't cost the whole deck, but if nothing loads at all the failure is
- * rethrown: otherwise an outage would look like the end of the deck.
+ * rethrown: otherwise an outage would look like the end of the deck. Nothing new
+ * starts after `stopAt`, for a caller racing the resolver timeout.
  */
-export async function hydrateMovies(movieIds: readonly number[]): Promise<Movie[]> {
-  const movies = new Array<Movie | undefined>(movieIds.length);
+export async function hydrateAll<T>(
+  ids: readonly number[],
+  load: (id: number) => Promise<T>,
+  stopAt = Number.POSITIVE_INFINITY,
+): Promise<T[]> {
+  const titles = new Array<T | undefined>(ids.length);
   let outage: unknown;
   let cursor = 0;
 
   async function worker(): Promise<void> {
-    while (cursor < movieIds.length) {
+    while (cursor < ids.length && Date.now() < stopAt) {
       const index = cursor;
       cursor += 1;
       try {
-        movies[index] = await getMovie(movieIds[index] as number);
+        titles[index] = await load(ids[index] as number);
       } catch (error) {
         if (!(error instanceof NotFoundError)) outage ??= error;
       }
     }
   }
 
-  const workerCount = Math.min(HYDRATE_CONCURRENCY, movieIds.length);
+  const workerCount = Math.min(HYDRATE_CONCURRENCY, ids.length);
   await Promise.all(Array.from({ length: workerCount }, worker));
-  const loaded = movies.filter((movie) => movie !== undefined);
+  const loaded = titles.filter((title) => title !== undefined);
   if (loaded.length === 0 && outage !== undefined) throw outage;
   return loaded;
+}
+
+export function hydrateMovies(movieIds: readonly number[]): Promise<Movie[]> {
+  return hydrateAll(movieIds, getMovie);
 }
 
 export interface DiscoverResult {
@@ -170,8 +180,8 @@ export interface DiscoverPage {
   totalResults: number | null;
 }
 
-export async function discoverMovies(filters: Filters, page: number): Promise<DiscoverPage> {
-  const body = await tmdbGet("discover/movie", buildDiscoverQuery(filters, page));
+/** `discover/movie` and `discover/tv` answer in the same shape. */
+export function toDiscoverPage(body: JsonRecord): DiscoverPage {
   const results = asRecords(body.results).flatMap((result) => {
     const id = asNumber(result.id);
     if (id === null) return [];
@@ -188,6 +198,10 @@ export async function discoverMovies(filters: Filters, page: number): Promise<Di
     totalPages: asNumber(body.total_pages) ?? 0,
     totalResults: asNumber(body.total_results),
   };
+}
+
+export async function discoverMovies(filters: Filters, page: number): Promise<DiscoverPage> {
+  return toDiscoverPage(await tmdbGet("discover/movie", buildDiscoverQuery(filters, page)));
 }
 
 export function getGenres(): Promise<Genre[]> {
@@ -224,7 +238,7 @@ export async function searchPeople(query: string): Promise<Person[]> {
 }
 
 /** Only YouTube counts, because that's the one player the site embeds. */
-function pickTrailer(videos: unknown): string | null {
+export function pickTrailer(videos: unknown): string | null {
   const youtube = asRecords(videos).filter(
     (video) => video.site === "YouTube" && asText(video.key) !== null,
   );

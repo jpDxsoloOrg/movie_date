@@ -22,6 +22,7 @@ import { TextField } from "@movie-date/frontend/components/TextField";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
 import { useFocusTrap } from "@movie-date/frontend/hooks/useFocusTrap";
 import { useToast } from "@movie-date/frontend/hooks/useToast";
+import { ModeContext, modeValue } from "@movie-date/frontend/mode/ModeProvider";
 
 function Path(): JSX.Element {
   return <div data-testid="path">{useLocation().pathname}</div>;
@@ -49,7 +50,47 @@ describe("AppBar", () => {
   });
 });
 
+describe("in Going Steady", () => {
+  const inShows = (ui: JSX.Element, path = "/shows") =>
+    inRouter(<ModeContext.Provider value={modeValue("TV")}>{ui}</ModeContext.Provider>, path);
+
+  it("titles the app bar for the mode, and leaves a route's own title alone", () => {
+    const first = inShows(<AppBar onOpenMenu={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Going Steady" })).toBeInTheDocument();
+    first.unmount();
+
+    inShows(<AppBar title="History" onOpenMenu={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "History" })).toBeInTheDocument();
+  });
+
+  it("keeps the bottom nav in the mode", () => {
+    inShows(<BottomNav />);
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/shows");
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/shows/filters");
+  });
+
+  it("marks Search active on the nested show filter route", () => {
+    inShows(<BottomNav />, "/shows/filters/actors");
+    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("offers Movies in the drawer, beside the current Going Steady", () => {
+    inShows(<Drawer open onClose={vi.fn()} />);
+    const drawer = screen.getByRole("dialog", { name: "Menu" });
+
+    expect(within(drawer).getByRole("link", { name: "Movies" })).toHaveAttribute("href", "/");
+    expect(within(drawer).getByRole("link", { name: "Going Steady" })).toHaveAttribute("aria-current", "page");
+    expect(within(drawer).queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
+  });
+});
+
 describe("Drawer", () => {
+  it("links Going Steady", () => {
+    inRouter(<Drawer open onClose={vi.fn()} />);
+    expect(screen.getByRole("link", { name: "Going Steady" })).toHaveAttribute("href", "/shows");
+  });
+
   it("has every spec entry, the version and the TMDB attribution", () => {
     inRouter(<Drawer open onClose={vi.fn()} />);
     const drawer = screen.getByRole("dialog", { name: "Menu" });

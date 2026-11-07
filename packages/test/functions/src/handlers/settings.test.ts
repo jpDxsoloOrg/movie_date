@@ -55,7 +55,7 @@ describe("updateFilters", () => {
     };
     await expect(updateFilters({ filters }, user("bob"))).resolves.toMatchObject({ filters });
     expect(eventsOfType("ROOM_UPDATED")).toEqual([
-      { roomId: room.id, type: "ROOM_UPDATED", actorId: "sub-bob" },
+      { roomId: room.id, type: "ROOM_UPDATED", mediaType: "MOVIE", actorId: "sub-bob" },
     ]);
   });
 
@@ -238,7 +238,7 @@ describe("startNewRound", () => {
     });
 
     expect(eventsOfType("ROUND_RESET")).toEqual([
-      { roomId: room.id, type: "ROUND_RESET", round: 2, actorId: "sub-ann" },
+      { roomId: room.id, type: "ROUND_RESET", mediaType: "MOVIE", round: 2, actorId: "sub-ann" },
     ]);
     expect(table.find(`ROOM#${room.id}`, "SWIPE#1#")).toHaveLength(2);
     await expect(matches({}, user("ann"))).resolves.toMatchObject({

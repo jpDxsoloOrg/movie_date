@@ -3,6 +3,7 @@ import {
   createRequest,
   findUser,
   libraryMovies,
+  libraryShows,
   movieStatus,
   PlexRequestUnavailableError,
 } from "@movie-date/functions/lib/plexRequest";
@@ -142,5 +143,32 @@ describe("createRequest", () => {
   it("won't take an unknown outcome as success", async () => {
     answers({ outcome: "rejected" });
     await expect(createRequest(DRAFT)).rejects.toBeInstanceOf(PlexRequestUnavailableError);
+  });
+});
+
+describe("libraryShows", () => {
+  it("reads TVDB ids and ignores anything else", async () => {
+    answers([
+      { tvdbId: 121361, hasFile: false },
+      { tvdbId: 7, hasFile: true },
+      { tvdbId: 0, hasFile: true },
+      { tvdbId: "8", hasFile: true },
+    ]);
+    expect(await libraryShows()).toEqual([
+      { tvdbId: 121361, hasFile: false },
+      { tvdbId: 7, hasFile: true },
+    ]);
+  });
+
+  it("reads an integration that doesn't have the op as no shows", async () => {
+    answersRaw({ ok: false, error: "INVALID_INPUT", message: "op must be findUser or libraryMovies" });
+    expect(await libraryShows()).toEqual([]);
+  });
+
+  it("treats any other failure as one, so an outage can't look like an empty library", async () => {
+    answersRaw({ ok: false, error: "INTERNAL_ERROR", message: "boom" });
+    await expect(libraryShows()).rejects.toBeInstanceOf(PlexRequestUnavailableError);
+    answers({ surprise: true });
+    await expect(libraryShows()).rejects.toBeInstanceOf(PlexRequestUnavailableError);
   });
 });

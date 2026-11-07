@@ -3,8 +3,8 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { useRoom } from "../../hooks/useRoom";
 import { useToast } from "../../hooks/useToast";
-import { api, ApiError, errorMessage, type DeckPage, type SwipeDirection } from "../../services/api";
-import { DECK_COPY } from "./deckCopy";
+import { api, ApiError, errorMessage, type DeckPage, type MediaType, type SwipeDirection } from "../../services/api";
+import { useMode } from "../../mode/ModeProvider";
 import { runInOrder, swipeSessionFor, type DeckEntry, type SwipeRecord } from "./swipeSession";
 
 /** Cards on screen at once. */
@@ -13,8 +13,15 @@ export const STACK_SIZE = 3;
 const PREFETCH_BELOW = 6;
 const PRELOAD_AHEAD = 5;
 const SWIPE_RETRY_DELAYS_MS = [500, 1500];
+/**
+ * An empty page with a nextPage means the server gave up looking, not that the deck is
+ * done. Each costs real TMDB calls and a rare filter can run to page 500, so nobody
+ * should pay for that by leaving a tab open: after this many in a row, ask first.
+ */
+const MAX_EMPTY_WALKS = 3;
 
-export type DeckStatus = "loading" | "error" | "ready" | "end";
+/** `paused`: nothing to show after several empty walks, and more may be further on. */
+export type DeckStatus = "loading" | "error" | "ready" | "paused" | "end";
 
 export interface ExitingEntry {
   entry: DeckEntry;
@@ -25,6 +32,8 @@ export interface Deck {
   status: DeckStatus;
   error: unknown;
   retry: () => void;
+  /** Search on after `paused`. */
+  keepWalking: () => void;
   entries: DeckEntry[];
   /** Cards already swiped and still flying off. */
   exiting: ExitingEntry[];
@@ -43,30 +52,37 @@ function pause(milliseconds: number): Promise<void> {
 }
 
 /** Repeating a swipe is a no-op on the server, so a blip is safe to retry before giving up on it. */
-async function deliverSwipe(movieId: number, direction: SwipeDirection): ReturnType<typeof api.swipe> {
+async function deliverSwipe(
+  movieId: number,
+  direction: SwipeDirection,
+  mediaType: MediaType,
+): ReturnType<typeof api.swipe> {
   for (const delay of SWIPE_RETRY_DELAYS_MS) {
     try {
-      return await api.swipe(movieId, direction);
+      return await api.swipe(movieId, direction, mediaType);
     } catch (error) {
       if (!(error instanceof ApiError && error.isTransient)) throw error;
       await pause(delay);
     }
   }
-  return api.swipe(movieId, direction);
+  return api.swipe(movieId, direction, mediaType);
 }
 
 /** Mount under a `key` of `deckVersion`: a reset is then just a fresh instance. */
 export function useDeck(): Deck {
   const { me, room, goToMatch } = useRoom();
   const toast = useToast();
-  const [session] = useState(() => swipeSessionFor(`${me.id}:${room.id}:${room.round}`));
+  const { mode: mediaType, copy } = useMode();
+  const round = mediaType === "TV" ? room.tvRound : room.round;
+  const [session] = useState(() => swipeSessionFor(`${me.id}:${room.id}:${round}`, mediaType));
 
-  const firstPage = useAsyncData(() => api.deck(1), []);
+  const firstPage = useAsyncData(() => api.deck(1, mediaType), []);
   const [entries, setEntries] = useState<DeckEntry[]>([]);
   const [exiting, setExiting] = useState<ExitingEntry[]>([]);
   /** undefined until the first page is dealt; null when TMDB has no more. */
   const [nextPage, setNextPage] = useState<number | null>();
   const [pageError, setPageError] = useState<unknown>(null);
+  const [emptyWalks, setEmptyWalks] = useState(0);
   const [undoDepth, setUndoDepth] = useState(session.records.length);
 
   // Two swipes can land before React re-renders, and each must take a different
@@ -98,6 +114,7 @@ export function useDeck(): Deck {
         });
       publish([...queue.current, ...fresh]);
       setNextPage(page.nextPage ?? null);
+      setEmptyWalks((walks) => (fresh.length > 0 ? 0 : walks + 1));
     },
     [publish, session],
   );
@@ -106,13 +123,14 @@ export function useDeck(): Deck {
     if (firstPage.data) deal(firstPage.data);
   }, [firstPage.data, deal]);
 
-  const needsMore = nextPage != null && pageError === null && entries.length < PREFETCH_BELOW;
+  const walkPaused = emptyWalks >= MAX_EMPTY_WALKS;
+  const needsMore = nextPage != null && pageError === null && !walkPaused && entries.length < PREFETCH_BELOW;
   useEffect(() => {
     if (!needsMore || nextPage == null || fetchingPage.current) return;
     fetchingPage.current = true;
     const fetchPage = async (): Promise<void> => {
       try {
-        deal(await api.deck(nextPage));
+        deal(await api.deck(nextPage, mediaType));
       } catch (error) {
         setPageError(error);
       } finally {
@@ -120,7 +138,7 @@ export function useDeck(): Deck {
       }
     };
     void fetchPage();
-  }, [needsMore, nextPage, deal]);
+  }, [needsMore, nextPage, deal, mediaType]);
 
   useEffect(() => {
     const posters = entries.slice(STACK_SIZE, STACK_SIZE + PRELOAD_AHEAD).map(({ card }) => card.movie.posterUrl);
@@ -167,6 +185,7 @@ export function useDeck(): Deck {
       setExiting((current) => [...current, { entry: top, direction }]);
       // A later swipe is as good a moment as any to try a failed page again.
       setPageError(null);
+      setEmptyWalks(0);
 
       const record: SwipeRecord = { entry: top, direction, failed: false, undone: false };
       session.records.push(record);
@@ -174,7 +193,7 @@ export function useDeck(): Deck {
 
       runInOrder(session, movieId, async () => {
         try {
-          const result = await deliverSwipe(movieId, direction);
+          const result = await deliverSwipe(movieId, direction, mediaType);
           if (result.match) goToMatch(result.match);
         } catch (error) {
           record.failed = true;
@@ -186,7 +205,7 @@ export function useDeck(): Deck {
         }
       });
     },
-    [goToMatch, publish, putBack, session, syncUndoDepth, toast],
+    [goToMatch, mediaType, publish, putBack, session, syncUndoDepth, toast],
   );
 
   const undo = useCallback(() => {
@@ -200,10 +219,10 @@ export function useDeck(): Deck {
     runInOrder(session, movieId, async () => {
       if (record.failed) return;
       try {
-        const { undone } = await api.undoSwipe(movieId);
+        const { undone } = await api.undoSwipe(movieId, mediaType);
         if (!undone) {
           takeOut(movieId);
-          toast.info(DECK_COPY.undoRefused);
+          toast.info(copy.undoRefused);
         }
       } catch (error) {
         // If it's no longer in the deck it has been swiped again, which has its own record.
@@ -216,7 +235,7 @@ export function useDeck(): Deck {
         toast.error(errorMessage(error));
       }
     });
-  }, [putBack, session, syncUndoDepth, takeOut, toast]);
+  }, [copy, mediaType, putBack, session, syncUndoDepth, takeOut, toast]);
 
   const { reload } = firstPage;
   const retry = useCallback(() => {
@@ -224,17 +243,21 @@ export function useDeck(): Deck {
     else setPageError(null);
   }, [nextPage, reload]);
 
+  const keepWalking = useCallback(() => setEmptyWalks(0), []);
+
   const firstPageError = nextPage === undefined ? firstPage.error : null;
   const error = firstPageError || pageError;
   let status: DeckStatus = "loading";
   if (entries.length > 0) status = "ready";
   else if (error) status = "error";
   else if (nextPage === null) status = "end";
+  else if (walkPaused) status = "paused";
 
   return {
     status,
     error,
     retry,
+    keepWalking,
     entries,
     exiting,
     swipe,

@@ -18,6 +18,20 @@
   gap: var(--space-2);
 }
 
+.home__mode {
+  flex: none;
+  align-self: center;
+}
+
+/* No height of its own, so a banner never moves the deck mid-swipe. The margin takes back the stage's gap. */
+.home__banner-slot {
+  position: relative;
+  z-index: var(--z-toast);
+  flex: none;
+  height: 0;
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
 /*
  * From the rail up the panels are flush, full-height slabs of the dark page, so what's
  * left of the gradient reads as the lit screen in a dark room, with the deck on it.
@@ -39,12 +53,31 @@
     container-type: size;
     align-items: center;
     justify-content: center;
-    padding: var(--space-4) var(--space-4) calc(var(--safe-bottom) + var(--space-4));
+    /* The deck sizes to the content box, so this padding is what keeps it clear of the switch. */
+    --home-mode-space: calc(var(--touch-target) + var(--space-3));
+    padding: calc(var(--home-mode-space) + var(--space-2)) var(--space-4) calc(var(--safe-bottom) + var(--space-4));
     background: radial-gradient(
       ellipse at 50% 42%,
       transparent 45%,
       color-mix(in srgb, var(--color-page) 38%, transparent)
     );
+  }
+
+  .home__mode {
+    position: absolute;
+    top: var(--space-2);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Under the switch and inside the stage, clear of the panels either side. */
+  .home__banner-slot {
+    position: absolute;
+    top: calc(var(--home-mode-space) + var(--space-2));
+    left: 50%;
+    width: min(26rem, 100% - 2 * var(--space-4));
+    margin: 0;
+    transform: translateX(-50%);
   }
 
   .home__side {
@@ -85,7 +118,7 @@
 
 @media (min-width: 1024px) {
   .home__stage {
-    padding: var(--space-5) var(--space-5) calc(var(--safe-bottom) + var(--space-5));
+    padding: calc(var(--home-mode-space) + var(--space-2)) var(--space-5) calc(var(--safe-bottom) + var(--space-5));
   }
 }
 

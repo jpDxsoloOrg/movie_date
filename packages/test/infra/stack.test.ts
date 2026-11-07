@@ -349,7 +349,7 @@ describe("sst.config.ts", () => {
 
     it("caps how much one request can fan out", () => {
       const api = production.api?.transform.api;
-      expect(api?.resolverCountLimit).toBeGreaterThan(0);
+      expect(api?.resolverCountLimit).toBe(1);
       expect(api?.queryDepthLimit).toBeGreaterThan(0);
     });
   });

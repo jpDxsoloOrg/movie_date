@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { PublicOnly, RequireAuth, TutorialGate } from "./components/Guards";
 import { PageLayout } from "./components/PageLayout";
+import { HomeRoute } from "./mode/ModeProvider";
 import ActorSearch from "./screens/ActorSearch";
 import Filters from "./screens/Filters";
 import ForgotPassword from "./screens/ForgotPassword";
@@ -28,16 +29,27 @@ export function AppRoutes(): JSX.Element {
         <Route path="/tutorial" element={<Tutorial />} />
         <Route element={<TutorialGate />}>
           <Route element={<PageLayout gradient bottomNav fill />}>
-            <Route path="/" element={<Home />} />
+            <Route
+              path="/"
+              element={
+                <HomeRoute>
+                  <Home />
+                </HomeRoute>
+              }
+            />
+            <Route path="/shows" element={<Home />} />
           </Route>
           <Route element={<PageLayout bottomNav />}>
             <Route path="/filters" element={<Filters />} />
+            <Route path="/shows/filters" element={<Filters />} />
           </Route>
           <Route element={<PageLayout bare />}>
             <Route path="/filters/actors" element={<ActorSearch />} />
+            <Route path="/shows/filters/actors" element={<ActorSearch />} />
           </Route>
           <Route element={<PageLayout gradient />}>
             <Route path="/match/:matchId" element={<MatchFound />} />
+            <Route path="/shows/match/:matchId" element={<MatchFound />} />
           </Route>
           <Route element={<PageLayout title="History" />}>
             <Route path="/history" element={<History />} />

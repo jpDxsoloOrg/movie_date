@@ -15,6 +15,8 @@
  * there, so the script rewrites the stored hash for a known code. That needs AWS access,
  * not an app backdoor.
  * The request exists for seconds and is deleted, along with the user, whatever happens.
+ * Only movies are ever requested. requestOnPlex refuses mediaType TV, but a show's id sent
+ * without it would request the movie with that number: no step may call it with a TV id.
  *
  *   AWS_PROFILE=league-szn PLAYWRIGHT_MODULE=/path/to/node_modules/playwright \
  *     node scripts/e2e-live.mjs
@@ -26,6 +28,8 @@
  *   E2E_OUT            Results and screenshots. Default: <os tmpdir>/movie-date-e2e/<runId>
  *   E2E_BASE_URL       Default: the production CloudFront URL
  *   E2E_HEADED=1       Show the browsers
+ *   E2E_ONLY           Regex of step names to run, e.g. "^(Going Steady|no )". The rest are
+ *                      reported as skipped. A full run is the one that counts.
  *
  * Recovery, if a run was killed before its finally block:
  *   node scripts/e2e-live.mjs --cleanup <E2E_OUT>/state.json
@@ -305,6 +309,7 @@ const remember = (list, value) => {
 
 const results = [];
 const noise = { console: [], pageErrors: [], requestFailed: [], httpErrors: [], graphqlErrors: [] };
+const onlySteps = process.env.E2E_ONLY ? new RegExp(process.env.E2E_ONLY) : null;
 const failedSteps = new Set();
 const passedSteps = new Set();
 let currentStep = "setup";
@@ -363,7 +368,8 @@ class Actor {
     this.context = context;
     this.frames = [];
     this.loads = 0;
-        this.password = randomBytes(12).toString("base64url");
+    this.reads = [];
+    this.password = randomBytes(12).toString("base64url");
     const localPart = `e2e-live-${runId}-${name.toLowerCase()}`;
     this.email = receivesMail ? `success+${localPart}@simulator.amazonses.com` : `${localPart}@example.com`;
     remember(state.emails, this.email);
@@ -425,6 +431,11 @@ class Actor {
         const body = await response.json();
         collectRooms(body.data);
         if (body.data?.me?.id) remember(state.subs, body.data.me.id);
+        const op = opOf(request);
+        if (op === "Deck" || op === "FilterPreview") {
+          const { mediaType } = JSON.parse(request.postData()).variables;
+          this.reads.push({ at: Date.now(), op, mediaType: mediaType ?? "MOVIE", data: body.data });
+        }
         for (const error of body.errors ?? []) {
           recordNoise("graphqlErrors", {
             actor: who,
@@ -498,6 +509,36 @@ class Actor {
     );
   }
 
+  /** Deck pages this page received since a moment, whichever mode asked. */
+  decksSince(since, mediaType) {
+    return this.reads.filter(
+      (read) => read.op === "Deck" && read.at >= since && (!mediaType || read.mediaType === mediaType),
+    );
+  }
+
+  /** The first dealt cards since a moment. A walked filter can answer empty with a next page first. */
+  async waitCards(mediaType, since, timeout = 60_000) {
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const read = this.decksSince(since, mediaType).find((candidate) => candidate.data?.deck?.cards?.length > 0);
+      if (read) return read.data.deck.cards;
+      if (Date.now() > deadline) {
+        throw new Error(`${this.name}: no ${mediaType} cards within ${timeout}ms; ${this.decksSince(since).length} deck replies`);
+      }
+      await sleep(50);
+    }
+  }
+
+  /** The newest card this page was dealt under that title. */
+  cardTitled(mediaType, shown) {
+    for (const read of [...this.reads].reverse()) {
+      if (read.op !== "Deck" || read.mediaType !== mediaType) continue;
+      const card = read.data?.deck?.cards?.find(({ movie }) => bareTitle(shown) === movie.title);
+      if (card) return card;
+    }
+    throw new Error(`${this.name} was never dealt "${shown}" as ${mediaType}`);
+  }
+
   async cdp() {
     this.cdpSession ??= await this.context.newCDPSession(this.page);
     return this.cdpSession;
@@ -552,6 +593,10 @@ async function screenshot(actor, label) {
 async function step(name, options, action) {
   const body = action ?? options;
   const requires = action ? (options.requires ?? []) : [];
+  if (onlySteps && !onlySteps.test(name)) {
+    results.push({ name, status: "skipped", detail: "not in E2E_ONLY" });
+    return;
+  }
   const blocked = requires.filter((dependency) => !passedSteps.has(dependency));
   if (blocked.length > 0) {
     results.push({ name, status: "skipped", detail: `needs: ${blocked.join(", ")}` });
@@ -590,8 +635,11 @@ async function step(name, options, action) {
 // ---------------------------------------------------------------- page actions
 
 const homePath = (page) => new URL(page.url()).pathname;
+/** Cards and match screens add the year or years after the title. */
+const bareTitle = (shown) => shown.replace(/, \d{4}(?:[–-](?:\d{4}|present))?$/, "");
 const onPath = (actor, path) => actor.page.waitForURL((url) => url.pathname === path);
 const onMatch = (actor) => actor.page.waitForURL((url) => url.pathname.startsWith("/match/"));
+const onShowMatch = (actor) => actor.page.waitForURL((url) => url.pathname.startsWith("/shows/match/"));
 
 async function register(actor) {
   const { page } = actor;
@@ -938,16 +986,144 @@ async function submitLinkCode(actor, code) {
 /** Opens the top card's sheet and returns what the status panel settled on. */
 async function openPlexStatus(actor) {
   const { page } = actor;
-  const title = (await topTitle(actor)).replace(/, \d{4}$/, "");
+  const title = bareTitle(await topTitle(actor));
   const statusCall = actor.waitOp("PlexStatus");
   await page.getByRole("button", { name: `Details for ${title}` }).click();
   const sheet = page.getByRole("dialog", { name: `${title} details` });
   await sheet.waitFor();
   const response = await statusCall;
-  const movieId = JSON.parse(response.request().postData()).variables.movieId;
+  const { movieId, mediaType } = JSON.parse(response.request().postData()).variables;
   const status = (await response.json()).data.plexStatus;
   await sheet.locator(".plex-status__badge").waitFor();
-  return { title, sheet, movieId, status, badge: (await sheet.locator(".plex-status__badge").textContent())?.trim() };
+  return { title, sheet, movieId, mediaType, status, badge: (await sheet.locator(".plex-status__badge").textContent())?.trim() };
+}
+
+// ---------------------------------------------------------------- Going Steady helpers
+
+const THEMES = {
+  MOVIE: { name: "movies", bar: "#000000", gradient: "#ff5f6d", painted: "rgb(255, 95, 109)", accent: "#ff9800" },
+  TV: { name: "shows", bar: "#2e2a7a", gradient: "#2e2a7a", painted: "rgb(46, 42, 122)", accent: "#22c1c6" },
+};
+const FINISHED_STATUSES = ["Ended", "Canceled"];
+
+const ROOM_QUERY = `query MyRoom { myRoom {
+  id round tvRound
+  filters { genreIds services showStatus commitment }
+  tvFilters { genreIds services showStatus commitment }
+} }`;
+const MOVIE_TITLE_QUERY = "query Twin($id: Int!) { movie(id: $id) { id title } }";
+const SWIPE_API = `mutation Like($id: Int!, $mediaType: MediaType) {
+  swipe(movieId: $id, direction: LIKE, mediaType: $mediaType) {
+    movieId mediaType direction match { id mediaType round movie { id title } show { id title } }
+  }
+}`;
+const PENDING_QUERY = `query Pending($mediaType: MediaType) {
+  pendingMatch(mediaType: $mediaType) { id mediaType round movie { id title } show { id title } }
+}`;
+const TV_STATUS_QUERY = `query Status($id: Int!) {
+  plexStatus(movieId: $id, mediaType: TV) { availability canRequest missingSeasons }
+}`;
+const PREVIEW_QUERY = `query Preview($filters: FiltersInput!) {
+  filterPreview(filters: $filters, mediaType: TV) { totalResults }
+}`;
+
+async function roomOf(actor) {
+  const body = await callApi(actor, ROOM_QUERY);
+  assert(body.data?.myRoom, `myRoom: ${JSON.stringify(body)}`);
+  return body.data.myRoom;
+}
+
+async function pendingOf(actor, mediaType) {
+  const body = await callApi(actor, PENDING_QUERY, { mediaType });
+  assert(!body.errors, `pendingMatch ${mediaType}: ${JSON.stringify(body.errors)}`);
+  return body.data.pendingMatch;
+}
+
+async function assertTheme(actor, mode) {
+  const want = THEMES[mode];
+  await actor.page.waitForFunction((name) => document.documentElement.dataset.theme === name, want.name, {
+    timeout: TIMEOUT_MS,
+  });
+  const seen = await actor.page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement);
+    const gradient = document.querySelector(".md-page--gradient");
+    return {
+      bar: document.querySelector('meta[name="theme-color"]')?.getAttribute("content")?.toLowerCase(),
+      gradient: style.getPropertyValue("--theme-gradient-start").trim().toLowerCase(),
+      accent: style.getPropertyValue("--theme-accent").trim().toLowerCase(),
+      painted: gradient ? getComputedStyle(gradient).backgroundImage : null,
+    };
+  });
+  assert(seen.bar === want.bar, `${actor.name}: browser bar ${seen.bar}, expected ${want.bar}`);
+  assert(seen.gradient === want.gradient, `${actor.name}: gradient ${seen.gradient}, expected ${want.gradient}`);
+  assert(seen.accent === want.accent, `${actor.name}: accent ${seen.accent}, expected ${want.accent}`);
+  if (seen.painted !== null) {
+    assert(seen.painted.includes(want.painted), `${actor.name}: page painted ${seen.painted}`);
+  }
+}
+
+/** Presses Movies or Shows on Home. The deck for that mode is what proves the move. */
+async function switchMode(actor, label) {
+  await actor.page
+    .getByRole("radiogroup", { name: "Movies or shows" })
+    .getByRole("radio", { name: label, exact: true })
+    .click();
+  await onPath(actor, label === "Shows" ? "/shows" : "/");
+}
+
+const matchBanner = (actor, label) => actor.page.getByRole("status", { name: `${label} match` });
+
+/** What a live banner sits on top of. It must leave the deck's controls usable. */
+async function bannerCovers(actor) {
+  return actor.page.evaluate(() => {
+    const banner = document.querySelector(".md-match-banner")?.getBoundingClientRect();
+    if (!banner) return [];
+    const hit = (rect) =>
+      rect.left < banner.right && banner.left < rect.right && rect.top < banner.bottom && banner.top < rect.bottom;
+    return [".home__mode", ".deck-ticket-strip", ".deck-card--depth-0", ".deck__control"].filter((selector) =>
+      [...document.querySelectorAll(selector)].some((element) => hit(element.getBoundingClientRect())),
+    );
+  });
+}
+
+async function openFilters(actor, path) {
+  await actor.page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Search" }).click();
+  await onPath(actor, path);
+}
+
+async function pressFilter(actor, group, name) {
+  await actor.page.getByRole("group", { name: group }).getByRole("button", { name, exact: true }).click();
+}
+
+async function applyFilters(actor, path) {
+  const since = Date.now();
+  await actor.page.getByRole("button", { name: "Apply", exact: true }).click();
+  await onPath(actor, path);
+  return since;
+}
+
+async function keepLooking(actor) {
+  await actor.page.getByRole("button", { name: "Keep Looking" }).click();
+  await onPath(actor, "/shows");
+}
+
+async function assertShowMatchScreen(actor, title) {
+  const { page } = actor;
+  await page.getByRole("heading", { name: "It's Official" }).waitFor();
+  await page.getByText("Your Next Show!").waitFor();
+  assert((await page.getByRole("heading", { name: "Match Found" }).count()) === 0, `${actor.name}: movie headline on a show`);
+  const heading = (await page.locator(".match-details__title").textContent())?.trim() ?? "";
+  const facts = await page.locator(".match-details__fact").allTextContents();
+  assert(heading.includes(title), `${actor.name}: match screen shows "${heading}", expected "${title}"`);
+  assert(facts.some((fact) => /season/i.test(fact)), `${actor.name}: no seasons in [${facts.join(", ")}]`);
+  assert(
+    facts.some((fact) => FINISHED_STATUSES.some((status) => fact.includes(status))),
+    `${actor.name}: no status in [${facts.join(", ")}]`,
+  );
+  await page.getByRole("button", { name: "Keep Looking" }).waitFor();
+  assert((await page.getByRole("button", { name: "Back to Start" }).count()) === 0, `${actor.name}: Back to Start on a show`);
+  assert((await page.getByRole("button", { name: "Request on Plex" }).count()) === 0, `${actor.name}: Request on Plex on a show`);
+  return facts;
 }
 
 // ---------------------------------------------------------------- the journey
@@ -1010,13 +1186,13 @@ async function main() {
 
     await step("tutorial walkthrough", { requires: ["register A"] }, async () => {
       const { page } = A;
-      for (let index = 1; index <= 5; index += 1) {
-        await page.getByRole("heading", { name: `Tutorial, step ${index} of 6` }).waitFor();
+      for (let index = 1; index <= 6; index += 1) {
+        await page.getByRole("heading", { name: `Tutorial, step ${index} of 7` }).waitFor();
         await page.getByRole("button", { name: "Next" }).click();
       }
-      await page.getByRole("heading", { name: "Tutorial, step 6 of 6" }).waitFor();
+      await page.getByRole("heading", { name: "Tutorial, step 7 of 7" }).waitFor();
       await page.getByRole("button", { name: "Prev" }).click();
-      await page.getByRole("heading", { name: "Tutorial, step 5 of 6" }).waitFor();
+      await page.getByRole("heading", { name: "Tutorial, step 6 of 7" }).waitFor();
       await page.getByRole("button", { name: "Next" }).click();
       await page.getByRole("button", { name: "Finish" }).click();
       await onPath(A, "/");
@@ -1681,6 +1857,563 @@ async function main() {
       note(`${cached.length} precached entries, none from the API; Chrome reports it installable; offline reload rendered the shell`);
     });
 
+    // Two users of their own, so a failure above can't leave this room in a strange state.
+    let G;
+    let H;
+    let goingSteadyCode = "";
+    let twinShow = null;
+    let twinMovie = "";
+    let showMatch = null;
+    let movieMatch = null;
+    let roomMovie = "";
+    let switchBlockedBy = null;
+
+    await step("Going Steady: two members in one room", async (note) => {
+      G = await newActor(browser, "G");
+      H = await newActor(browser, "H");
+      for (const actor of [G, H]) {
+        await actor.page.goto(`${BASE_URL}/register`);
+        await register(actor);
+        await onPath(actor, "/tutorial");
+        await actor.page.getByRole("button", { name: "Skip" }).click();
+        await onPath(actor, "/");
+        await topCard(actor).waitFor();
+      }
+      goingSteadyCode = await roomCode(G);
+      const since = Date.now();
+      await H.page.getByRole("button", { name: "Join Room" }).click();
+      await H.page.getByLabel("Enter Room Code").fill(goingSteadyCode);
+      await H.page.getByRole("button", { name: "Submit" }).click();
+      await H.page.locator(".deck-ticket-strip__code", { hasText: goingSteadyCode }).waitFor();
+      await H.waitLive(since);
+      await assertTheme(G, "MOVIE");
+      note(`room ${goingSteadyCode}`);
+    });
+
+    const goingSteadyRoom = ["Going Steady: two members in one room"];
+
+    await step("Going Steady: Shows has its own deck, words and theme while the roommate stays on Movies", { requires: goingSteadyRoom }, async (note) => {
+      const { page } = H;
+      const movieTop = await topTitle(G);
+      await G.mark();
+      const since = Date.now();
+      await switchMode(H, "Shows");
+      const cards = await H.waitCards("TV", since);
+      assert(cards.every((card) => card.mediaType === "TV" && card.show), "a card in the show deck isn't a show");
+      await page.locator(".deck-card--depth-0 .deck-card__title", { hasText: cards[0].movie.title }).waitFor();
+      await assertPosterLoaded(H);
+      await assertTheme(H, "TV");
+      await page.getByRole("button", { name: "Go Steady", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Just Friends", exact: true }).waitFor();
+      assert((await page.getByRole("button", { name: "Like", exact: true }).count()) === 0, "Like offered in Shows");
+      const meta = (await topCard(H).locator(".deck-card__meta").allTextContents()).join(" | ");
+      assert(/season/i.test(meta), `card line has no seasons: ${meta}`);
+      await assertNoOverflow(H, "shows home");
+      await screenshot(H, "shows-deck");
+
+      const title = cards[0].movie.title;
+      const trailer = H.waitOp("Trailer");
+      await page.getByRole("button", { name: `Details for ${title}` }).click();
+      const sheet = page.getByRole("dialog", { name: `${title} details` });
+      await sheet.waitFor();
+      const asked = JSON.parse((await trailer).request().postData()).variables;
+      assert(asked.mediaType === "TV" && asked.movieId === cards[0].movie.id, `trailer asked for ${JSON.stringify(asked)}`);
+      await sheet.getByRole("button", { name: "Close" }).click();
+      await sheet.waitFor({ state: "hidden" });
+
+      await assertTheme(G, "MOVIE");
+      assert(homePath(G.page) === "/", `G moved to ${G.page.url()}`);
+      assert((await topTitle(G)) === movieTop, "H's switch changed G's deck");
+      await G.page.getByRole("button", { name: "Like", exact: true }).waitFor();
+      await G.assertNoReload("a roommate changing mode");
+      note(`H sees "${title}" [${meta}]; G still on "${movieTop}"`);
+    });
+
+    const goingSteadyInShows = ["Going Steady: Shows has its own deck, words and theme while the roommate stays on Movies"];
+
+    await step("Going Steady: mode is remembered on reload and from the menu", { requires: goingSteadyInShows }, async (note) => {
+      const { page } = H;
+      await leavingPage(() => page.reload());
+      await onPath(H, "/shows");
+      await topCard(H).waitFor();
+      await assertTheme(H, "TV");
+      await leavingPage(() => page.goto(`${BASE_URL}/`));
+      await onPath(H, "/shows");
+      await topCard(H).waitFor();
+      await assertTheme(H, "TV");
+      assert((await page.evaluate(() => localStorage.getItem("movieDateMode"))) === "TV", "Shows wasn't stored");
+
+      await leavingPage(() => G.page.reload());
+      await topCard(G).waitFor();
+      assert(homePath(G.page) === "/", `G's reload went to ${G.page.url()}`);
+      await assertTheme(G, "MOVIE");
+
+      await drawerTo(H, "Movies");
+      await onPath(H, "/");
+      await assertTheme(H, "MOVIE");
+      await assertStays(H, (current) => homePath(current) === "/", "the menu's Movies link bounced back to Shows");
+      await leavingPage(() => page.reload());
+      await topCard(H).waitFor();
+      assert(homePath(page) === "/", `after choosing Movies, reload went to ${page.url()}`);
+      await assertTheme(H, "MOVIE");
+
+      const since = Date.now();
+      await drawerTo(H, "Going Steady");
+      await onPath(H, "/shows");
+      await H.waitCards("TV", since);
+      await assertTheme(H, "TV");
+      note("reload and / both kept Shows; the menu moved to Movies and back, and each survived a reload");
+    });
+
+    await step("Going Steady: filters are per mode", { requires: goingSteadyInShows }, async (note) => {
+      const { page } = H;
+      const movieTop = await topTitle(G);
+      await openFilters(H, "/shows/filters");
+      await assertTheme(H, "TV");
+      await page.getByRole("group", { name: "Status" }).waitFor();
+      await page.getByRole("group", { name: "Commitment Level" }).waitFor();
+      await page.getByRole("heading", { name: "First Air Date" }).waitFor();
+      assert((await page.getByRole("heading", { name: "Release Date" }).count()) === 0, "Release Date on the show filters");
+      await pressFilter(H, "Genres", "Drama");
+      await pressFilter(H, "Commitment Level", "Long Haul, 6+ seasons");
+      await G.mark();
+      let since = await applyFilters(H, "/shows");
+      const frame = await G.waitFrame(
+        (candidate) => candidate.event?.type === "ROOM_UPDATED" && candidate.event.mediaType === "TV",
+        since,
+        "ROOM_UPDATED for TV",
+      );
+      const longHaul = await H.waitCards("TV", since);
+      const short = longHaul.filter(({ show }) => !(show.seasonCount >= 6));
+      assert(short.length === 0, `under 6 seasons: ${short.map(({ show }) => `${show.title} ${show.seasonCount}`).join(", ")}`);
+      const offGenre = longHaul.filter(({ movie }) => !movie.genres.includes("Drama"));
+      assert(offGenre.length === 0, `not Drama: ${offGenre.map(({ movie }) => movie.title).join(", ")}`);
+
+      await assertStays(G, (current) => homePath(current) === "/", "a show filter moved G");
+      assert(G.decksSince(since).length === 0, `a show filter reloaded G's movie deck ${G.decksSince(since).length} times`);
+      assert((await topTitle(G)) === movieTop, "a show filter changed G's top card");
+      await G.assertNoReload("a show filter");
+
+      await openFilters(H, "/shows/filters");
+      await pressFilter(H, "Commitment Level", "Long Haul, 6+ seasons");
+      await pressFilter(H, "Status", "Finished");
+      since = await applyFilters(H, "/shows");
+      const finished = await H.waitCards("TV", since);
+      const running = finished.filter(({ show }) => !FINISHED_STATUSES.includes(show.status));
+      assert(running.length === 0, `not finished: ${running.map(({ show }) => `${show.title} (${show.status})`).join(", ")}`);
+      const empty = { genreIds: [], cast: [], services: [] };
+      const anyCount = await callApi(H, PREVIEW_QUERY, { filters: empty });
+      const finishedCount = await callApi(H, PREVIEW_QUERY, { filters: { ...empty, showStatus: "FINISHED" } });
+      note(`preview counts: any ${anyCount.data?.filterPreview?.totalResults}, Finished ${finishedCount.data?.filterPreview?.totalResults}`);
+
+      const showTop = await topTitle(H);
+      await H.mark();
+      await openFilters(G, "/filters");
+      assert((await G.page.getByRole("group", { name: "Status" }).count()) === 0, "Status on the movie filters");
+      await G.page.getByRole("heading", { name: "Release Date" }).waitFor();
+      await pressFilter(G, "Genres", "Comedy");
+      since = await applyFilters(G, "/");
+      await H.waitFrame(
+        (candidate) => candidate.event?.type === "ROOM_UPDATED" && candidate.event.mediaType === "MOVIE",
+        since,
+        "ROOM_UPDATED for MOVIE",
+      );
+      const comedies = await G.waitCards("MOVIE", since);
+      assert(comedies.every(({ movie }) => movie.genres.includes("Comedy")), "a movie card isn't Comedy");
+      await assertStays(H, (current) => homePath(current) === "/shows", "a movie filter moved H");
+      assert(H.decksSince(since).length === 0, `a movie filter reloaded H's show deck ${H.decksSince(since).length} times`);
+      assert((await topTitle(H)) === showTop, "a movie filter changed H's top card");
+      await H.assertNoReload("a movie filter");
+
+      const room = await roomOf(G);
+      assert(JSON.stringify(room.filters.genreIds) === "[35]", `movie genres ${room.filters.genreIds}`);
+      assert(room.filters.showStatus === null, `movie filters took status ${room.filters.showStatus}`);
+      assert(JSON.stringify(room.tvFilters.genreIds) === "[18]", `show genres ${room.tvFilters.genreIds}`);
+      assert(room.tvFilters.showStatus === "FINISHED", `show status ${room.tvFilters.showStatus}`);
+      assert(room.tvFilters.commitment === null, `show commitment ${room.tvFilters.commitment}`);
+
+      await openFilters(H, "/shows/filters");
+      const active = await page.getByRole("region", { name: "Active filters" }).textContent();
+      assert(active.includes("Finished"), `H's active filters: ${active}`);
+      const genres = page.getByRole("group", { name: "Genres" });
+      assert((await genres.getByRole("button", { name: "Drama", exact: true }).getAttribute("aria-pressed")) === "true", "Drama isn't picked on the show form");
+      assert((await genres.getByRole("button", { name: "Comedy", exact: true }).getAttribute("aria-pressed")) === "false", "G's movie genre reached the show form");
+      await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Close" }).click();
+      await onPath(H, "/shows");
+      await topCard(H).waitFor();
+      note(`ROOM_UPDATED carried the mode, ${Date.now() - frame.at}ms ago; ${longHaul.length} Long Haul, ${finished.length} Finished, ${comedies.length} Comedy cards`);
+    });
+
+    const goingSteadyFiltered = ["Going Steady: filters are per mode"];
+
+    await step("Going Steady: undo works in Shows", { requires: goingSteadyFiltered }, async (note) => {
+      const since = Date.now();
+      await drawerTo(G, "Going Steady");
+      await onPath(G, "/shows");
+      await assertTheme(G, "TV");
+      await G.waitCards("TV", since);
+      await topCard(G).waitFor();
+      await sleep(1_000);
+
+      // The collision step needs a show whose number is also a real, different movie.
+      for (let attempt = 0; attempt < 12 && !twinShow; attempt += 1) {
+        const shown = await topTitle(H);
+        assert(shown === (await topTitle(G)), `decks differ: G "${await topTitle(G)}", H "${shown}"`);
+        const card = H.cardTitled("TV", shown);
+        const twin = await callApi(H, MOVIE_TITLE_QUERY, { id: card.movie.id });
+        if (twin.data?.movie?.title && twin.data.movie.title !== card.movie.title) {
+          twinShow = card;
+          twinMovie = twin.data.movie.title;
+          break;
+        }
+        await pressSwipe(H, "Just Friends");
+        await pressSwipe(G, "Just Friends");
+      }
+      assert(twinShow, "no show in 12 cards shares its number with a movie");
+      const { id } = twinShow.movie;
+      const { title } = twinShow.movie;
+
+      const liked = await pressSwipe(H, "Go Steady");
+      assert(liked.mediaType === "TV" && liked.movieId === id && !liked.match, `H's like: ${JSON.stringify(liked)}`);
+      assert(bareTitle(await topTitle(H)) !== title, "the deck did not advance after Go Steady");
+      const undoResponse = H.waitOp("UndoSwipe");
+      await H.page.getByRole("button", { name: "Undo", exact: true }).click();
+      const answer = await undoResponse;
+      const undo = (await answer.json()).data?.undoSwipe;
+      const sent = JSON.parse(answer.request().postData()).variables;
+      assert(undo?.undone === true && undo.mediaType === "TV", `undoSwipe: ${JSON.stringify(undo)}`);
+      assert(sent.mediaType === "TV" && sent.movieId === id, `undo sent ${JSON.stringify(sent)}`);
+      await H.page.locator(".deck-card--depth-0 .deck-card__title", { hasText: title }).waitFor();
+
+      // As with movies, the real test: had the like survived, G's would match.
+      const swipeResponse = G.waitOp("Swipe");
+      await touchDrag(G, 240, async () => {
+        await G.page.locator(".deck-card__overlay--like", { hasText: "Go Steady" }).waitFor({ timeout: 5_000 });
+      });
+      const body = await (await swipeResponse).json();
+      assert(body.data?.swipe?.direction === "LIKE", `touch swipe sent ${JSON.stringify(body)}`);
+      assert(!body.data.swipe.match, "undo left the like in the tally: G's single like matched");
+      await assertStays(G, (current) => homePath(current) === "/shows", "G left the deck on one like");
+
+      const room = await roomOf(H);
+      const rows = (await queryKeys(`ROOM#${room.id}`)).map((row) => row.sk.S);
+      const swipes = rows.filter((sk) => sk.startsWith("SWIPE#") && sk.endsWith(`#tv:${id}`));
+      assert(swipes.length === 1, `swipe rows for tv:${id}: ${swipes.join(", ")}`);
+      assert(rows.includes(`TALLY#1#tv:${id}`), `no tally row for tv:${id}`);
+      note(`"${title}" (tv ${id}) undone; one swipe row left; its number is also the movie "${twinMovie}"`);
+    });
+
+    await step("Going Steady: a show match leaves a Movies swiper in place, with a banner", { requires: ["Going Steady: undo works in Shows"] }, async (note) => {
+      const { title } = twinShow.movie;
+      await switchMode(G, "Movies");
+      await assertTheme(G, "MOVIE");
+      await topCard(G).waitFor();
+      roomMovie = await topTitle(G);
+      await G.mark();
+      await H.mark();
+      const since = Date.now();
+      const swiped = await pressSwipe(H, "Go Steady");
+      assert(swiped.match?.mediaType === "TV", `H's like should match: ${JSON.stringify(swiped)}`);
+      showMatch = swiped.match;
+      await onShowMatch(H);
+      const frame = await G.waitFrame((candidate) => candidate.event?.type === "MATCH_FOUND", since, "MATCH_FOUND");
+      assert(frame.event.mediaType === "TV", `MATCH_FOUND carried ${frame.event.mediaType}`);
+      assert(frame.event.matchId === showMatch.id, "event and swipe disagree on the match");
+      const banner = matchBanner(G, "Shows");
+      await banner.waitFor();
+      assert((await banner.getAttribute("data-theme")) === "shows", "the banner isn't in the show theme");
+      assert((await banner.textContent()).includes("It's Official"), `banner says ${await banner.textContent()}`);
+      await assertTheme(G, "MOVIE");
+      await screenshot(G, "other-mode-banner");
+      const covers = await bannerCovers(G);
+      note(`banner covers: ${covers.join(", ") || "nothing"}`);
+      assert(!covers.includes(".deck__control"), "the banner covers the deck's buttons");
+
+      // Still swiping underneath it, and not pulled out.
+      const passed = await pressSwipe(G, "Pass");
+      assert(passed.mediaType === "MOVIE", `G's swipe went to ${passed.mediaType}`);
+      assert((await topTitle(G)) !== roomMovie, "G's deck did not advance under the banner");
+      await assertStays(G, (current) => homePath(current) === "/", "G was pulled out of Movies");
+      await banner.waitFor();
+      await G.assertNoReload("a match in the other mode");
+
+      const facts = await assertShowMatchScreen(H, title);
+      await assertTheme(H, "TV");
+      await H.assertNoReload("a show match");
+      await assertNoOverflow(H, "show match screen");
+      noteWatch(await readWhereToWatch(H, H.page), note, "H");
+      await screenshot(H, "show-match");
+      note(`H landed on /shows/match; facts [${facts.join(", ")}]`);
+    });
+
+    const showMatched = ["Going Steady: a show match leaves a Movies swiper in place, with a banner"];
+
+    await step("Going Steady: View opens the show match", { requires: showMatched }, async () => {
+      await G.mark();
+      await matchBanner(G, "Shows").getByRole("button", { name: "View" }).click();
+      await onShowMatch(G);
+      assert(homePath(G.page) === homePath(H.page), `different match pages: ${G.page.url()} ${H.page.url()}`);
+      await assertShowMatchScreen(G, twinShow.movie.title);
+      await assertTheme(G, "TV");
+      await G.assertNoReload("View");
+      assert((await matchBanner(G, "Shows").count()) === 0, "the banner stayed after View");
+    });
+
+    await step("Going Steady: a waiting match shows again after a reload, and arriving in that mode opens it", { requires: ["Going Steady: View opens the show match"] }, async (note) => {
+      await drawerTo(G, "Movies");
+      await onPath(G, "/");
+      await topCard(G).waitFor();
+      await assertStays(G, (current) => homePath(current) === "/", "G was sent back to a match already seen");
+      assert((await matchBanner(G, "Shows").count()) === 0, "the banner came back for a match already seen");
+
+      await leavingPage(() => G.page.reload());
+      await topCard(G).waitFor();
+      await matchBanner(G, "Shows").waitFor();
+      assert(homePath(G.page) === "/", `reload went to ${G.page.url()}`);
+      await sleep(1_000);
+      switchBlockedBy = await G.page.evaluate(() => {
+        const option = [...document.querySelectorAll(".home__mode [role=radio]")].find((element) => element.textContent === "Shows");
+        const box = option.getBoundingClientRect();
+        const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return option.contains(top) ? null : (top?.closest(".md-match-banner") ? "the match banner" : top?.className);
+      });
+      await drawerTo(G, "Going Steady");
+      await onShowMatch(G);
+      await assertShowMatchScreen(G, twinShow.movie.title);
+
+      await drawerTo(G, "Movies");
+      await onPath(G, "/");
+      await topCard(G).waitFor();
+      note("banner returned on reload; arriving in Shows by the menu routed to the match");
+    });
+
+    await step("Going Steady: the banner leaves the Movies | Shows switch usable", { requires: ["Going Steady: a waiting match shows again after a reload, and arriving in that mode opens it"] }, async () => {
+      assert(switchBlockedBy === null, `a tap on Shows lands on ${switchBlockedBy}, at phone width`);
+    });
+
+    await step("Going Steady: a movie and a show with the same TMDB id don't collide", { requires: ["Going Steady: a waiting match shows again after a reload, and arriving in that mode opens it"] }, async (note) => {
+      const { id, title } = twinShow.movie;
+      await H.mark();
+      const since = Date.now();
+      // The API, as no deck can be steered to one number. These are the two users' real sessions.
+      const first = await callApi(H, SWIPE_API, { id, mediaType: "MOVIE" });
+      assert(!first.errors, `H's movie swipe: ${JSON.stringify(first.errors)}`);
+      assert(!first.data.swipe.match, `a movie like matched on the show's likes: ${JSON.stringify(first.data.swipe)}`);
+      const second = await callApi(G, SWIPE_API, { id, mediaType: "MOVIE" });
+      assert(!second.errors, `G's movie swipe: ${JSON.stringify(second.errors)}`);
+      movieMatch = second.data.swipe.match;
+      assert(movieMatch?.mediaType === "MOVIE", `G's like should match: ${JSON.stringify(second.data.swipe)}`);
+      assert(movieMatch.id !== showMatch.id, "movie and show share a match id");
+      assert(movieMatch.movie.id === id && movieMatch.movie.title === twinMovie, `movie match is ${JSON.stringify(movieMatch.movie)}`);
+      assert(movieMatch.show === null, "the movie match carries a show");
+
+      await onMatch(G);
+      await G.page.getByRole("heading", { name: "Match Found" }).waitFor();
+      const heading = await G.page.locator(".match-details__title").textContent();
+      assert(heading.includes(twinMovie), `G's movie match shows "${heading}"`);
+      await assertTheme(G, "MOVIE");
+
+      const banner = matchBanner(H, "Movies");
+      await banner.waitFor();
+      const headlineCovered = await H.page.evaluate(() => {
+        const box = document.querySelector(".md-match-banner").getBoundingClientRect();
+        const title = document.querySelector(".match-found__title").getBoundingClientRect();
+        return box.top < title.bottom && title.top < box.bottom;
+      });
+      assert(!headlineCovered, "the banner covers the match headline");
+      await assertStays(H, (current) => homePath(current).startsWith("/shows/match/"), "H was pulled off the show match");
+      await assertShowMatchScreen(H, title);
+      await assertTheme(H, "TV");
+      await H.assertNoReload("a movie match on the same number");
+
+      const [movie, show] = await Promise.all([pendingOf(H, "MOVIE"), pendingOf(H, "TV")]);
+      assert(movie?.id === movieMatch.id && movie.movie.title === twinMovie, `pending movie: ${JSON.stringify(movie)}`);
+      assert(show?.id === showMatch.id && show.show?.title === title, `pending show: ${JSON.stringify(show)}`);
+
+      const room = await roomOf(G);
+      const rows = (await queryKeys(`ROOM#${room.id}`)).map((row) => row.sk.S);
+      for (const expected of [`MATCHED#1#tv:${id}`, `MATCHED#1#movie:${id}`, `TALLY#1#tv:${id}`, `TALLY#1#movie:${id}`]) {
+        assert(rows.includes(expected), `no row ${expected}`);
+      }
+      assert(rows.filter((sk) => sk.startsWith("MATCH#")).length === 2, "expected two match rows");
+
+      await banner.getByRole("button", { name: "Dismiss" }).click();
+      await banner.waitFor({ state: "hidden" });
+      await assertStays(H, (current) => homePath(current).startsWith("/shows/match/"), "dismissing moved H");
+      note(`${id} is "${title}" and "${twinMovie}": two matches, two pending, separate keys; since ${Date.now() - since}ms`);
+    });
+
+    const twinMatched = ["Going Steady: a movie and a show with the same TMDB id don't collide"];
+
+    await step("Going Steady: Keep Looking leaves the movie round alone", { requires: twinMatched }, async (note) => {
+      await G.mark();
+      const since = Date.now();
+      const reset = H.waitOp("StartNewRound");
+      await keepLooking(H);
+      const answer = await reset;
+      const room = (await answer.json()).data.startNewRound;
+      assert(JSON.parse(answer.request().postData()).variables.mediaType === "TV", "Keep Looking didn't send TV");
+      assert(room.tvRound === 2 && room.round === 1, `tvRound ${room.tvRound}, round ${room.round}`);
+      const frame = await G.waitFrame((candidate) => candidate.event?.type === "ROUND_RESET", since, "ROUND_RESET");
+      assert(frame.event.mediaType === "TV", `ROUND_RESET carried ${frame.event.mediaType}`);
+
+      const cards = await H.waitCards("TV", since);
+      assert(cards.some(({ movie }) => movie.id === twinShow.movie.id), "the new round didn't deal the matched show again");
+      await assertStays(H, (current) => homePath(current) === "/shows", "H bounced back to a match");
+      assert(await H.page.getByRole("button", { name: "Undo", exact: true }).isDisabled(), "Undo offered in a new round");
+
+      assert(homePath(G.page).startsWith("/match/"), `G left the movie match for ${G.page.url()}`);
+      assert(G.decksSince(since).length === 0, "Keep Looking reloaded a movie deck");
+      await G.assertNoReload("Keep Looking");
+      assert((await pendingOf(G, "MOVIE"))?.id === movieMatch.id, "the movie match stopped waiting");
+      assert((await pendingOf(G, "TV")) === null, "the show match is still waiting");
+      note("tvRound 2, round 1; G's movie match untouched");
+    });
+
+    await step("Going Steady: Back to Start leaves the show round alone", { requires: ["Going Steady: Keep Looking leaves the movie round alone"] }, async (note) => {
+      await topCard(H).waitFor();
+      await sleep(1_000);
+      const showTop = await topTitle(H);
+      await H.mark();
+      const since = Date.now();
+      const reset = G.waitOp("StartNewRound");
+      await backToStart(G);
+      const answer = await reset;
+      const room = (await answer.json()).data.startNewRound;
+      assert(JSON.parse(answer.request().postData()).variables.mediaType === "MOVIE", "Back to Start didn't send MOVIE");
+      assert(room.round === 2 && room.tvRound === 2, `round ${room.round}, tvRound ${room.tvRound}`);
+      const frame = await H.waitFrame((candidate) => candidate.event?.type === "ROUND_RESET", since, "ROUND_RESET");
+      assert(frame.event.mediaType === "MOVIE", `ROUND_RESET carried ${frame.event.mediaType}`);
+      await G.waitCards("MOVIE", since);
+      await assertStays(H, (current) => homePath(current) === "/shows", "Back to Start moved H");
+      assert(H.decksSince(since).length === 0, "Back to Start reloaded a show deck");
+      assert((await topTitle(H)) === showTop, "Back to Start changed H's top card");
+      await H.assertNoReload("Back to Start");
+      assert((await pendingOf(G, "MOVIE")) === null, "the movie match is still waiting");
+      note("round 2, tvRound still 2; H's deck never reloaded");
+    });
+
+    const roundsReset = ["Going Steady: Back to Start leaves the show round alone"];
+
+    await step("Going Steady: a movie match reaches a Shows swiper as a banner", { requires: roundsReset }, async (note) => {
+      const since = Date.now();
+      await switchMode(H, "Movies");
+      await H.waitCards("MOVIE", since);
+      await topCard(H).waitFor();
+      await sleep(1_000);
+      const film = await topTitle(G);
+      assert((await topTitle(H)) === film, `decks differ: G "${film}", H "${await topTitle(H)}"`);
+      const liked = await pressSwipe(H, "Like");
+      assert(liked.mediaType === "MOVIE" && !liked.match, `H's like: ${JSON.stringify(liked)}`);
+
+      const back = Date.now();
+      await switchMode(H, "Shows");
+      await H.waitCards("TV", back);
+      await topCard(H).waitFor();
+      await sleep(500);
+      const showTop = await topTitle(H);
+      await H.mark();
+
+      const eventSince = Date.now();
+      const swiped = await pressSwipe(G, "Like");
+      assert(swiped.match?.mediaType === "MOVIE", `G's like should match: ${JSON.stringify(swiped)}`);
+      await onMatch(G);
+      const frame = await H.waitFrame((candidate) => candidate.event?.type === "MATCH_FOUND", eventSince, "MATCH_FOUND");
+      assert(frame.event.mediaType === "MOVIE", `MATCH_FOUND carried ${frame.event.mediaType}`);
+      const banner = matchBanner(H, "Movies");
+      await banner.waitFor();
+      assert((await banner.getAttribute("data-theme")) === "movies", "the banner isn't in the movie theme");
+      assert((await banner.textContent()).includes("Match Found"), `banner says ${await banner.textContent()}`);
+      await assertTheme(H, "TV");
+      const covers = await bannerCovers(H);
+      assert(!covers.includes(".deck__control"), "the banner covers the deck's buttons");
+
+      const passed = await pressSwipe(H, "Just Friends");
+      assert(passed.mediaType === "TV", `H's swipe went to ${passed.mediaType}`);
+      assert((await topTitle(H)) !== showTop, "H's deck did not advance under the banner");
+      await assertStays(H, (current) => homePath(current) === "/shows", "H was pulled out of Shows");
+      await H.assertNoReload("a match in the other mode");
+
+      await banner.getByRole("button", { name: "View" }).click();
+      await onMatch(H);
+      assert(homePath(H.page) === homePath(G.page), `different match pages: ${H.page.url()} ${G.page.url()}`);
+      const heading = await assertMatchScreen(H);
+      assert(heading === film, `H sees "${heading}", expected "${film}"`);
+      await assertTheme(H, "MOVIE");
+      await H.assertNoReload("View");
+      await backToStart(G);
+      await backToStart(H);
+      roomMovie = film;
+      note(`"${film}" matched with H in Shows; View moved H to Movies; banner covered ${covers.join(", ") || "nothing"}`);
+    });
+
+    await step("Going Steady: History toggles between modes and keeps them apart", { requires: twinMatched }, async (note) => {
+      const { page } = H;
+      const { title } = twinShow.movie;
+      const stubs = page.locator("#history-panel-matches .history-stub");
+      const toggle = page.getByRole("radiogroup", { name: "Show history for" });
+      await drawerTo(H, "History");
+      await onPath(H, "/history");
+      assert((await toggle.getByRole("radio", { name: "Movies" }).getAttribute("aria-checked")) === "true", "H is in Movies, but history opened on Shows");
+      await stubs.filter({ hasText: twinMovie }).first().waitFor();
+      assert((await stubs.filter({ hasText: title }).count()) === 0, `show "${title}" in the movie history`);
+
+      await toggle.getByRole("radio", { name: "Shows" }).click();
+      await stubs.filter({ hasText: title }).first().waitFor();
+      assert((await stubs.filter({ hasText: twinMovie }).count()) === 0, `movie "${twinMovie}" in the show history`);
+      assert(new URL(page.url()).searchParams.get("media") === "shows", `url ${page.url()}`);
+      await assertTheme(H, "MOVIE");
+
+      await stubs.filter({ hasText: title }).first().click();
+      const sheet = page.getByRole("dialog", { name: /details/ });
+      await sheet.waitFor();
+      noteWatch(await readWhereToWatch(H, sheet), note, "H show history");
+      await sheet.getByRole("button", { name: "Close" }).click();
+      await sheet.waitFor({ state: "hidden" });
+
+      await page.getByRole("tab", { name: "My Swipes" }).click();
+      const swipes = page.locator("#history-panel-swipes .history-row");
+      await swipes.first().waitFor();
+      const showSwipes = await swipes.allTextContents();
+      assert(showSwipes.some((row) => row.includes("Go Steady")), `no Go Steady in ${showSwipes.join(" / ")}`);
+      assert(showSwipes.every((row) => !row.includes("Liked") && !row.includes("Passed")), `movie words in ${showSwipes.join(" / ")}`);
+
+      await leavingPage(() => page.reload());
+      await page.getByRole("tab", { name: "My Swipes", selected: true }).waitFor();
+      assert((await toggle.getByRole("radio", { name: "Shows" }).getAttribute("aria-checked")) === "true", "the toggle didn't survive a reload");
+      await swipes.first().waitFor();
+
+      await toggle.getByRole("radio", { name: "Movies" }).click();
+      await swipes.filter({ hasText: "Liked" }).first().waitFor();
+      await assertNoOverflow(H, "history");
+      await assertTheme(H, "MOVIE");
+
+      // Opening it from Shows starts on Shows, and it's the theme that says so.
+      await drawerTo(G, "History");
+      await onPath(G, "/history");
+      await drawerTo(G, "Going Steady");
+      await onPath(G, "/shows");
+      await drawerTo(G, "History");
+      await onPath(G, "/history");
+      await assertTheme(G, "TV");
+      const gToggle = G.page.getByRole("radiogroup", { name: "Show history for" });
+      assert((await gToggle.getByRole("radio", { name: "Shows" }).getAttribute("aria-checked")) === "true", "history opened from Shows isn't on Shows");
+      await G.page.locator("#history-panel-matches .history-stub").filter({ hasText: title }).first().waitFor();
+      await screenshot(G, "shows-history");
+      note(`${showSwipes.length} show swipes; movie and show lists stayed apart`);
+    });
+
+    await step("Going Steady: leaving mediaType out means Movies through AppSync", { requires: twinMatched }, async (note) => {
+      const omitted = await callApi(H, "query Plain { deck(page: 1) { cards { mediaType show { id } } } }");
+      const cards = omitted.data?.deck?.cards;
+      assert(cards?.length > 0, `deck: ${JSON.stringify(omitted.errors ?? omitted.data)}`);
+      assert(cards.every((card) => card.mediaType === "MOVIE" && card.show === null), "an omitted mediaType dealt shows");
+      const history = await callApi(H, "query Plain { matches(limit: 20) { matches { mediaType } } }");
+      const kinds = history.data?.matches?.matches?.map((match) => match.mediaType) ?? [];
+      assert(kinds.length > 0 && kinds.every((kind) => kind === "MOVIE"), `matches: ${JSON.stringify(history.errors ?? kinds)}`);
+      note(`${cards.length} cards and ${kinds.length} matches, all movies`);
+    });
+
     let P;
     let Q;
     let plexSub = "";
@@ -2025,6 +2758,97 @@ async function main() {
       note("gone from the table and the status index; the title is requestable again");
     });
 
+    // Nothing below may press or call a request: requestOnPlex would take the show's number for a movie.
+    await step("Plex: the show filter yields indexed shows, marked On Plex, with no request control", { requires: plexLinked }, async (note) => {
+      await switchMode(P, "Shows");
+      await switchMode(Q, "Shows");
+      await openFilters(Q, "/shows/filters");
+      await plexTile(Q.page.getByRole("group", { name: "Streaming Services" })).click();
+      const since = await applyFilters(Q, "/shows");
+      const cards = await Q.waitCards("TV", since);
+      await P.waitCards("TV", since);
+      const unavailable = [];
+      for (const { movie } of cards) {
+        const answer = await callApi(P, TV_STATUS_QUERY, { id: movie.id });
+        const status = answer.data?.plexStatus;
+        if (status?.availability !== "AVAILABLE" || status.canRequest !== false) {
+          unavailable.push(`${movie.title}: ${JSON.stringify(answer.data?.plexStatus ?? answer.errors)}`);
+        }
+      }
+      assert(unavailable.length === 0, `Plex deck cards not on Plex: ${unavailable.join("; ")}`);
+      await topCard(P).waitFor();
+      await sleep(1_000);
+      assert((await topTitle(P)) === (await topTitle(Q)), "P and Q have different Plex show decks");
+
+      const opened = await openPlexStatus(P);
+      assert(opened.mediaType === "TV", `plexStatus sent ${opened.mediaType}`);
+      assert(opened.badge.includes("On Plex"), `badge: ${opened.badge}`);
+      assert((await P.page.getByRole("button", { name: "Request on Plex" }).count()) === 0, "Request on Plex offered on a show");
+      await screenshot(P, "plex-show-sheet");
+      await opened.sheet.getByRole("button", { name: "Close" }).click();
+      await opened.sheet.waitFor({ state: "hidden" });
+      note(`all ${cards.length} cards AVAILABLE, canRequest false; "${opened.title}" reads ${opened.badge}`);
+    });
+
+    const plexShows = ["Plex: the show filter yields indexed shows, marked On Plex, with no request control"];
+
+    await step("Plex: a show match on the Plex filter shows Plex to the room and no request", { requires: plexShows }, async (note) => {
+      const liked = await pressSwipe(P, "Go Steady");
+      assert(!liked.match, "a lone like matched");
+      const swiped = await pressSwipe(Q, "Go Steady");
+      assert(swiped.match?.mediaType === "TV", `the second like should match: ${JSON.stringify(swiped)}`);
+      await Promise.all([onShowMatch(P), onShowMatch(Q)]);
+      for (const actor of [P, Q]) {
+        await actor.page.getByRole("heading", { name: "It's Official" }).waitFor();
+        noteWatch(await readWhereToWatch(actor, actor.page), note, actor.name);
+        const tile = actor.page.locator(".where-to-watch__tile--plex");
+        assert((await tile.count()) === 1, `${actor.name}: ${await tile.count()} Plex tiles on a show in the library`);
+        assert((await actor.page.getByRole("button", { name: "Request on Plex" }).count()) === 0, `${actor.name} can request a show`);
+      }
+      const badge = P.page.locator(".plex-status__badge");
+      await badge.waitFor();
+      assert((await badge.textContent()).includes("On Plex"), `P's badge: ${await badge.textContent()}`);
+      assert((await Q.page.locator(".plex-status").count()) === 0, "Q sees a Plex status without a link");
+      await screenshot(P, "plex-show-match");
+      await keepLooking(P);
+      await keepLooking(Q);
+    });
+
+    await step("Plex: a show outside the library has no request button", { requires: plexShows }, async (note) => {
+      await openFilters(P, "/shows/filters");
+      await plexTile(P.page.getByRole("group", { name: "Streaming Services" })).click();
+      const since = await applyFilters(P, "/shows");
+      await P.waitCards("TV", since);
+      await topCard(P).waitFor();
+      await sleep(1_000);
+      const seen = [];
+      for (let attempt = 0; attempt < 25; attempt += 1) {
+        const opened = await openPlexStatus(P);
+        seen.push(opened.badge);
+        assert(opened.status.canRequest === false, `canRequest on "${opened.title}": ${JSON.stringify(opened.status)}`);
+        assert((await P.page.getByRole("button", { name: "Request on Plex" }).count()) === 0, `Request on Plex offered on "${opened.title}"`);
+        const missingFromPlex = opened.status.availability === "NOT_IN_LIBRARY";
+        const words = missingFromPlex ? await opened.sheet.locator(".plex-status").textContent() : "";
+        await opened.sheet.getByRole("button", { name: "Close" }).click();
+        await opened.sheet.waitFor({ state: "hidden" });
+        if (missingFromPlex) {
+          assert(words.includes("It isn't in the library yet"), `panel says: ${words}`);
+          note(`"${opened.title}" after ${attempt} passes: ${words}`);
+          return;
+        }
+        await pressSwipe(P, "Just Friends");
+      }
+      throw new Error(`no show outside the library in 25 cards; badges: ${seen.join(", ")}`);
+    });
+
+    await step("Plex: nothing was requested for a show, and both go back to Movies", { requires: plexShows }, async (note) => {
+      const requestIds = await plexRequestIdsOf(plexSub);
+      assert(requestIds.length === 0, `${requestIds.length} request rows after the show steps`);
+      await switchMode(P, "Movies");
+      await switchMode(Q, "Movies");
+      note("no request rows for the temporary user");
+    });
+
     await step("Plex: unlinking takes the filter away from the room", { requires: plexLinked }, async (note) => {
       const { page } = P;
       await drawerTo(P, "Profile");
@@ -2070,13 +2894,15 @@ async function main() {
       assert(errors.length === 0, errors.map((entry) => `[${entry.step}] ${entry.text}`).join(" ;; "));
     });
     await step("no console errors", async () => {
-      const errors = dedupe(unexpected(noise.console).filter((entry) => entry.level === "error"));
+      // The embedded YouTube player logs its own permission complaints; those aren't the app's.
+      const ours = (entry) => entry.level === "error" && !/youtube(-nocookie)?\.com/.test(entry.source ?? "");
+      const errors = dedupe(unexpected(noise.console).filter(ours));
       assert(errors.length === 0, errors.map((entry) => `[${entry.step}] x${entry.count} ${entry.text}`).join(" ;; "));
     });
     await step("no failed first-party requests", async () => {
       // The embedded YouTube player cancels its own telemetry; that isn't the app's traffic.
       const firstParty = (entry) =>
-        !/youtube(-nocookie)?\.com|googlevideo|doubleclick|ggpht|ytimg|www\.google\.com\/js\/th\//.test(entry.text);
+        !/youtube(-nocookie)?\.com|googlevideo|doubleclick|ggpht|ytimg|www\.google\.com\/js\/th\/|jnn-pa\.googleapis\.com|gstatic\.com/.test(entry.text);
       const failed = dedupe([...unexpected(noise.requestFailed), ...unexpected(noise.httpErrors)].filter(firstParty));
       assert(failed.length === 0, failed.map((entry) => `[${entry.step}] x${entry.count} ${entry.text}`).join(" ;; "));
     });

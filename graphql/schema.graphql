@@ -18,6 +18,19 @@ enum MediaType {
   TV
 }
 
+"The status choice on the TV filters. Unset means either."
+enum ShowStatusFilter {
+  RUNNING
+  FINISHED
+}
+
+"Season ranges live in COMMITMENT_SEASONS in packages/core. Unset means any length."
+enum CommitmentLevel {
+  SHORT_AND_SWEET
+  A_FEW_SEASONS
+  LONG_HAUL
+}
+
 enum PlexAvailability {
   "In the library with a file."
   AVAILABLE
@@ -29,13 +42,13 @@ enum PlexAvailability {
 }
 
 enum RoomEventType {
-  "A swipe completed a match. movieId and matchId are set."
+  "A swipe completed a match. movieId, matchId and mediaType are set."
   MATCH_FOUND
-  "Filters or match threshold changed. Clients reload the deck/room."
+  "Filters or match threshold changed. Clients reload the deck/room. mediaType is set when one mode's filters changed."
   ROOM_UPDATED
   "Someone joined or left. Clients reload the member list."
   MEMBERS_CHANGED
-  "Back to Start was pressed. round is the new round; clients restart the deck."
+  "Back to Start was pressed. round is the new round of mediaType's mode; clients in that mode restart the deck."
   ROUND_RESET
 }
 
@@ -67,6 +80,7 @@ type Genre {
   name: String!
 }
 
+"Room.filters uses the release dates. Room.tvFilters uses the TV fields instead."
 type Filters {
   genreIds: [Int!]!
   cast: [Person!]!
@@ -76,6 +90,12 @@ type Filters {
   releaseDateGte: String
   "YYYY-MM-DD"
   releaseDateLte: String
+  showStatus: ShowStatusFilter
+  commitment: CommitmentLevel
+  "YYYY-MM-DD"
+  firstAirDateGte: String
+  "YYYY-MM-DD"
+  firstAirDateLte: String
 }
 
 input PersonInput {
@@ -91,21 +111,30 @@ input FiltersInput {
   services: [String!]!
   releaseDateGte: String
   releaseDateLte: String
+  showStatus: ShowStatusFilter
+  commitment: CommitmentLevel
+  firstAirDateGte: String
+  firstAirDateLte: String
 }
 
 type Room {
   id: ID!
   code: String!
   filters: Filters!
+  "Going Steady's own filters. Empty until someone saves them."
+  tvFilters: Filters!
   matchThreshold: Int!
   requireMajority: Boolean!
   "Increments on Back to Start. Swipes and tallies belong to one round."
   round: Int!
+  "Going Steady's own round, so Keep Looking never resets the movie deck."
+  tvRound: Int!
   members: [Member!]!
   "True when any member has linked Plex Request. Unlocks the plex filter for the whole room."
   plexAvailable: Boolean!
 }
 
+"Also the face of a show on cards, matches and history. See DeckCard.movie."
 type Movie {
   id: Int!
   title: String!
@@ -118,8 +147,36 @@ type Movie {
   genres: [String!]!
 }
 
+"A TV series. title is TMDB's name, so the fields it shares with Movie read the same."
+type Show {
+  id: Int!
+  title: String!
+  overview: String!
+  firstAirYear: Int
+  "Null until an episode has aired."
+  lastAirYear: Int
+  "TMDB's wording, e.g. Returning Series or Ended."
+  status: String
+  seasonCount: Int
+  episodeCount: Int
+  networks: [String!]!
+  "Typical episode length in minutes. Null when TMDB has none, in which case hide it."
+  episodeRuntime: Int
+  voteAverage: Float
+  posterUrl: String
+  backdropUrl: String
+  genres: [String!]!
+}
+
 type DeckCard {
+  mediaType: MediaType!
+  """
+  The card face, set in both modes. For a show this is showAsMovie(show) from
+  packages/core, so movie.id is a TV id: send it with mediaType, never alone.
+  """
   movie: Movie!
+  "Set only when mediaType is TV: what a show has and a movie doesn't."
+  show: Show
   "True if another room member already liked it this round; these sort first."
   likedByRoommate: Boolean!
 }
@@ -140,6 +197,7 @@ type FilterPreview {
 
 type SwipeResult {
   movieId: Int!
+  mediaType: MediaType!
   direction: SwipeDirection!
   "Set when this swipe completed a match, so the swiper doesn't wait on the subscription."
   match: Match
@@ -147,6 +205,7 @@ type SwipeResult {
 
 type UndoResult {
   movieId: Int!
+  mediaType: MediaType!
   "False when there was nothing to undo or the movie already matched."
   undone: Boolean!
 }
@@ -167,11 +226,19 @@ type Match {
   roomId: ID!
   round: Int!
   matchedAt: AWSDateTime!
+  mediaType: MediaType!
+  "See DeckCard.movie."
   movie: Movie!
+  "Set only when mediaType is TV."
+  show: Show
 }
 
 type HistoryEntry {
+  mediaType: MediaType!
+  "See DeckCard.movie."
   movie: Movie!
+  "Set only when mediaType is TV."
+  show: Show
   direction: SwipeDirection!
   round: Int!
   swipedAt: AWSDateTime!
@@ -190,6 +257,8 @@ type MatchPage {
 type PlexStatus {
   availability: PlexAvailability!
   canRequest: Boolean!
+  "Shows only: season numbers with no file. AVAILABLE with any listed is the partial state."
+  missingSeasons: [Int!]
 }
 
 type PlexLinkStart {
@@ -210,6 +279,8 @@ type RoomEvent @aws_cognito_user_pools @aws_iam {
   roomId: ID!
   type: RoomEventType!
   movieId: Int
+  "Which mode a match or reset belongs to. Null on events that concern the whole room."
+  mediaType: MediaType
   matchId: ID
   round: Int
   "Who caused it, so a client can ignore its own echo."
@@ -220,6 +291,7 @@ input RoomEventInput {
   roomId: ID!
   type: RoomEventType!
   movieId: Int
+  mediaType: MediaType
   matchId: ID
   round: Int
   actorId: ID
@@ -230,45 +302,45 @@ type Query {
   me: Profile!
   "The caller's current room."
   myRoom: Room!
-  "Unswiped movies for the caller. page starts at 1."
-  deck(page: Int!): DeckPage!
+  "Unswiped titles for the caller. page starts at 1."
+  deck(page: Int!, mediaType: MediaType = MOVIE): DeckPage!
   "Takes draft filters because deck() only reads the saved ones. Call it debounced."
-  filterPreview(filters: FiltersInput!): FilterPreview!
+  filterPreview(filters: FiltersInput!, mediaType: MediaType = MOVIE): FilterPreview!
   movie(id: Int!): Movie!
   "YouTube id of the best trailer, or null."
-  trailer(movieId: Int!): String
-  watchOptions(movieId: Int!): [WatchOption!]!
+  trailer(movieId: Int!, mediaType: MediaType = MOVIE): String
+  watchOptions(movieId: Int!, mediaType: MediaType = MOVIE): [WatchOption!]!
   "Null when the caller hasn't linked Plex Request."
-  plexStatus(movieId: Int!): PlexStatus
-  genres: [Genre!]!
+  plexStatus(movieId: Int!, mediaType: MediaType = MOVIE): PlexStatus
+  genres(mediaType: MediaType = MOVIE): [Genre!]!
   searchPeople(query: String!): [Person!]!
-  "Matches in the caller's room, newest first, across all rounds."
-  matches(limit: Int, nextToken: String): MatchPage!
-  "The caller's own swipes in the current room, newest first."
-  swipeHistory(limit: Int, nextToken: String): HistoryPage!
-  "A match the current round already has, for clients that were offline when it happened."
-  pendingMatch: Match
+  "One mode's matches in the caller's room, newest first, across all rounds."
+  matches(limit: Int, nextToken: String, mediaType: MediaType = MOVIE): MatchPage!
+  "The caller's own swipes in one mode in the current room, newest first."
+  swipeHistory(limit: Int, nextToken: String, mediaType: MediaType = MOVIE): HistoryPage!
+  "A match the mode's current round already has, for clients that were offline when it happened."
+  pendingMatch(mediaType: MediaType = MOVIE): Match
 }
 
 type Mutation {
-  swipe(movieId: Int!, direction: SwipeDirection!): SwipeResult!
-  undoSwipe(movieId: Int!): UndoResult!
-  updateFilters(filters: FiltersInput!): Room!
+  swipe(movieId: Int!, direction: SwipeDirection!, mediaType: MediaType = MOVIE): SwipeResult!
+  undoSwipe(movieId: Int!, mediaType: MediaType = MOVIE): UndoResult!
+  updateFilters(filters: FiltersInput!, mediaType: MediaType = MOVIE): Room!
   updateRoomSettings(matchThreshold: Int!, requireMajority: Boolean!): Room!
   "Case-insensitive. Leaves the caller's current room first."
   joinRoom(code: String!): Room!
   "Leaves the current room and puts the caller in a new one of their own."
   leaveRoom: Room!
-  "Back to Start. expectedRound makes a double press from two members a no-op."
-  startNewRound(expectedRound: Int!): Room!
+  "Back to Start for one mode. expectedRound makes a double press from two members a no-op."
+  startNewRound(expectedRound: Int!, mediaType: MediaType = MOVIE): Room!
   updateProfile(displayName: String, avatarKey: String): Profile!
   createAvatarUpload(contentType: String!): AvatarUpload!
   "Emails a code to the caller's own profile address if it has a Plex Request account."
   startPlexLink: PlexLinkStart!
   confirmPlexLink(code: String!): Profile!
   unlinkPlex: Profile!
-  "Acts only as the caller's linked account. A duplicate comes back as REQUESTED."
-  requestOnPlex(movieId: Int!): PlexStatus!
+  "Movies only for now. Acts only as the caller's linked account. A duplicate comes back as REQUESTED."
+  requestOnPlex(movieId: Int!, mediaType: MediaType = MOVIE): PlexStatus!
 
   "Backend only. Pass-through that fans out to onRoomEvent subscribers."
   publishRoomEvent(input: RoomEventInput!): RoomEvent! @aws_iam

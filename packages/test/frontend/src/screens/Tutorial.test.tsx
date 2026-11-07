@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ModeContext, modeValue } from "../../../../frontend/src/mode/ModeProvider";
 import Tutorial from "@movie-date/frontend/screens/Tutorial";
 import { hasSeenTutorial, resetTutorialSeen } from "@movie-date/frontend/services/tutorial";
 import { fakeViewport } from "../support/viewport";
@@ -30,7 +31,7 @@ describe("Tutorial", () => {
   it("opens as a dialog on the first step, with focus inside", () => {
     renderTutorial();
 
-    const dialog = screen.getByRole("dialog", { name: "Tutorial, step 1 of 6" });
+    const dialog = screen.getByRole("dialog", { name: "Tutorial, step 1 of 7" });
     expect(dialog).toHaveFocus();
     expect(screen.getByText(/home icon/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Prev" })).not.toBeInTheDocument();
@@ -39,6 +40,8 @@ describe("Tutorial", () => {
   it("steps through Join Room, Search, swiping and the room code to Finish", async () => {
     renderTutorial();
 
+    await next();
+    expect(screen.getByText(/moves between them/)).toBeInTheDocument();
     await next();
     expect(screen.getByText(/Press Join Room/)).toBeInTheDocument();
     await next();
@@ -57,6 +60,28 @@ describe("Tutorial", () => {
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
     expect(hasSeenTutorial()).toBe(true);
     expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/);
+  });
+
+  it("speaks Going Steady from Going Steady, all the way through", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={["/tutorial"]}
+        future={{ v7_startTransition: false, v7_relativeSplatPath: true }}
+      >
+        <ModeContext.Provider value={modeValue("TV")}>
+          <Tutorial />
+        </ModeContext.Provider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Go Steady")).toBeInTheDocument();
+    expect(screen.getByText("Your Next Show (2019–present)")).toBeInTheDocument();
+    expect(screen.getByText(/show swipe page/)).toBeInTheDocument();
+    await next();
+    await next();
+    await next();
+    expect(screen.getByText(/find shows by/)).toBeInTheDocument();
+    await next();
+    expect(screen.getByText(/the same show/)).toBeInTheDocument();
   });
 
   it("goes back a step, keeping focus in the dialog when Prev disappears", async () => {
@@ -96,6 +121,7 @@ describe("Tutorial", () => {
     await next();
     await next();
     await next();
+    await next();
 
     expect(screen.queryByText("Backspace")).not.toBeInTheDocument();
   });
@@ -113,6 +139,7 @@ describe("Tutorial", () => {
     });
 
     const toSwipeStep = async (): Promise<void> => {
+      await next();
       await next();
       await next();
       await next();
@@ -160,7 +187,7 @@ describe("Tutorial", () => {
     it("settles the card again after a try", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       renderTutorial();
-      for (let press = 0; press < 3; press += 1) {
+      for (let press = 0; press < 4; press += 1) {
         act(() => screen.getByRole("button", { name: "Next" }).click());
       }
 

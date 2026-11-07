@@ -11,6 +11,8 @@ import { formatHistoryDate } from "../match/historyFormat";
 import { MatchDetails } from "../match/MatchDetails";
 import { MoviePoster } from "../match/MoviePoster";
 import { Avatar } from "../room/Avatar";
+import { useMode } from "../../mode/ModeProvider";
+import { filtersPath } from "../../mode/modeRoutes";
 import { filterLabels } from "./filterSummary";
 import { RoomTicket } from "./RoomTicket";
 import "./RoomPanel.css";
@@ -54,14 +56,19 @@ function Members(): JSX.Element {
 
 function ActiveFilters(): JSX.Element {
   const { room } = useRoom();
-  const needsGenres = room.filters.genreIds.length > 0;
+  const { mode: mediaType } = useMode();
+  const filters = mediaType === "TV" ? room.tvFilters : room.filters;
+  const needsGenres = filters.genreIds.length > 0;
   // A failed lookup falls back to a count, so it isn't worth an error of its own.
-  const { data: genres } = useAsyncData(async () => (needsGenres ? api.genres() : []), [needsGenres]);
-  const labels = filterLabels(room.filters, genres);
+  const { data: genres } = useAsyncData(
+    async () => (needsGenres ? api.genres(mediaType) : []),
+    [needsGenres, mediaType],
+  );
+  const labels = filterLabels(filters, genres);
 
   return (
     <section className="deck-room__section" aria-label="Active filters">
-      <SectionHeading title="Filters" to="/filters" linkLabel={labels.length > 0 ? "Change" : "Add"} />
+      <SectionHeading title="Filters" to={filtersPath(mediaType)} linkLabel={labels.length > 0 ? "Change" : "Add"} />
       {labels.length > 0 ? (
         <ul className="deck-room__filters">
           {labels.map((label) => (
@@ -79,10 +86,14 @@ function ActiveFilters(): JSX.Element {
 
 function LatestMatches(): JSX.Element {
   const { room } = useRoom();
+  const { mode: mediaType } = useMode();
   const [selected, setSelected] = useState<Match | null>(null);
-  const { data, error, reload } = useAsyncData(() => api.matches({ limit: LATEST_MATCHES }), [room.id]);
+  const { data, error, reload } = useAsyncData(
+    () => api.matches({ limit: LATEST_MATCHES }, mediaType),
+    [room.id, mediaType],
+  );
   useRoomEvents((event) => {
-    if (event.type === "MATCH_FOUND") void reload();
+    if (event.type === "MATCH_FOUND" && (event.mediaType ?? mediaType) === mediaType) void reload();
   });
   const matches = data?.matches;
 
@@ -106,7 +117,7 @@ function LatestMatches(): JSX.Element {
           {matches.map((match) => (
             <li key={match.id}>
               <button type="button" className="deck-room__match" onClick={() => setSelected(match)}>
-                <MoviePoster className="deck-room__match-poster" posterUrl={match.movie.posterUrl} alt="" thumbnail />
+                <MoviePoster className="deck-room__match-poster" posterUrl={match.movie.posterUrl} alt="" thumbnail mediaType={match.mediaType} />
                 <span className="deck-room__match-text">
                   <span className="deck-room__match-title">{match.movie.title}</span>
                   <span className="deck-room__match-date">{formatHistoryDate(match.matchedAt)}</span>
@@ -122,7 +133,7 @@ function LatestMatches(): JSX.Element {
         onClose={() => setSelected(null)}
         label={selected ? `${selected.movie.title} details` : "Match details"}
       >
-        {selected && <MatchDetails key={selected.id} movie={selected.movie} />}
+        {selected && <MatchDetails key={selected.id} item={selected} />}
       </BottomSheet>
     </section>
   );

@@ -1,4 +1,12 @@
-import { mediaKey, movieKey, parseMediaKey } from "@movie-date/core";
+import {
+  COMMITMENT_SEASONS,
+  mediaKey,
+  movieKey,
+  parseMediaKey,
+  resolveMediaType,
+  showAsMovie,
+  type Show,
+} from "@movie-date/core";
 import { describe, expect, it } from "vitest";
 
 describe("media keys", () => {
@@ -19,5 +27,54 @@ describe("media keys", () => {
   it("refuses anything else", () => {
     expect(() => parseMediaKey("book:1")).toThrow("Not a media key");
     expect(() => parseMediaKey("")).toThrow("Not a media key");
+  });
+});
+
+describe("resolveMediaType", () => {
+  it("treats a missing or null argument as a movie", () => {
+    expect(resolveMediaType(undefined)).toBe("MOVIE");
+    expect(resolveMediaType(null)).toBe("MOVIE");
+    expect(resolveMediaType("TV")).toBe("TV");
+  });
+});
+
+describe("showAsMovie", () => {
+  const show: Show = {
+    id: 1399,
+    title: "Game of Thrones",
+    overview: "Seven noble families.",
+    firstAirYear: 2011,
+    lastAirYear: 2019,
+    status: "Ended",
+    seasonCount: 8,
+    episodeCount: 73,
+    networks: ["HBO"],
+    episodeRuntime: 60,
+    voteAverage: 8.4,
+    posterUrl: "https://image.tmdb.org/t/p/w500/poster.jpg",
+    backdropUrl: null,
+    genres: ["Drama"],
+  };
+
+  it("fills the card face from the fields the two share", () => {
+    expect(showAsMovie(show)).toEqual({
+      id: 1399,
+      title: "Game of Thrones",
+      overview: "Seven noble families.",
+      releaseYear: 2011,
+      runtime: 60,
+      voteAverage: 8.4,
+      posterUrl: "https://image.tmdb.org/t/p/w500/poster.jpg",
+      backdropUrl: null,
+      genres: ["Drama"],
+    });
+  });
+});
+
+describe("COMMITMENT_SEASONS", () => {
+  it("leaves no gap between levels", () => {
+    expect(COMMITMENT_SEASONS.SHORT_AND_SWEET.max).toBe(COMMITMENT_SEASONS.A_FEW_SEASONS.min - 1);
+    expect(COMMITMENT_SEASONS.A_FEW_SEASONS.max).toBe(COMMITMENT_SEASONS.LONG_HAUL.min - 1);
+    expect(COMMITMENT_SEASONS.LONG_HAUL.max).toBeNull();
   });
 });

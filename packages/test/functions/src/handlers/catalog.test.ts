@@ -28,12 +28,12 @@ describe("thin catalogue handlers", () => {
   it("watchOptions passes the id through", async () => {
     vi.mocked(watch.getWatchOptions).mockResolvedValue([]);
     expect(await watchOptions({ movieId: 949 }, { userId: "user-1" })).toEqual([]);
-    expect(watch.getWatchOptions).toHaveBeenCalledWith(949, "user-1");
+    expect(watch.getWatchOptions).toHaveBeenCalledWith(949, "user-1", "MOVIE");
   });
 
   it("genres returns the list", async () => {
     vi.mocked(tmdb.getGenres).mockResolvedValue([{ id: 1, name: "Action" }]);
-    expect(await genres()).toEqual([{ id: 1, name: "Action" }]);
+    expect(await genres({})).toEqual([{ id: 1, name: "Action" }]);
   });
 });
 

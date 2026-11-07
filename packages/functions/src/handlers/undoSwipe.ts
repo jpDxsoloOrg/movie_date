@@ -1,4 +1,10 @@
-import { movieKey, type FieldArguments, type UndoResult } from "@movie-date/core";
+import {
+  mediaKey,
+  resolveMediaType,
+  type FieldArguments,
+  type MediaType,
+  type UndoResult,
+} from "@movie-date/core";
 import {
   cancellationCodes,
   getItem,
@@ -10,6 +16,7 @@ import {
 import { ConflictError } from "../lib/errors.js";
 import type { ResolverContext } from "../lib/identity.js";
 import * as keys from "../lib/keys.js";
+import { roundOf } from "../lib/mediaMode.js";
 import {
   backoff,
   failedCondition,
@@ -24,7 +31,13 @@ import {
  * check rides in the same transaction so an undo can't take back a like a match
  * was just built on. The order of these writes is relied on below.
  */
-function undoWrites(roomId: string, round: number, row: SwipeItem): TransactItems {
+function undoWrites(
+  roomId: string,
+  round: number,
+  mediaType: MediaType,
+  row: SwipeItem,
+): TransactItems {
+  const media = mediaKey(mediaType, row.movieId);
   const writes: TransactItems = [
     {
       Delete: {
@@ -36,7 +49,7 @@ function undoWrites(roomId: string, round: number, row: SwipeItem): TransactItem
     {
       ConditionCheck: {
         TableName: tableName(),
-        Key: keys.matched(roomId, round, movieKey(row.movieId)),
+        Key: keys.matched(roomId, round, media),
         ConditionExpression: "attribute_not_exists(pk)",
       },
     },
@@ -45,7 +58,7 @@ function undoWrites(roomId: string, round: number, row: SwipeItem): TransactItem
     writes.push({
       Update: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, movieKey(row.movieId)),
+        Key: keys.tally(roomId, round, media),
         UpdateExpression: "ADD likes :decrement",
         ExpressionAttributeValues: { ":decrement": -1 },
       },
@@ -59,22 +72,24 @@ export async function undoSwipe(
   context: ResolverContext,
 ): Promise<UndoResult> {
   const { movieId } = args;
+  const mediaType = resolveMediaType(args.mediaType);
   for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     const { roomId } = await getOrCreateProfile(context);
-    const { round } = await requireRoomMeta(roomId);
-    const row = await getItem<SwipeItem>(keys.swipe(roomId, round, context.userId, movieKey(movieId)), {
-      consistent: true,
-    });
-    if (!row) return { movieId, undone: false };
+    const round = roundOf(await requireRoomMeta(roomId), mediaType);
+    const row = await getItem<SwipeItem>(
+      keys.swipe(roomId, round, context.userId, mediaKey(mediaType, movieId)),
+      { consistent: true },
+    );
+    if (!row) return { movieId, mediaType, undone: false };
 
     try {
-      await transactWrite(undoWrites(roomId, round, row));
-      return { movieId, undone: true };
+      await transactWrite(undoWrites(roomId, round, mediaType, row));
+      return { movieId, mediaType, undone: true };
     } catch (error) {
       if (!isTransactionCancelled(error)) throw error;
       const [swipeCode, matchedCode] = cancellationCodes(error);
       if (failedCondition(swipeCode) || failedCondition(matchedCode)) {
-        return { movieId, undone: false };
+        return { movieId, mediaType, undone: false };
       }
       await backoff(attempt);
     }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { findProvider, PLEX_SERVICE } from "@movie-date/core";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { api, errorMessage, type WatchOption } from "../../services/api";
+import { api, errorMessage, type MediaType, type WatchOption } from "../../services/api";
 import { Skeleton } from "../Skeleton";
 import { EmptyState, ErrorState } from "../StateMessage";
 import { PlexMark } from "../PlexMark";
@@ -19,7 +19,7 @@ const TYPE_LABELS: Record<string, string> = {
   library: "Library",
 };
 
-/** Plex has no deep link: it's a sign the room already owns the movie, not a way out. */
+/** Plex has no deep link: it's a sign the room already owns the title, not a way out. */
 function PlexTile({ option }: { option: WatchOption }): JSX.Element {
   return (
     <div className="where-to-watch__tile where-to-watch__tile--plex">
@@ -72,11 +72,22 @@ function ServiceTile({ option, movieTitle }: { option: WatchOption; movieTitle: 
 export interface WhereToWatchProps {
   movieId: number;
   movieTitle: string;
+  mediaType?: MediaType;
   onGradient?: boolean;
 }
 
-export function WhereToWatch({ movieId, movieTitle, onGradient = false }: WhereToWatchProps): JSX.Element {
-  const { data: options, error, loading, reload } = useAsyncData(() => api.watchOptions(movieId), [movieId]);
+export function WhereToWatch({
+  movieId,
+  movieTitle,
+  mediaType = "MOVIE",
+  onGradient = false,
+}: WhereToWatchProps): JSX.Element {
+  const {
+    data: options,
+    error,
+    loading,
+    reload,
+  } = useAsyncData(() => api.watchOptions(movieId, mediaType), [movieId, mediaType]);
 
   function renderBody(): JSX.Element {
     if (options && options.length > 0) {

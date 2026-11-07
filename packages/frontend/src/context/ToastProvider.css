@@ -47,9 +47,11 @@
 }
 
 /* Without a bottom nav, the foot of the phone screen holds whatever the page ends with,
-   and where that lands depends on its length, so no bottom offset stays clear of it. */
+   and where that lands depends on its length, so no bottom offset stays clear of it.
+   With the deck, the foot is its buttons, which matter more than what's at the top. */
 @media (max-width: 639px) {
-  body:not(:has(.md-bottom-nav)) .md-toasts {
+  body:not(:has(.md-bottom-nav)) .md-toasts,
+  body:has(.deck__controls) .md-toasts {
     top: calc(var(--app-bar-height) + var(--safe-top) + var(--space-2));
     bottom: auto;
   }

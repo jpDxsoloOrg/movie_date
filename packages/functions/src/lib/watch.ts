@@ -1,4 +1,12 @@
-import { findProvider, PROVIDERS, type WatchOption, type WatchOptionType } from "@movie-date/core";
+import {
+  DEFAULT_MEDIA_TYPE,
+  findProvider,
+  mediaKey,
+  PROVIDERS,
+  type MediaType,
+  type WatchOption,
+  type WatchOptionType,
+} from "@movie-date/core";
 import { cached, DAY_SECONDS } from "./cache.js";
 import { NotFoundError, ValidationError } from "./errors.js";
 import { globalLimit, userLimit } from "./keys.js";
@@ -13,6 +21,7 @@ import {
   imageUrl,
   type JsonRecord,
 } from "./tmdb.js";
+import { getTmdbShowWatchProviders } from "./tmdbTv.js";
 
 const RAPIDAPI_HOST = "streaming-availability.p.rapidapi.com";
 
@@ -53,6 +62,12 @@ function onePerService(options: readonly WatchOption[]): WatchOption[] {
   return [...best.values()];
 }
 
+/** A third party's link goes straight into an href, so only a web address may reach it. */
+function webLink(value: unknown): string | null {
+  const link = asText(value);
+  return link && URL.canParse(link) && new URL(link).protocol === "https:" ? link : null;
+}
+
 function fromStreamingOption(option: JsonRecord): WatchOption[] {
   const service = asRecord(option.service);
   const serviceId = asText(service.id);
@@ -63,14 +78,20 @@ function fromStreamingOption(option: JsonRecord): WatchOption[] {
       serviceId,
       serviceName: asText(service.name) ?? provider?.label ?? serviceId,
       type: option.type,
-      link: asText(option.link),
+      link: webLink(option.link),
       logoUrl: provider ? null : asText(asRecord(service.imageSet).lightThemeImage),
     },
   ];
 }
 
-async function fromRapidApi(movieId: number, apiKey: string): Promise<WatchOption[]> {
-  const url = new URL(`https://${RAPIDAPI_HOST}/shows/movie/${movieId}`);
+/** The same answer for both types: checked against `/shows/tv/1399` on the live API. */
+async function fromRapidApi(
+  movieId: number,
+  mediaType: MediaType,
+  apiKey: string,
+): Promise<WatchOption[]> {
+  const path = mediaType === "TV" ? "tv" : "movie";
+  const url = new URL(`https://${RAPIDAPI_HOST}/shows/${path}/${movieId}`);
   url.search = new URLSearchParams({ country: "us", output_language: "en" }).toString();
   const body = await fetchJson(url, "RapidAPI streaming-availability", {
     "x-rapidapi-key": apiKey,
@@ -91,9 +112,12 @@ function tmdbServiceId(providerId: number): string {
  * link is also how the frontend knows this is JustWatch data needing attribution:
  * the schema has no source field and RapidAPI links never point there.
  */
-async function fromTmdb(movieId: number): Promise<WatchOption[]> {
-  const region = await getTmdbWatchProviders(movieId);
-  const link = asText(region.link);
+async function fromTmdb(movieId: number, mediaType: MediaType): Promise<WatchOption[]> {
+  const region =
+    mediaType === "TV"
+      ? await getTmdbShowWatchProviders(movieId)
+      : await getTmdbWatchProviders(movieId);
+  const link = webLink(region.link);
   const options = TMDB_OFFERS.flatMap(([bucket, type]) =>
     asRecords(region[bucket]).flatMap((offer): WatchOption[] => {
       if (typeof offer.provider_id !== "number") return [];
@@ -121,23 +145,32 @@ async function mayCallRapidApi(userId: string): Promise<boolean> {
   );
 }
 
-async function loadWatchOptions(movieId: number, userId: string): Promise<WatchOption[]> {
+async function loadWatchOptions(
+  movieId: number,
+  mediaType: MediaType,
+  userId: string,
+): Promise<WatchOption[]> {
   const apiKey = await getRapidApiKey();
-  if (!apiKey || !(await mayCallRapidApi(userId))) return fromTmdb(movieId);
+  if (!apiKey || !(await mayCallRapidApi(userId))) return fromTmdb(movieId, mediaType);
   try {
-    return await fromRapidApi(movieId, apiKey);
+    return await fromRapidApi(movieId, mediaType, apiKey);
   } catch {
-    return fromTmdb(movieId);
+    return fromTmdb(movieId, mediaType);
   }
 }
 
-export async function getWatchOptions(movieId: number, userId: string): Promise<WatchOption[]> {
+export async function getWatchOptions(
+  movieId: number,
+  userId: string,
+  mediaType: MediaType = DEFAULT_MEDIA_TYPE,
+): Promise<WatchOption[]> {
   // Here too, not just in TMDB's path helper: that runs after RapidAPI has been paid for.
   if (!Number.isInteger(movieId) || movieId < 1) throw new ValidationError("Invalid movie id.");
   // Null marks a movie neither service knows, so a repeat of a bad id costs nothing.
-  const options = await cached<WatchOption[] | null>("watch", String(movieId), DAY_SECONDS, async () => {
+  const cacheKey = mediaType === "TV" ? mediaKey("TV", movieId) : String(movieId);
+  const options = await cached<WatchOption[] | null>("watch", cacheKey, DAY_SECONDS, async () => {
     try {
-      return await loadWatchOptions(movieId, userId);
+      return await loadWatchOptions(movieId, mediaType, userId);
     } catch (error) {
       if (error instanceof NotFoundError) return null;
       throw error;

@@ -43,7 +43,7 @@ describe("swipe", () => {
   it("records a pass without touching the tally", async () => {
     const room = await roomOf("ann");
     const result = await swipe({ movieId: 7, direction: "PASS" }, user("ann"));
-    expect(result).toEqual({ movieId: 7, direction: "PASS", match: null });
+    expect(result).toEqual({ movieId: 7, mediaType: "MOVIE", direction: "PASS", match: null });
     expect(table.find(`ROOM#${room.id}`, "TALLY#")).toEqual([]);
     expect(table.row(`ROOM#${room.id}`, "SWIPE#1#sub-ann#movie:7")).toMatchObject({
       direction: "PASS",
@@ -67,6 +67,7 @@ describe("swipe", () => {
       roomId: room.id,
       type: "MATCH_FOUND",
       movieId: 7,
+      mediaType: "MOVIE",
       matchId: second.match?.id,
       round: 1,
       actorId: "sub-bob",
@@ -293,6 +294,7 @@ describe("undoSwipe", () => {
     await swipe({ movieId: 7, direction: "LIKE" }, user("ann"));
     await expect(undoSwipe({ movieId: 7 }, user("ann"))).resolves.toEqual({
       movieId: 7,
+      mediaType: "MOVIE",
       undone: true,
     });
     expect(tallyLikes(room.id, 1, 7)).toBe(0);
@@ -311,6 +313,7 @@ describe("undoSwipe", () => {
     await roomOf("ann");
     await expect(undoSwipe({ movieId: 7 }, user("ann"))).resolves.toEqual({
       movieId: 7,
+      mediaType: "MOVIE",
       undone: false,
     });
   });

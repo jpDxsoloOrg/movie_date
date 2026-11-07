@@ -8,9 +8,16 @@ const CREATE_TIMEOUT_MS = 22_000;
 /** Only the index job asks for this, and it has minutes to spare. */
 const LIBRARY_TIMEOUT_MS = 60_000;
 
+/** How Plex Request answers an op it doesn't have, such as one this site deployed ahead of it. */
+const INVALID_INPUT = "INVALID_INPUT";
+
 export class PlexRequestUnavailableError extends UpstreamError {
-  constructor() {
+  /** The integration's own error code, when it answered at all. */
+  readonly reason: string | undefined;
+
+  constructor(reason?: string) {
     super("Plex Request is unavailable right now.");
+    this.reason = reason;
   }
 }
 
@@ -21,6 +28,12 @@ export interface PlexAccount {
 
 export interface LibraryEntry {
   tmdbId: number;
+  hasFile: boolean;
+}
+
+/** Sonarr's id: Plex Request keeps shows by TVDB id, not TMDB's. */
+export interface ShowLibraryEntry {
+  tvdbId: number;
   hasFile: boolean;
 }
 
@@ -43,6 +56,7 @@ export interface RequestDraft {
 type Operation =
   | { op: "findUser"; email: string }
   | { op: "libraryMovies" }
+  | { op: "libraryShows" }
   | { op: "movieStatus"; tmdbId: number; userId: string }
   | ({ op: "createRequest" } & RequestDraft);
 
@@ -70,8 +84,9 @@ async function invoke(operation: Operation, timeoutMs: number): Promise<unknown>
     }
     return envelope.data;
   } catch (error) {
-    console.error(`Plex Request ${operation.op} failed`, error instanceof Error ? error.name : "unknown");
-    throw new PlexRequestUnavailableError();
+    const reason = error instanceof Error ? error.name : "unknown";
+    console.error(`Plex Request ${operation.op} failed`, reason);
+    throw new PlexRequestUnavailableError(reason);
   }
 }
 
@@ -89,6 +104,23 @@ export async function libraryMovies(): Promise<LibraryEntry[]> {
   return asRecords(body).flatMap(({ tmdbId, hasFile }) =>
     typeof tmdbId === "number" && Number.isInteger(tmdbId) && tmdbId > 0
       ? [{ tmdbId, hasFile: hasFile === true }]
+      : [],
+  );
+}
+
+/** An integration that predates this op has no shows to offer, which mustn't cost the movie index. */
+export async function libraryShows(): Promise<ShowLibraryEntry[]> {
+  let body: unknown;
+  try {
+    body = await invoke({ op: "libraryShows" }, LIBRARY_TIMEOUT_MS);
+  } catch (error) {
+    if (error instanceof PlexRequestUnavailableError && error.reason === INVALID_INPUT) return [];
+    throw error;
+  }
+  if (!Array.isArray(body)) throw new PlexRequestUnavailableError();
+  return asRecords(body).flatMap(({ tvdbId, hasFile }) =>
+    typeof tvdbId === "number" && Number.isInteger(tvdbId) && tvdbId > 0
+      ? [{ tvdbId, hasFile: hasFile === true }]
       : [],
   );
 }

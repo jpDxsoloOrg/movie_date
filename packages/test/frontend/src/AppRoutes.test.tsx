@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   isSignedIn: vi.fn(),
   signIn: vi.fn(),
   authListeners: new Set<(signedIn: boolean) => void>(),
+  me: vi.fn(),
 }));
 
 vi.mock("@movie-date/frontend/services/auth", () => ({
@@ -24,7 +25,7 @@ vi.mock("@movie-date/frontend/services/auth", () => ({
 vi.mock("@movie-date/frontend/services/api", () => ({
   errorMessage: (error: Error) => error.message,
   api: {
-    me: async () => ({ id: "me", email: "a@b.co", displayName: "Me", avatarUrl: null }),
+    me: mocks.me,
     myRoom: async () => ({
       id: "r",
       code: "ABC234",
@@ -87,6 +88,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.authListeners.clear();
   mocks.isSignedIn.mockResolvedValue(true);
+  mocks.me.mockResolvedValue({ id: "me", email: "a@b.co", displayName: "Me", avatarUrl: null });
+  localStorage.removeItem("movieDateMode");
   resetTutorialSeen();
   markTutorialSeen();
 });
@@ -106,6 +109,42 @@ describe("routes", () => {
   ])("%s renders its screen", async (route, text) => {
     renderAt(route);
     expect(await screen.findByText(text)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["/shows", "screen:home"],
+    ["/shows/filters", "screen:filters"],
+    ["/shows/filters/actors", "screen:actors"],
+    ["/shows/match/s1", "screen:match"],
+  ])("%s renders its screen", async (route, text) => {
+    renderAt(route);
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(document.documentElement.dataset.theme).toBe("shows");
+  });
+
+  it("gives the show routes the same chrome as the movie ones", async () => {
+    const first = renderAt("/shows");
+    await screen.findByText("screen:home");
+    expect(screen.getByRole("navigation", { name: "Main" })).toBeInTheDocument();
+    first.unmount();
+
+    const second = renderAt("/shows/match/s1");
+    await screen.findByText("screen:match");
+    expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
+    second.unmount();
+
+    renderAt("/shows/filters/actors");
+    await screen.findByText("screen:actors");
+    expect(screen.queryByRole("button", { name: "Open menu" })).not.toBeInTheDocument();
+  });
+
+  it("opens where someone left off, without reloading their room", async () => {
+    localStorage.setItem("movieDateMode", "TV");
+    renderAt("/");
+
+    await waitFor(() => expect(path()).toBe("/shows"));
+    expect(await screen.findByText("screen:home")).toBeInTheDocument();
+    expect(mocks.me).toHaveBeenCalledOnce();
   });
 
   it("sends an unknown path home", async () => {
@@ -129,6 +168,21 @@ describe("routes", () => {
     await screen.findByText("screen:actors");
     expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open menu" })).not.toBeInTheDocument();
+  });
+});
+
+describe("signing out", () => {
+  it("hands login the Movies theme", async () => {
+    renderAt("/shows");
+    await screen.findByText("screen:home");
+    expect(document.documentElement.dataset.theme).toBe("shows");
+
+    act(() => {
+      for (const listener of mocks.authListeners) listener(false);
+    });
+
+    await waitFor(() => expect(path()).toBe("/login"));
+    expect(document.documentElement.dataset.theme).toBe("movies");
   });
 });
 

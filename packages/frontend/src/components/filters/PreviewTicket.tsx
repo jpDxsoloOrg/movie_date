@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useMode } from "../../mode/ModeProvider";
 import { Button } from "../Button";
 import type { ApplyControlProps } from "./ApplyBar";
 import { FilterCount } from "./FilterCount";
@@ -19,10 +20,11 @@ export function PreviewTicket({
   onApply,
   children,
 }: PreviewTicketProps): JSX.Element {
+  const { copy } = useMode();
   return (
     <aside className="preview-ticket" aria-label="Preview">
       <div className="preview-ticket__main">
-        <p className="preview-ticket__eyebrow">Tonight’s deck</p>
+        <p className="preview-ticket__eyebrow">{copy.previewEyebrow}</p>
         <PosterFan preview={preview} size="large" />
         <div className="preview-ticket__count">
           <FilterCount preview={preview} noun={noun} problem={problem} />

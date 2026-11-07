@@ -13,6 +13,8 @@
 [data-theme="movies"] {
   --theme-gradient-start: #ff5f6d;
   --theme-gradient-end: #ffc371;
+  /* The browser and installed-app bar. ModeProvider copies it to <meta name="theme-color">. */
+  --theme-status-bar: #000000;
 
   /* Filled brand controls. Separate from the backdrop because the Shows gradient's
      dark end couldn't carry the same ink. */
@@ -39,10 +41,11 @@
   --theme-skeleton-shine: #453529;
 }
 
-/* Going Steady. Not reachable from the UI yet; see docs/GOING_STEADY_TV_PLAN.md. */
+/* Going Steady; see docs/GOING_STEADY_TV_PLAN.md. */
 [data-theme="shows"] {
   --theme-gradient-start: #2e2a7a;
   --theme-gradient-end: #14a3a8;
+  --theme-status-bar: #2e2a7a;
 
   --theme-brand-start: #14a3a8;
   --theme-brand-end: #7fe6e4;

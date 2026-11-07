@@ -73,7 +73,12 @@ function applySet(clause: string, row: Row, names: Names, values: Values): void 
     const name = attribute(target.trim(), names);
     const increment = /^([#\w]+) \+ (:\w+)$/.exec(source.trim());
     const fallback = /^if_not_exists\(([#\w]+), (:\w+)\)$/.exec(source.trim());
-    if (increment) {
+    const fallbackIncrement = /^if_not_exists\(([#\w]+), (:\w+)\) \+ (:\w+)$/.exec(source.trim());
+    if (fallbackIncrement) {
+      const current =
+        row[attribute(fallbackIncrement[1] ?? "", names)] ?? value(fallbackIncrement[2] ?? "", values);
+      row[name] = (current as number) + (value(fallbackIncrement[3] ?? "", values) as number);
+    } else if (increment) {
       const current = row[attribute(increment[1] ?? "", names)] as number;
       row[name] = current + (value(increment[2] ?? "", values) as number);
     } else if (fallback) {

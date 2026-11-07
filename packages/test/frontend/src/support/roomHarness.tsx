@@ -17,8 +17,10 @@ export function makeRoom(overrides: Partial<Room> = {}): Room {
     matchThreshold: 2,
     requireMajority: false,
     round: 1,
+    tvRound: 1,
     plexAvailable: false,
     filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
+    tvFilters: { genreIds: [], services: [], cast: [] },
     members: [makeMember("me", "Me", true), makeMember("u2", "Sam")],
     ...overrides,
   };

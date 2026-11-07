@@ -16,77 +16,81 @@ import * as types from './graphql';
  */
 type Documents = {
     "\n  fragment ProfileFields on Profile {\n    id\n    email\n    displayName\n    avatarUrl\n    plexLinked\n  }\n": typeof types.ProfileFieldsFragmentDoc,
-    "\n  fragment PlexStatusFields on PlexStatus {\n    availability\n    canRequest\n  }\n": typeof types.PlexStatusFieldsFragmentDoc,
+    "\n  fragment PlexStatusFields on PlexStatus {\n    availability\n    canRequest\n    missingSeasons\n  }\n": typeof types.PlexStatusFieldsFragmentDoc,
     "\n  fragment PersonFields on Person {\n    id\n    name\n    profileUrl\n    knownForDepartment\n  }\n": typeof types.PersonFieldsFragmentDoc,
     "\n  fragment MemberFields on Member {\n    userId\n    displayName\n    avatarUrl\n    isMe\n  }\n": typeof types.MemberFieldsFragmentDoc,
-    "\n  fragment RoomFields on Room {\n    id\n    code\n    matchThreshold\n    requireMajority\n    round\n    plexAvailable\n    filters {\n      genreIds\n      services\n      releaseDateGte\n      releaseDateLte\n      cast {\n        ...PersonFields\n      }\n    }\n    members {\n      ...MemberFields\n    }\n  }\n": typeof types.RoomFieldsFragmentDoc,
+    "\n  fragment FiltersFields on Filters {\n    genreIds\n    services\n    releaseDateGte\n    releaseDateLte\n    showStatus\n    commitment\n    firstAirDateGte\n    firstAirDateLte\n    cast {\n      ...PersonFields\n    }\n  }\n": typeof types.FiltersFieldsFragmentDoc,
+    "\n  fragment RoomFields on Room {\n    id\n    code\n    matchThreshold\n    requireMajority\n    round\n    tvRound\n    plexAvailable\n    filters {\n      ...FiltersFields\n    }\n    tvFilters {\n      ...FiltersFields\n    }\n    members {\n      ...MemberFields\n    }\n  }\n": typeof types.RoomFieldsFragmentDoc,
     "\n  fragment MovieFields on Movie {\n    id\n    title\n    overview\n    releaseYear\n    runtime\n    voteAverage\n    posterUrl\n    backdropUrl\n    genres\n  }\n": typeof types.MovieFieldsFragmentDoc,
-    "\n  fragment MatchFields on Match {\n    id\n    roomId\n    round\n    matchedAt\n    movie {\n      ...MovieFields\n    }\n  }\n": typeof types.MatchFieldsFragmentDoc,
-    "\n  fragment HistoryEntryFields on HistoryEntry {\n    direction\n    round\n    swipedAt\n    movie {\n      ...MovieFields\n    }\n  }\n": typeof types.HistoryEntryFieldsFragmentDoc,
+    "\n  fragment ShowFields on Show {\n    id\n    title\n    overview\n    firstAirYear\n    lastAirYear\n    status\n    seasonCount\n    episodeCount\n    networks\n    episodeRuntime\n    voteAverage\n    posterUrl\n    backdropUrl\n    genres\n  }\n": typeof types.ShowFieldsFragmentDoc,
+    "\n  fragment MatchFields on Match {\n    id\n    roomId\n    round\n    matchedAt\n    mediaType\n    movie {\n      ...MovieFields\n    }\n    show {\n      ...ShowFields\n    }\n  }\n": typeof types.MatchFieldsFragmentDoc,
+    "\n  fragment HistoryEntryFields on HistoryEntry {\n    direction\n    round\n    swipedAt\n    mediaType\n    movie {\n      ...MovieFields\n    }\n    show {\n      ...ShowFields\n    }\n  }\n": typeof types.HistoryEntryFieldsFragmentDoc,
     "\n  query Me {\n    me {\n      ...ProfileFields\n    }\n  }\n": typeof types.MeDocument,
     "\n  query MyRoom {\n    myRoom {\n      ...RoomFields\n    }\n  }\n": typeof types.MyRoomDocument,
-    "\n  query Deck($page: Int!) {\n    deck(page: $page) {\n      nextPage\n      cards {\n        likedByRoommate\n        movie {\n          ...MovieFields\n        }\n      }\n    }\n  }\n": typeof types.DeckDocument,
-    "\n  query FilterPreview($filters: FiltersInput!) {\n    filterPreview(filters: $filters) {\n      totalResults\n      posterUrls\n    }\n  }\n": typeof types.FilterPreviewDocument,
+    "\n  query Deck($page: Int!, $mediaType: MediaType) {\n    deck(page: $page, mediaType: $mediaType) {\n      nextPage\n      cards {\n        likedByRoommate\n        mediaType\n        movie {\n          ...MovieFields\n        }\n        show {\n          ...ShowFields\n        }\n      }\n    }\n  }\n": typeof types.DeckDocument,
+    "\n  query FilterPreview($filters: FiltersInput!, $mediaType: MediaType) {\n    filterPreview(filters: $filters, mediaType: $mediaType) {\n      totalResults\n      posterUrls\n    }\n  }\n": typeof types.FilterPreviewDocument,
     "\n  query Movie($id: Int!) {\n    movie(id: $id) {\n      ...MovieFields\n    }\n  }\n": typeof types.MovieDocument,
-    "\n  query Trailer($movieId: Int!) {\n    trailer(movieId: $movieId)\n  }\n": typeof types.TrailerDocument,
-    "\n  query WatchOptions($movieId: Int!) {\n    watchOptions(movieId: $movieId) {\n      serviceId\n      serviceName\n      type\n      link\n      logoUrl\n    }\n  }\n": typeof types.WatchOptionsDocument,
-    "\n  query PlexStatus($movieId: Int!) {\n    plexStatus(movieId: $movieId) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.PlexStatusDocument,
-    "\n  query Genres {\n    genres {\n      id\n      name\n    }\n  }\n": typeof types.GenresDocument,
+    "\n  query Trailer($movieId: Int!, $mediaType: MediaType) {\n    trailer(movieId: $movieId, mediaType: $mediaType)\n  }\n": typeof types.TrailerDocument,
+    "\n  query WatchOptions($movieId: Int!, $mediaType: MediaType) {\n    watchOptions(movieId: $movieId, mediaType: $mediaType) {\n      serviceId\n      serviceName\n      type\n      link\n      logoUrl\n    }\n  }\n": typeof types.WatchOptionsDocument,
+    "\n  query PlexStatus($movieId: Int!, $mediaType: MediaType) {\n    plexStatus(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.PlexStatusDocument,
+    "\n  query Genres($mediaType: MediaType) {\n    genres(mediaType: $mediaType) {\n      id\n      name\n    }\n  }\n": typeof types.GenresDocument,
     "\n  query SearchPeople($query: String!) {\n    searchPeople(query: $query) {\n      ...PersonFields\n    }\n  }\n": typeof types.SearchPeopleDocument,
-    "\n  query Matches($limit: Int, $nextToken: String) {\n    matches(limit: $limit, nextToken: $nextToken) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.MatchesDocument,
-    "\n  query SwipeHistory($limit: Int, $nextToken: String) {\n    swipeHistory(limit: $limit, nextToken: $nextToken) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": typeof types.SwipeHistoryDocument,
-    "\n  query PendingMatch {\n    pendingMatch {\n      ...MatchFields\n    }\n  }\n": typeof types.PendingMatchDocument,
-    "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!) {\n    swipe(movieId: $movieId, direction: $direction) {\n      movieId\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.SwipeDocument,
-    "\n  mutation UndoSwipe($movieId: Int!) {\n    undoSwipe(movieId: $movieId) {\n      movieId\n      undone\n    }\n  }\n": typeof types.UndoSwipeDocument,
-    "\n  mutation UpdateFilters($filters: FiltersInput!) {\n    updateFilters(filters: $filters) {\n      ...RoomFields\n    }\n  }\n": typeof types.UpdateFiltersDocument,
+    "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.MatchesDocument,
+    "\n  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": typeof types.SwipeHistoryDocument,
+    "\n  query PendingMatch($mediaType: MediaType) {\n    pendingMatch(mediaType: $mediaType) {\n      ...MatchFields\n    }\n  }\n": typeof types.PendingMatchDocument,
+    "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!, $mediaType: MediaType) {\n    swipe(movieId: $movieId, direction: $direction, mediaType: $mediaType) {\n      movieId\n      mediaType\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.SwipeDocument,
+    "\n  mutation UndoSwipe($movieId: Int!, $mediaType: MediaType) {\n    undoSwipe(movieId: $movieId, mediaType: $mediaType) {\n      movieId\n      mediaType\n      undone\n    }\n  }\n": typeof types.UndoSwipeDocument,
+    "\n  mutation UpdateFilters($filters: FiltersInput!, $mediaType: MediaType) {\n    updateFilters(filters: $filters, mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n": typeof types.UpdateFiltersDocument,
     "\n  mutation UpdateRoomSettings($matchThreshold: Int!, $requireMajority: Boolean!) {\n    updateRoomSettings(matchThreshold: $matchThreshold, requireMajority: $requireMajority) {\n      ...RoomFields\n    }\n  }\n": typeof types.UpdateRoomSettingsDocument,
     "\n  mutation JoinRoom($code: String!) {\n    joinRoom(code: $code) {\n      ...RoomFields\n    }\n  }\n": typeof types.JoinRoomDocument,
     "\n  mutation LeaveRoom {\n    leaveRoom {\n      ...RoomFields\n    }\n  }\n": typeof types.LeaveRoomDocument,
-    "\n  mutation StartNewRound($expectedRound: Int!) {\n    startNewRound(expectedRound: $expectedRound) {\n      ...RoomFields\n    }\n  }\n": typeof types.StartNewRoundDocument,
+    "\n  mutation StartNewRound($expectedRound: Int!, $mediaType: MediaType) {\n    startNewRound(expectedRound: $expectedRound, mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n": typeof types.StartNewRoundDocument,
     "\n  mutation UpdateProfile($displayName: String, $avatarKey: String) {\n    updateProfile(displayName: $displayName, avatarKey: $avatarKey) {\n      ...ProfileFields\n    }\n  }\n": typeof types.UpdateProfileDocument,
     "\n  mutation CreateAvatarUpload($contentType: String!) {\n    createAvatarUpload(contentType: $contentType) {\n      url\n      fields\n      key\n    }\n  }\n": typeof types.CreateAvatarUploadDocument,
     "\n  mutation StartPlexLink {\n    startPlexLink {\n      sent\n    }\n  }\n": typeof types.StartPlexLinkDocument,
     "\n  mutation ConfirmPlexLink($code: String!) {\n    confirmPlexLink(code: $code) {\n      ...ProfileFields\n    }\n  }\n": typeof types.ConfirmPlexLinkDocument,
     "\n  mutation UnlinkPlex {\n    unlinkPlex {\n      ...ProfileFields\n    }\n  }\n": typeof types.UnlinkPlexDocument,
-    "\n  mutation RequestOnPlex($movieId: Int!) {\n    requestOnPlex(movieId: $movieId) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.RequestOnPlexDocument,
-    "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      matchId\n      round\n      actorId\n    }\n  }\n": typeof types.OnRoomEventDocument,
+    "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.RequestOnPlexDocument,
+    "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      mediaType\n      matchId\n      round\n      actorId\n    }\n  }\n": typeof types.OnRoomEventDocument,
 };
 const documents: Documents = {
     "\n  fragment ProfileFields on Profile {\n    id\n    email\n    displayName\n    avatarUrl\n    plexLinked\n  }\n": types.ProfileFieldsFragmentDoc,
-    "\n  fragment PlexStatusFields on PlexStatus {\n    availability\n    canRequest\n  }\n": types.PlexStatusFieldsFragmentDoc,
+    "\n  fragment PlexStatusFields on PlexStatus {\n    availability\n    canRequest\n    missingSeasons\n  }\n": types.PlexStatusFieldsFragmentDoc,
     "\n  fragment PersonFields on Person {\n    id\n    name\n    profileUrl\n    knownForDepartment\n  }\n": types.PersonFieldsFragmentDoc,
     "\n  fragment MemberFields on Member {\n    userId\n    displayName\n    avatarUrl\n    isMe\n  }\n": types.MemberFieldsFragmentDoc,
-    "\n  fragment RoomFields on Room {\n    id\n    code\n    matchThreshold\n    requireMajority\n    round\n    plexAvailable\n    filters {\n      genreIds\n      services\n      releaseDateGte\n      releaseDateLte\n      cast {\n        ...PersonFields\n      }\n    }\n    members {\n      ...MemberFields\n    }\n  }\n": types.RoomFieldsFragmentDoc,
+    "\n  fragment FiltersFields on Filters {\n    genreIds\n    services\n    releaseDateGte\n    releaseDateLte\n    showStatus\n    commitment\n    firstAirDateGte\n    firstAirDateLte\n    cast {\n      ...PersonFields\n    }\n  }\n": types.FiltersFieldsFragmentDoc,
+    "\n  fragment RoomFields on Room {\n    id\n    code\n    matchThreshold\n    requireMajority\n    round\n    tvRound\n    plexAvailable\n    filters {\n      ...FiltersFields\n    }\n    tvFilters {\n      ...FiltersFields\n    }\n    members {\n      ...MemberFields\n    }\n  }\n": types.RoomFieldsFragmentDoc,
     "\n  fragment MovieFields on Movie {\n    id\n    title\n    overview\n    releaseYear\n    runtime\n    voteAverage\n    posterUrl\n    backdropUrl\n    genres\n  }\n": types.MovieFieldsFragmentDoc,
-    "\n  fragment MatchFields on Match {\n    id\n    roomId\n    round\n    matchedAt\n    movie {\n      ...MovieFields\n    }\n  }\n": types.MatchFieldsFragmentDoc,
-    "\n  fragment HistoryEntryFields on HistoryEntry {\n    direction\n    round\n    swipedAt\n    movie {\n      ...MovieFields\n    }\n  }\n": types.HistoryEntryFieldsFragmentDoc,
+    "\n  fragment ShowFields on Show {\n    id\n    title\n    overview\n    firstAirYear\n    lastAirYear\n    status\n    seasonCount\n    episodeCount\n    networks\n    episodeRuntime\n    voteAverage\n    posterUrl\n    backdropUrl\n    genres\n  }\n": types.ShowFieldsFragmentDoc,
+    "\n  fragment MatchFields on Match {\n    id\n    roomId\n    round\n    matchedAt\n    mediaType\n    movie {\n      ...MovieFields\n    }\n    show {\n      ...ShowFields\n    }\n  }\n": types.MatchFieldsFragmentDoc,
+    "\n  fragment HistoryEntryFields on HistoryEntry {\n    direction\n    round\n    swipedAt\n    mediaType\n    movie {\n      ...MovieFields\n    }\n    show {\n      ...ShowFields\n    }\n  }\n": types.HistoryEntryFieldsFragmentDoc,
     "\n  query Me {\n    me {\n      ...ProfileFields\n    }\n  }\n": types.MeDocument,
     "\n  query MyRoom {\n    myRoom {\n      ...RoomFields\n    }\n  }\n": types.MyRoomDocument,
-    "\n  query Deck($page: Int!) {\n    deck(page: $page) {\n      nextPage\n      cards {\n        likedByRoommate\n        movie {\n          ...MovieFields\n        }\n      }\n    }\n  }\n": types.DeckDocument,
-    "\n  query FilterPreview($filters: FiltersInput!) {\n    filterPreview(filters: $filters) {\n      totalResults\n      posterUrls\n    }\n  }\n": types.FilterPreviewDocument,
+    "\n  query Deck($page: Int!, $mediaType: MediaType) {\n    deck(page: $page, mediaType: $mediaType) {\n      nextPage\n      cards {\n        likedByRoommate\n        mediaType\n        movie {\n          ...MovieFields\n        }\n        show {\n          ...ShowFields\n        }\n      }\n    }\n  }\n": types.DeckDocument,
+    "\n  query FilterPreview($filters: FiltersInput!, $mediaType: MediaType) {\n    filterPreview(filters: $filters, mediaType: $mediaType) {\n      totalResults\n      posterUrls\n    }\n  }\n": types.FilterPreviewDocument,
     "\n  query Movie($id: Int!) {\n    movie(id: $id) {\n      ...MovieFields\n    }\n  }\n": types.MovieDocument,
-    "\n  query Trailer($movieId: Int!) {\n    trailer(movieId: $movieId)\n  }\n": types.TrailerDocument,
-    "\n  query WatchOptions($movieId: Int!) {\n    watchOptions(movieId: $movieId) {\n      serviceId\n      serviceName\n      type\n      link\n      logoUrl\n    }\n  }\n": types.WatchOptionsDocument,
-    "\n  query PlexStatus($movieId: Int!) {\n    plexStatus(movieId: $movieId) {\n      ...PlexStatusFields\n    }\n  }\n": types.PlexStatusDocument,
-    "\n  query Genres {\n    genres {\n      id\n      name\n    }\n  }\n": types.GenresDocument,
+    "\n  query Trailer($movieId: Int!, $mediaType: MediaType) {\n    trailer(movieId: $movieId, mediaType: $mediaType)\n  }\n": types.TrailerDocument,
+    "\n  query WatchOptions($movieId: Int!, $mediaType: MediaType) {\n    watchOptions(movieId: $movieId, mediaType: $mediaType) {\n      serviceId\n      serviceName\n      type\n      link\n      logoUrl\n    }\n  }\n": types.WatchOptionsDocument,
+    "\n  query PlexStatus($movieId: Int!, $mediaType: MediaType) {\n    plexStatus(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": types.PlexStatusDocument,
+    "\n  query Genres($mediaType: MediaType) {\n    genres(mediaType: $mediaType) {\n      id\n      name\n    }\n  }\n": types.GenresDocument,
     "\n  query SearchPeople($query: String!) {\n    searchPeople(query: $query) {\n      ...PersonFields\n    }\n  }\n": types.SearchPeopleDocument,
-    "\n  query Matches($limit: Int, $nextToken: String) {\n    matches(limit: $limit, nextToken: $nextToken) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": types.MatchesDocument,
-    "\n  query SwipeHistory($limit: Int, $nextToken: String) {\n    swipeHistory(limit: $limit, nextToken: $nextToken) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": types.SwipeHistoryDocument,
-    "\n  query PendingMatch {\n    pendingMatch {\n      ...MatchFields\n    }\n  }\n": types.PendingMatchDocument,
-    "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!) {\n    swipe(movieId: $movieId, direction: $direction) {\n      movieId\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n": types.SwipeDocument,
-    "\n  mutation UndoSwipe($movieId: Int!) {\n    undoSwipe(movieId: $movieId) {\n      movieId\n      undone\n    }\n  }\n": types.UndoSwipeDocument,
-    "\n  mutation UpdateFilters($filters: FiltersInput!) {\n    updateFilters(filters: $filters) {\n      ...RoomFields\n    }\n  }\n": types.UpdateFiltersDocument,
+    "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": types.MatchesDocument,
+    "\n  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": types.SwipeHistoryDocument,
+    "\n  query PendingMatch($mediaType: MediaType) {\n    pendingMatch(mediaType: $mediaType) {\n      ...MatchFields\n    }\n  }\n": types.PendingMatchDocument,
+    "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!, $mediaType: MediaType) {\n    swipe(movieId: $movieId, direction: $direction, mediaType: $mediaType) {\n      movieId\n      mediaType\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n": types.SwipeDocument,
+    "\n  mutation UndoSwipe($movieId: Int!, $mediaType: MediaType) {\n    undoSwipe(movieId: $movieId, mediaType: $mediaType) {\n      movieId\n      mediaType\n      undone\n    }\n  }\n": types.UndoSwipeDocument,
+    "\n  mutation UpdateFilters($filters: FiltersInput!, $mediaType: MediaType) {\n    updateFilters(filters: $filters, mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n": types.UpdateFiltersDocument,
     "\n  mutation UpdateRoomSettings($matchThreshold: Int!, $requireMajority: Boolean!) {\n    updateRoomSettings(matchThreshold: $matchThreshold, requireMajority: $requireMajority) {\n      ...RoomFields\n    }\n  }\n": types.UpdateRoomSettingsDocument,
     "\n  mutation JoinRoom($code: String!) {\n    joinRoom(code: $code) {\n      ...RoomFields\n    }\n  }\n": types.JoinRoomDocument,
     "\n  mutation LeaveRoom {\n    leaveRoom {\n      ...RoomFields\n    }\n  }\n": types.LeaveRoomDocument,
-    "\n  mutation StartNewRound($expectedRound: Int!) {\n    startNewRound(expectedRound: $expectedRound) {\n      ...RoomFields\n    }\n  }\n": types.StartNewRoundDocument,
+    "\n  mutation StartNewRound($expectedRound: Int!, $mediaType: MediaType) {\n    startNewRound(expectedRound: $expectedRound, mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n": types.StartNewRoundDocument,
     "\n  mutation UpdateProfile($displayName: String, $avatarKey: String) {\n    updateProfile(displayName: $displayName, avatarKey: $avatarKey) {\n      ...ProfileFields\n    }\n  }\n": types.UpdateProfileDocument,
     "\n  mutation CreateAvatarUpload($contentType: String!) {\n    createAvatarUpload(contentType: $contentType) {\n      url\n      fields\n      key\n    }\n  }\n": types.CreateAvatarUploadDocument,
     "\n  mutation StartPlexLink {\n    startPlexLink {\n      sent\n    }\n  }\n": types.StartPlexLinkDocument,
     "\n  mutation ConfirmPlexLink($code: String!) {\n    confirmPlexLink(code: $code) {\n      ...ProfileFields\n    }\n  }\n": types.ConfirmPlexLinkDocument,
     "\n  mutation UnlinkPlex {\n    unlinkPlex {\n      ...ProfileFields\n    }\n  }\n": types.UnlinkPlexDocument,
-    "\n  mutation RequestOnPlex($movieId: Int!) {\n    requestOnPlex(movieId: $movieId) {\n      ...PlexStatusFields\n    }\n  }\n": types.RequestOnPlexDocument,
-    "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      matchId\n      round\n      actorId\n    }\n  }\n": types.OnRoomEventDocument,
+    "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": types.RequestOnPlexDocument,
+    "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      mediaType\n      matchId\n      round\n      actorId\n    }\n  }\n": types.OnRoomEventDocument,
 };
 
 /**
@@ -96,7 +100,7 @@ export function graphql(source: "\n  fragment ProfileFields on Profile {\n    id
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment PlexStatusFields on PlexStatus {\n    availability\n    canRequest\n  }\n"): typeof import('./graphql').PlexStatusFieldsFragmentDoc;
+export function graphql(source: "\n  fragment PlexStatusFields on PlexStatus {\n    availability\n    canRequest\n    missingSeasons\n  }\n"): typeof import('./graphql').PlexStatusFieldsFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -108,7 +112,11 @@ export function graphql(source: "\n  fragment MemberFields on Member {\n    user
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment RoomFields on Room {\n    id\n    code\n    matchThreshold\n    requireMajority\n    round\n    plexAvailable\n    filters {\n      genreIds\n      services\n      releaseDateGte\n      releaseDateLte\n      cast {\n        ...PersonFields\n      }\n    }\n    members {\n      ...MemberFields\n    }\n  }\n"): typeof import('./graphql').RoomFieldsFragmentDoc;
+export function graphql(source: "\n  fragment FiltersFields on Filters {\n    genreIds\n    services\n    releaseDateGte\n    releaseDateLte\n    showStatus\n    commitment\n    firstAirDateGte\n    firstAirDateLte\n    cast {\n      ...PersonFields\n    }\n  }\n"): typeof import('./graphql').FiltersFieldsFragmentDoc;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment RoomFields on Room {\n    id\n    code\n    matchThreshold\n    requireMajority\n    round\n    tvRound\n    plexAvailable\n    filters {\n      ...FiltersFields\n    }\n    tvFilters {\n      ...FiltersFields\n    }\n    members {\n      ...MemberFields\n    }\n  }\n"): typeof import('./graphql').RoomFieldsFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -116,11 +124,15 @@ export function graphql(source: "\n  fragment MovieFields on Movie {\n    id\n  
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment MatchFields on Match {\n    id\n    roomId\n    round\n    matchedAt\n    movie {\n      ...MovieFields\n    }\n  }\n"): typeof import('./graphql').MatchFieldsFragmentDoc;
+export function graphql(source: "\n  fragment ShowFields on Show {\n    id\n    title\n    overview\n    firstAirYear\n    lastAirYear\n    status\n    seasonCount\n    episodeCount\n    networks\n    episodeRuntime\n    voteAverage\n    posterUrl\n    backdropUrl\n    genres\n  }\n"): typeof import('./graphql').ShowFieldsFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment HistoryEntryFields on HistoryEntry {\n    direction\n    round\n    swipedAt\n    movie {\n      ...MovieFields\n    }\n  }\n"): typeof import('./graphql').HistoryEntryFieldsFragmentDoc;
+export function graphql(source: "\n  fragment MatchFields on Match {\n    id\n    roomId\n    round\n    matchedAt\n    mediaType\n    movie {\n      ...MovieFields\n    }\n    show {\n      ...ShowFields\n    }\n  }\n"): typeof import('./graphql').MatchFieldsFragmentDoc;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  fragment HistoryEntryFields on HistoryEntry {\n    direction\n    round\n    swipedAt\n    mediaType\n    movie {\n      ...MovieFields\n    }\n    show {\n      ...ShowFields\n    }\n  }\n"): typeof import('./graphql').HistoryEntryFieldsFragmentDoc;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -132,11 +144,11 @@ export function graphql(source: "\n  query MyRoom {\n    myRoom {\n      ...Room
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Deck($page: Int!) {\n    deck(page: $page) {\n      nextPage\n      cards {\n        likedByRoommate\n        movie {\n          ...MovieFields\n        }\n      }\n    }\n  }\n"): typeof import('./graphql').DeckDocument;
+export function graphql(source: "\n  query Deck($page: Int!, $mediaType: MediaType) {\n    deck(page: $page, mediaType: $mediaType) {\n      nextPage\n      cards {\n        likedByRoommate\n        mediaType\n        movie {\n          ...MovieFields\n        }\n        show {\n          ...ShowFields\n        }\n      }\n    }\n  }\n"): typeof import('./graphql').DeckDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query FilterPreview($filters: FiltersInput!) {\n    filterPreview(filters: $filters) {\n      totalResults\n      posterUrls\n    }\n  }\n"): typeof import('./graphql').FilterPreviewDocument;
+export function graphql(source: "\n  query FilterPreview($filters: FiltersInput!, $mediaType: MediaType) {\n    filterPreview(filters: $filters, mediaType: $mediaType) {\n      totalResults\n      posterUrls\n    }\n  }\n"): typeof import('./graphql').FilterPreviewDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -144,19 +156,19 @@ export function graphql(source: "\n  query Movie($id: Int!) {\n    movie(id: $id
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Trailer($movieId: Int!) {\n    trailer(movieId: $movieId)\n  }\n"): typeof import('./graphql').TrailerDocument;
+export function graphql(source: "\n  query Trailer($movieId: Int!, $mediaType: MediaType) {\n    trailer(movieId: $movieId, mediaType: $mediaType)\n  }\n"): typeof import('./graphql').TrailerDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query WatchOptions($movieId: Int!) {\n    watchOptions(movieId: $movieId) {\n      serviceId\n      serviceName\n      type\n      link\n      logoUrl\n    }\n  }\n"): typeof import('./graphql').WatchOptionsDocument;
+export function graphql(source: "\n  query WatchOptions($movieId: Int!, $mediaType: MediaType) {\n    watchOptions(movieId: $movieId, mediaType: $mediaType) {\n      serviceId\n      serviceName\n      type\n      link\n      logoUrl\n    }\n  }\n"): typeof import('./graphql').WatchOptionsDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query PlexStatus($movieId: Int!) {\n    plexStatus(movieId: $movieId) {\n      ...PlexStatusFields\n    }\n  }\n"): typeof import('./graphql').PlexStatusDocument;
+export function graphql(source: "\n  query PlexStatus($movieId: Int!, $mediaType: MediaType) {\n    plexStatus(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n"): typeof import('./graphql').PlexStatusDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Genres {\n    genres {\n      id\n      name\n    }\n  }\n"): typeof import('./graphql').GenresDocument;
+export function graphql(source: "\n  query Genres($mediaType: MediaType) {\n    genres(mediaType: $mediaType) {\n      id\n      name\n    }\n  }\n"): typeof import('./graphql').GenresDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -164,27 +176,27 @@ export function graphql(source: "\n  query SearchPeople($query: String!) {\n    
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Matches($limit: Int, $nextToken: String) {\n    matches(limit: $limit, nextToken: $nextToken) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n"): typeof import('./graphql').MatchesDocument;
+export function graphql(source: "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n"): typeof import('./graphql').MatchesDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query SwipeHistory($limit: Int, $nextToken: String) {\n    swipeHistory(limit: $limit, nextToken: $nextToken) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n"): typeof import('./graphql').SwipeHistoryDocument;
+export function graphql(source: "\n  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {\n    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n"): typeof import('./graphql').SwipeHistoryDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query PendingMatch {\n    pendingMatch {\n      ...MatchFields\n    }\n  }\n"): typeof import('./graphql').PendingMatchDocument;
+export function graphql(source: "\n  query PendingMatch($mediaType: MediaType) {\n    pendingMatch(mediaType: $mediaType) {\n      ...MatchFields\n    }\n  }\n"): typeof import('./graphql').PendingMatchDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!) {\n    swipe(movieId: $movieId, direction: $direction) {\n      movieId\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n"): typeof import('./graphql').SwipeDocument;
+export function graphql(source: "\n  mutation Swipe($movieId: Int!, $direction: SwipeDirection!, $mediaType: MediaType) {\n    swipe(movieId: $movieId, direction: $direction, mediaType: $mediaType) {\n      movieId\n      mediaType\n      direction\n      match {\n        ...MatchFields\n      }\n    }\n  }\n"): typeof import('./graphql').SwipeDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation UndoSwipe($movieId: Int!) {\n    undoSwipe(movieId: $movieId) {\n      movieId\n      undone\n    }\n  }\n"): typeof import('./graphql').UndoSwipeDocument;
+export function graphql(source: "\n  mutation UndoSwipe($movieId: Int!, $mediaType: MediaType) {\n    undoSwipe(movieId: $movieId, mediaType: $mediaType) {\n      movieId\n      mediaType\n      undone\n    }\n  }\n"): typeof import('./graphql').UndoSwipeDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation UpdateFilters($filters: FiltersInput!) {\n    updateFilters(filters: $filters) {\n      ...RoomFields\n    }\n  }\n"): typeof import('./graphql').UpdateFiltersDocument;
+export function graphql(source: "\n  mutation UpdateFilters($filters: FiltersInput!, $mediaType: MediaType) {\n    updateFilters(filters: $filters, mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n"): typeof import('./graphql').UpdateFiltersDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -200,7 +212,7 @@ export function graphql(source: "\n  mutation LeaveRoom {\n    leaveRoom {\n    
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation StartNewRound($expectedRound: Int!) {\n    startNewRound(expectedRound: $expectedRound) {\n      ...RoomFields\n    }\n  }\n"): typeof import('./graphql').StartNewRoundDocument;
+export function graphql(source: "\n  mutation StartNewRound($expectedRound: Int!, $mediaType: MediaType) {\n    startNewRound(expectedRound: $expectedRound, mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n"): typeof import('./graphql').StartNewRoundDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -224,11 +236,11 @@ export function graphql(source: "\n  mutation UnlinkPlex {\n    unlinkPlex {\n  
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  mutation RequestOnPlex($movieId: Int!) {\n    requestOnPlex(movieId: $movieId) {\n      ...PlexStatusFields\n    }\n  }\n"): typeof import('./graphql').RequestOnPlexDocument;
+export function graphql(source: "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n"): typeof import('./graphql').RequestOnPlexDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      matchId\n      round\n      actorId\n    }\n  }\n"): typeof import('./graphql').OnRoomEventDocument;
+export function graphql(source: "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      mediaType\n      matchId\n      round\n      actorId\n    }\n  }\n"): typeof import('./graphql').OnRoomEventDocument;
 
 
 export function graphql(source: string) {

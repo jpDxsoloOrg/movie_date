@@ -1,4 +1,4 @@
-import type { Movie, Room } from "@movie-date/core";
+import type { Movie, Room, Show } from "@movie-date/core";
 import { joinRoom } from "@movie-date/functions/handlers/joinRoom";
 import { myRoom } from "@movie-date/functions/handlers/myRoom";
 import type { ResolverContext } from "@movie-date/functions/lib/identity";
@@ -18,6 +18,26 @@ export function movieNamed(id: number): Movie {
     posterUrl: null,
     backdropUrl: null,
     genres: ["Drama"],
+  };
+}
+
+export function showNamed(id: number, overrides: Partial<Show> = {}): Show {
+  return {
+    id,
+    title: `Show ${id}`,
+    overview: "An overview.",
+    firstAirYear: 2019,
+    lastAirYear: 2023,
+    status: "Ended",
+    seasonCount: 4,
+    episodeCount: 40,
+    networks: ["HBO"],
+    episodeRuntime: 50,
+    voteAverage: 8.1,
+    posterUrl: `https://image.tmdb.org/t/p/w780/${id}.jpg`,
+    backdropUrl: null,
+    genres: ["Drama"],
+    ...overrides,
   };
 }
 

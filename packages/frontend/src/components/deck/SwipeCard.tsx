@@ -8,10 +8,10 @@ import {
   type TransitionEvent,
 } from "react";
 import { IconButton } from "../Button";
-import { Icon } from "../Icon";
+import { Icon, type IconName } from "../Icon";
 import type { DeckCard, Movie, SwipeDirection } from "../../services/api";
-import { DECK_COPY } from "./deckCopy";
-import { runtimeAndRating } from "./movieFacts";
+import { useMode } from "../../mode/ModeProvider";
+import { networkAndRating, runtimeAndRating, showSummary } from "./movieFacts";
 import "./SwipeCard.css";
 
 /** Under this many pixels a press is a tap, not a drag. */
@@ -52,7 +52,7 @@ export interface SwipeCardProps {
   returningFrom?: SwipeDirection;
   onSwipe: (direction: SwipeDirection) => void;
   /** Left out, a tap does nothing and the card has no details button. */
-  onOpenDetails?: (movie: Movie) => void;
+  onOpenDetails?: (card: DeckCard) => void;
   onExited: (movieId: number) => void;
 }
 
@@ -72,12 +72,12 @@ function releaseDirection(gesture: Gesture, releaseTime: number): SwipeDirection
   return flicked ? directionOf(offsetX) : null;
 }
 
-function Poster({ movie }: { movie: Movie }): JSX.Element {
+function Poster({ movie, icon }: { movie: Movie; icon: IconName }): JSX.Element {
   const [failed, setFailed] = useState(false);
   if (!movie.posterUrl || failed) {
     return (
       <div className="deck-card__poster deck-card__poster--missing">
-        <Icon name="movie" />
+        <Icon name={icon} />
       </div>
     );
   }
@@ -101,7 +101,8 @@ export function SwipeCard({
   onOpenDetails,
   onExited,
 }: SwipeCardProps): JSX.Element {
-  const { movie, likedByRoommate } = card;
+  const { movie, show, likedByRoommate } = card;
+  const { copy } = useMode();
   const element = useRef<HTMLElement>(null);
   const gesture = useRef<Gesture | null>(null);
   // Outlives the gesture: a mouse drag released short of a swipe still fires click,
@@ -218,12 +219,12 @@ export function SwipeCard({
    * is hit-tested then, so a sheet opened any earlier takes the click and closes.
    */
   const handleClick = (): void => {
-    if (isTop && !suppressClick.current) onOpenDetails?.(movie);
+    if (isTop && !suppressClick.current) onOpenDetails?.(card);
   };
 
   const handleInfoClick = (event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
-    onOpenDetails?.(movie);
+    onOpenDetails?.(card);
   };
 
   const handlePointerCancel = (event: PointerEvent<HTMLElement>): void => {
@@ -247,8 +248,9 @@ export function SwipeCard({
     .join(" ");
 
   const shownOverlay = exitDirection ?? overlay;
-  const title = movie.releaseYear ? `${movie.title}, ${movie.releaseYear}` : movie.title;
-  const facts = runtimeAndRating(movie);
+  // A show's years sit in its summary line, where they can be a range.
+  const title = movie.releaseYear && !show ? `${movie.title}, ${movie.releaseYear}` : movie.title;
+  const factLines = show ? [showSummary(show), networkAndRating(show)] : [runtimeAndRating(movie)];
 
   return (
     <article
@@ -263,7 +265,7 @@ export function SwipeCard({
       onClick={handleClick}
       onTransitionEnd={handleTransitionEnd}
     >
-      <Poster movie={movie} />
+      <Poster movie={movie} icon={copy.icon} />
       <div className="deck-card__scrim" />
       {likedByRoommate && (
         <span className="deck-card__badge">
@@ -283,12 +285,16 @@ export function SwipeCard({
       <div className="deck-card__text">
         <h2 className="deck-card__title">{title}</h2>
         {movie.genres.length > 0 && <p className="deck-card__meta">{movie.genres.join(", ")}</p>}
-        {facts && <p className="deck-card__meta">{facts}</p>}
+        {factLines.filter(Boolean).map((line) => (
+          <p key={line} className="deck-card__meta">
+            {line}
+          </p>
+        ))}
         <p className="deck-card__overview">{movie.overview}</p>
       </div>
       {shownOverlay && (
         <div className={`deck-card__overlay deck-card__overlay--${shownOverlay.toLowerCase()}`}>
-          <span className="deck-card__overlay-label">{shownOverlay === "LIKE" ? DECK_COPY.likeOverlay : DECK_COPY.passOverlay}</span>
+          <span className="deck-card__overlay-label">{shownOverlay === "LIKE" ? copy.likeOverlay : copy.passOverlay}</span>
         </div>
       )}
     </article>

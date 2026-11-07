@@ -1,4 +1,14 @@
-import { movieKey, type FieldArguments, type Movie, type SwipeDirection, type SwipeResult } from "@movie-date/core";
+import {
+  mediaKey,
+  resolveMediaType,
+  showAsMovie,
+  type FieldArguments,
+  type MediaType,
+  type Movie,
+  type Show,
+  type SwipeDirection,
+  type SwipeResult,
+} from "@movie-date/core";
 import {
   cancellationCodes,
   getItem,
@@ -11,6 +21,7 @@ import { ConflictError, ValidationError } from "../lib/errors.js";
 import type { ResolverContext } from "../lib/identity.js";
 import * as keys from "../lib/keys.js";
 import { evaluateMovie } from "../lib/matching.js";
+import { roundOf } from "../lib/mediaMode.js";
 import {
   backoff,
   failedCondition,
@@ -20,14 +31,28 @@ import {
   type SwipeItem,
 } from "../lib/rooms.js";
 import { getMovie } from "../lib/tmdb.js";
+import { getShow } from "../lib/tmdbTv.js";
+
+/** The snapshot stored on swipes and tallies. Matches are built from it. */
+interface Title {
+  movie: Movie;
+  show?: Show;
+}
+
+async function loadTitle(mediaType: MediaType, id: number): Promise<Title> {
+  if (mediaType === "MOVIE") return { movie: await getMovie(id) };
+  const show = await getShow(id);
+  return { movie: showAsMovie(show), show };
+}
 
 interface SwipeWrite {
   roomId: string;
   round: number;
   userId: string;
   movieId: number;
+  mediaType: MediaType;
   direction: SwipeDirection;
-  movie: Movie;
+  title: Title;
 }
 
 /**
@@ -38,13 +63,15 @@ interface SwipeWrite {
  * these writes is relied on when reading cancellation codes below.
  */
 function swipeWrites(write: SwipeWrite): TransactItems {
-  const { roomId, round, userId, movieId, direction, movie } = write;
+  const { roomId, round, userId, movieId, mediaType, direction, title } = write;
+  const { movie, show } = title;
+  const media = mediaKey(mediaType, movieId);
   const row: SwipeItem = {
-    ...keys.swipe(roomId, round, userId, movieKey(movieId)),
+    ...keys.swipe(roomId, round, userId, media),
     movieId,
     direction,
     swipedAt: new Date().toISOString(),
-    movie,
+    ...title,
   };
   const writes: TransactItems = [
     {
@@ -66,9 +93,18 @@ function swipeWrites(write: SwipeWrite): TransactItems {
     writes.push({
       Update: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, movieKey(movieId)),
-        UpdateExpression: "ADD likes :one SET movie = if_not_exists(movie, :movie), movieId = :movieId",
-        ExpressionAttributeValues: { ":one": 1, ":movie": movie, ":movieId": movieId },
+        Key: keys.tally(roomId, round, media),
+        // SHOW is a DynamoDB reserved word, so it can only be named through an alias.
+        UpdateExpression: `ADD likes :one SET movie = if_not_exists(movie, :movie), movieId = :movieId${
+          show ? ", #show = if_not_exists(#show, :show)" : ""
+        }`,
+        ExpressionAttributeValues: {
+          ":one": 1,
+          ":movie": movie,
+          ":movieId": movieId,
+          ...(show ? { ":show": show } : {}),
+        },
+        ...(show ? { ExpressionAttributeNames: { "#show": "show" } } : {}),
       },
     });
   }
@@ -81,35 +117,42 @@ export async function swipe(
 ): Promise<SwipeResult> {
   const { movieId, direction } = args;
   const { userId } = context;
+  const mediaType = resolveMediaType(args.mediaType);
   if (!Number.isInteger(movieId) || movieId <= 0) throw new ValidationError("Unknown movie.");
 
-  let movie: Movie | undefined;
+  let title: Title | undefined;
   for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     // Re-read every pass: the caller may have changed rooms or the round advanced.
     const { roomId } = await getOrCreateProfile(context);
-    const { round } = await requireRoomMeta(roomId);
+    const round = roundOf(await requireRoomMeta(roomId), mediaType);
 
-    const existing = await getItem<SwipeItem>(keys.swipe(roomId, round, userId, movieKey(movieId)), {
-      consistent: true,
-    });
+    const existing = await getItem<SwipeItem>(
+      keys.swipe(roomId, round, userId, mediaKey(mediaType, movieId)),
+      { consistent: true },
+    );
     if (existing) {
       // A repeat still evaluates: the original may have died before its check ran.
       const match =
-        existing.direction === "LIKE" ? await evaluateMovie(roomId, round, movieId, userId) : null;
-      return { movieId, direction: existing.direction, match };
+        existing.direction === "LIKE"
+          ? await evaluateMovie(roomId, round, movieId, mediaType, userId)
+          : null;
+      return { movieId, mediaType, direction: existing.direction, match };
     }
 
-    movie ??= await getMovie(movieId);
+    title ??= await loadTitle(mediaType, movieId);
     try {
-      await transactWrite(swipeWrites({ roomId, round, userId, movieId, direction, movie }));
+      await transactWrite(
+        swipeWrites({ roomId, round, userId, movieId, mediaType, direction, title }),
+      );
     } catch (error) {
       if (!isTransactionCancelled(error)) throw error;
       const [swipeCode, memberCode] = cancellationCodes(error);
       if (!failedCondition(swipeCode) && !failedCondition(memberCode)) await backoff(attempt);
       continue;
     }
-    const match = direction === "LIKE" ? await evaluateMovie(roomId, round, movieId, userId) : null;
-    return { movieId, direction, match };
+    const match =
+      direction === "LIKE" ? await evaluateMovie(roomId, round, movieId, mediaType, userId) : null;
+    return { movieId, mediaType, direction, match };
   }
   throw new ConflictError();
 }

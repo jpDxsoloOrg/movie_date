@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { useRoom } from "../../hooks/useRoom";
 import { useToast } from "../../hooks/useToast";
-import { api, errorMessage, type PlexAvailability, type PlexStatus } from "../../services/api";
+import { api, errorMessage, type MediaType, type PlexAvailability, type PlexStatus } from "../../services/api";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 import { Skeleton } from "../Skeleton";
@@ -19,10 +19,30 @@ const STATUS_COPY: Record<PlexAvailability, { label: string; note: string; tone:
 };
 
 const REQUESTS_DOWN_NOTE = "Plex requests are unavailable right now.";
+const SHOW_STATUS_DOWN_NOTE = "Plex status is unavailable right now.";
+const PARTIAL_LABEL = "Partly on Plex";
+/** A show in the library may have no files yet, so this can't promise it's ready (decision 60). */
+const SHOW_AVAILABLE_NOTE = "It's in the library.";
 
-function statusNote(status: PlexStatus): string {
-  // The backend reports an outage as a missing title that can't be requested.
-  if (status.availability === "NOT_IN_LIBRARY" && !status.canRequest) return REQUESTS_DOWN_NOTE;
+/** Some seasons in the library: the API says AVAILABLE and lists what's missing. */
+function isPartial(status: PlexStatus): boolean {
+  return status.availability === "AVAILABLE" && (status.missingSeasons?.length ?? 0) > 0;
+}
+
+function missingSeasonsNote(seasons: readonly number[]): string {
+  if (seasons.length === 1) return `Season ${seasons[0]} is missing from the library.`;
+  const sorted = [...seasons].sort((first, second) => first - second);
+  return `Seasons ${sorted.slice(0, -1).join(", ")} and ${sorted[sorted.length - 1]} are missing from the library.`;
+}
+
+function statusNote(status: PlexStatus, mediaType: MediaType): string {
+  if (isPartial(status)) return missingSeasonsNote(status.missingSeasons ?? []);
+  // A show can never be requested in this build, so for shows this says nothing about an outage.
+  // For a movie, the backend reports an outage as a missing title that can't be requested.
+  if (mediaType === "MOVIE" && status.availability === "NOT_IN_LIBRARY" && !status.canRequest) {
+    return REQUESTS_DOWN_NOTE;
+  }
+  if (mediaType === "TV" && status.availability === "AVAILABLE") return SHOW_AVAILABLE_NOTE;
   return STATUS_COPY[status.availability].note;
 }
 
@@ -38,17 +58,23 @@ function Badge({ label, tone }: { label: string; tone: BadgeTone }): JSX.Element
 interface PanelProps {
   movieId: number;
   movieTitle: string;
+  mediaType: MediaType;
   onGradient: boolean;
 }
 
-function LinkedPanel({ movieId, movieTitle, onGradient }: PanelProps): JSX.Element | null {
+function LinkedPanel({ movieId, movieTitle, mediaType, onGradient }: PanelProps): JSX.Element | null {
   const toast = useToast();
-  const { data: status, error, reload, setData } = useAsyncData(() => api.plexStatus(movieId), [movieId]);
+  const { data: status, error, reload, setData } = useAsyncData(
+    () => api.plexStatus(movieId, mediaType),
+    [movieId, mediaType],
+  );
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
   const requested = useRef(false);
-  const canRequest = status?.canRequest ?? false;
+  // requestOnPlex is movies only until the Sonarr lookup fix ships: a show id would
+  // be taken for the movie with the same number (decision 42).
+  const canRequest = mediaType === "MOVIE" && (status?.canRequest ?? false);
 
   // The button that opened the dialog is gone by now, and focus would drop out of the sheet.
   useEffect(() => {
@@ -59,7 +85,7 @@ function LinkedPanel({ movieId, movieTitle, onGradient }: PanelProps): JSX.Eleme
   async function sendRequest(): Promise<void> {
     setSending(true);
     try {
-      const next = await api.requestOnPlex(movieId);
+      const next = await api.requestOnPlex(movieId, mediaType);
       requested.current = true;
       setData(next);
       setConfirming(false);
@@ -82,7 +108,7 @@ function LinkedPanel({ movieId, movieTitle, onGradient }: PanelProps): JSX.Eleme
         <div className={classes}>
           <div className="plex-status__summary">
             <Badge label="Plex" tone="missing" />
-            <span className="plex-status__note">{REQUESTS_DOWN_NOTE}</span>
+            <span className="plex-status__note">{mediaType === "TV" ? SHOW_STATUS_DOWN_NOTE : REQUESTS_DOWN_NOTE}</span>
           </div>
         </div>
       );
@@ -95,11 +121,12 @@ function LinkedPanel({ movieId, movieTitle, onGradient }: PanelProps): JSX.Eleme
   }
 
   const copy = STATUS_COPY[status.availability];
+  const partial = isPartial(status);
   return (
     <div className={classes}>
       <div ref={summary} className="plex-status__summary" tabIndex={-1}>
-        <Badge label={copy.label} tone={copy.tone} />
-        <span className="plex-status__note">{statusNote(status)}</span>
+        <Badge label={partial ? PARTIAL_LABEL : copy.label} tone={partial ? "pending" : copy.tone} />
+        <span className="plex-status__note">{statusNote(status, mediaType)}</span>
       </div>
       {canRequest && (
         <Button className="plex-status__request" onClick={() => setConfirming(true)}>
@@ -133,13 +160,27 @@ function LinkedPanel({ movieId, movieTitle, onGradient }: PanelProps): JSX.Eleme
 export interface PlexStatusPanelProps {
   movieId: number;
   movieTitle: string;
+  mediaType?: MediaType;
   onGradient?: boolean;
 }
 
 /** Status badge and Request on Plex. Renders nothing for someone without a linked account. */
-export function PlexStatusPanel({ movieId, movieTitle, onGradient = false }: PlexStatusPanelProps): JSX.Element | null {
+export function PlexStatusPanel({
+  movieId,
+  movieTitle,
+  mediaType = "MOVIE",
+  onGradient = false,
+}: PlexStatusPanelProps): JSX.Element | null {
   const { me } = useRoom();
   if (!me.plexLinked) return null;
   // Keyed because useAsyncData holds on to the last title's status during a reload.
-  return <LinkedPanel key={movieId} movieId={movieId} movieTitle={movieTitle} onGradient={onGradient} />;
+  return (
+    <LinkedPanel
+      key={`${mediaType}:${movieId}`}
+      movieId={movieId}
+      movieTitle={movieTitle}
+      mediaType={mediaType}
+      onGradient={onGradient}
+    />
+  );
 }

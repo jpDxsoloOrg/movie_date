@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { api, type FiltersInput } from "../../services/api";
+import { api, type FiltersInput, type MediaType } from "../../services/api";
 
 const DEBOUNCE_MS = 350;
 
@@ -15,7 +15,7 @@ export interface FilterPreviewState {
 }
 
 /** Pass null to pause, while the draft is one that couldn't be saved. */
-export function useFilterPreview(filters: FiltersInput | null): FilterPreviewState {
+export function useFilterPreview(filters: FiltersInput | null, mediaType: MediaType = "MOVIE"): FilterPreviewState {
   const [settled, setSettled] = useState(filters);
   const draftKey = JSON.stringify(filters);
   const settledKey = JSON.stringify(settled);
@@ -28,8 +28,8 @@ export function useFilterPreview(filters: FiltersInput | null): FilterPreviewSta
   }, [draftKey]);
 
   const { data, error, loading } = useAsyncData(
-    async () => (settled ? api.filterPreview(settled) : null),
-    [settledKey],
+    async () => (settled ? api.filterPreview(settled, mediaType) : null),
+    [settledKey, mediaType],
   );
   const usable = error ? null : data;
 

@@ -13,7 +13,9 @@ export function fakePlexRequest() {
   client.on(InvokeCommand).callsFake(async (input: InvokeCommandInput) => {
     const call = JSON.parse(String(input.Payload)) as IntegrationCall;
     calls.push(call);
-    return { StatusCode: 200, Payload: new TextEncoder().encode(JSON.stringify({ ok: true, data: route(call) })) as never };
+    const data = route(call);
+    if (data instanceof Uint8Array) return { StatusCode: 200, Payload: data as never };
+    return { StatusCode: 200, Payload: new TextEncoder().encode(JSON.stringify({ ok: true, data })) as never };
   });
   return {
     calls,
@@ -22,6 +24,10 @@ export function fakePlexRequest() {
     },
     callsTo(op: string) {
       return calls.filter((call) => call.op === op);
+    },
+    /** Returned from a route, answers with these raw bytes instead of a success envelope. */
+    refuse(payload: Uint8Array) {
+      return payload;
     },
     /** Every invocation fails, as it does while the function is down. */
     breakIt() {

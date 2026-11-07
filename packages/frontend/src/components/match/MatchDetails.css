@@ -120,6 +120,8 @@
 }
 
 .match-details__year {
+  /* A range must not break at its dash. */
+  white-space: nowrap;
   font-weight: 600;
   opacity: 0.8;
 }

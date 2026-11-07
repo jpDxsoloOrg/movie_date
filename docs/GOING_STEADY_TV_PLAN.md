@@ -47,6 +47,17 @@ Going Steady is a mode of the existing app, not a second app.
 - `Room` gains `tvFilters` and `tvRound`.
 - A `Show` type sits beside `Movie`, with first and last air year, status, season and episode counts, networks, and typical episode length.
 
+**How cards and matches carry a title.** `DeckCard`, `Match` and `HistoryEntry` each have `mediaType`, `movie` and `show`.
+
+- `movie` is always set. For a show it's `showAsMovie(show)` from `packages/core`, so shared UI reads `card.movie.title`, `.posterUrl` and so on in both modes with no branching.
+- `show` is null for movies. Read it only for what a movie lacks: the `2019–2023 · 4 seasons · Ended` line and networks.
+- **`movie.id` on a show is a TV id.** Every `api` call takes a trailing `mediaType`; pass `card.mediaType` or the current mode. Leaving it out means MOVIE, which quietly fetches a different title.
+- Filters: `Room.filters` and `Room.tvFilters` are the same `Filters` type, and `FiltersInput` gained the TV fields, so one form serves both. Movies use the release dates and shows use `firstAirDate*`, `showStatus` and `commitment`. Season ranges are `COMMITMENT_SEASONS` in core.
+- `RoomEvent.mediaType` says which mode a match or reset belongs to. Null means the event concerns the whole room. `updateFilters` sets it on `ROOM_UPDATED`.
+- Partial on Plex is `AVAILABLE` with a non-empty `PlexStatus.missingSeasons`. `canRequest` stays false for shows in this build.
+
+**Reading rows.** Every keyed row in the live table is a bare id, with no `movie:` rows yet, so take the mode from `mediaRefOfSk(sk)` and never from a `movie:` key prefix. `round` and `tvRound` are separate counters whose numbers overlap, so a `SWIPE#3#`, `TALLY#3#` or `MATCHED#3#` scan returns both modes: filter it. Existing rooms have no `tvRound` or `tvFilters` attribute, which reads as round 1 and empty filters, so writes and condition checks must allow for the attribute being absent.
+
 ### TMDB, checked against the live API
 
 | Need | Source | Note |

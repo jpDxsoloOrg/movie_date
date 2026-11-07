@@ -24,7 +24,7 @@ vi.mock("@movie-date/frontend/services/api", () => ({
 }));
 vi.mock("@movie-date/frontend/services/realtime", () => ({ subscribeToRoom: vi.fn() }));
 
-import { RoomContext, type RoomContextValue } from "@movie-date/frontend/context/RoomProvider";
+import { RoomContext, type MatchRouteState, type RoomContextValue } from "@movie-date/frontend/context/RoomProvider";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
 import MatchFound from "@movie-date/frontend/screens/MatchFound";
 import type { Match, Room, WatchOption } from "@movie-date/frontend/services/api";
@@ -35,8 +35,10 @@ const room: Room = {
   matchThreshold: 2,
   requireMajority: false,
   round: 3,
+  tvRound: 1,
   plexAvailable: false,
   filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
+  tvFilters: { genreIds: [], services: [], cast: [] },
   members: [],
 };
 
@@ -46,6 +48,8 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
     roomId: "room-1",
     round: 3,
     matchedAt: "2026-01-15T12:00:00Z",
+    mediaType: "MOVIE",
+    show: null,
     movie: {
       id: 949,
       title: "Heat",
@@ -76,7 +80,7 @@ function Path(): JSX.Element {
   return <div data-testid="path">{useLocation().pathname}</div>;
 }
 
-function renderScreen(routerState?: { match?: Match }, currentRoom: Room = room, plexLinked = false) {
+function renderScreen(routerState?: MatchRouteState, currentRoom: Room = room, plexLinked = false) {
   const context = {
     me: { plexLinked },
     room: currentRoom,
@@ -106,6 +110,15 @@ beforeEach(() => {
 });
 
 describe("MatchFound", () => {
+  it("takes focus from a banner's View, whose button is gone, but not otherwise", async () => {
+    const { unmount } = renderScreen({ match: makeMatch(), focusHeadline: true });
+    expect(await screen.findByRole("heading", { name: "Match Found" })).toHaveFocus();
+    unmount();
+
+    renderScreen({ match: makeMatch() });
+    expect(await screen.findByRole("heading", { name: "Match Found" })).not.toHaveFocus();
+  });
+
   it("shows the match from router state without looking it up", async () => {
     renderScreen({ match: makeMatch() });
 
@@ -126,7 +139,7 @@ describe("MatchFound", () => {
 
     expect(screen.getByRole("status", { name: "Loading your match" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Heat, 1995" })).toBeInTheDocument();
-    expect(mocks.findMatch).toHaveBeenCalledWith("match-1");
+    expect(mocks.findMatch).toHaveBeenCalledWith("match-1", "MOVIE");
   });
 
   it("ignores router state belonging to a different match", async () => {
@@ -134,7 +147,7 @@ describe("MatchFound", () => {
     renderScreen({ match: makeMatch({ id: "other" }) });
 
     await screen.findByRole("heading", { name: "Heat, 1995" });
-    expect(mocks.findMatch).toHaveBeenCalledWith("match-1");
+    expect(mocks.findMatch).toHaveBeenCalledWith("match-1", "MOVIE");
   });
 
   it("offers a way home when the match isn't in this room", async () => {
@@ -179,7 +192,7 @@ describe("MatchFound", () => {
       await userEvent.click(screen.getByRole("button", { name: "Back to Start" }));
 
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/));
-      expect(mocks.startNewRound).toHaveBeenCalledWith(2);
+      expect(mocks.startNewRound).toHaveBeenCalledWith(2, "MOVIE");
       expect(mocks.setRoom).toHaveBeenCalledWith(nextRoom);
     });
 
@@ -342,7 +355,7 @@ describe("MatchFound", () => {
       renderLinked();
 
       expect(await screen.findByText(label)).toBeInTheDocument();
-      expect(mocks.plexStatus).toHaveBeenCalledWith(949);
+      expect(mocks.plexStatus).toHaveBeenCalledWith(949, "MOVIE");
       expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
     });
 
@@ -389,7 +402,7 @@ describe("MatchFound", () => {
 
       expect(await screen.findByText("Requested on Plex")).toBeInTheDocument();
       expect(mocks.requestOnPlex).toHaveBeenCalledTimes(1);
-      expect(mocks.requestOnPlex).toHaveBeenCalledWith(949);
+      expect(mocks.requestOnPlex).toHaveBeenCalledWith(949, "MOVIE");
       expect(screen.getByText("Requested Heat on Plex")).toBeInTheDocument();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();

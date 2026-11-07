@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
-import { api, type Match } from "../../services/api";
+import { api, type Match, type MediaType } from "../../services/api";
 import { BottomSheet } from "../BottomSheet";
 import { Button } from "../Button";
 import { EmptyState } from "../StateMessage";
-import { HISTORY_PAGE_SIZE, matchStamp, movieLabel } from "./historyFormat";
+import { MODE_COPY } from "../../mode/modeCopy";
+import { homePath, MOVIES_STATE } from "../../mode/modeRoutes";
+import { HISTORY_PAGE_SIZE, matchStamp, titleLabel } from "./historyFormat";
 import { HistoryList } from "./HistoryList";
 import { MatchDetails } from "./MatchDetails";
 import { MoviePoster } from "./MoviePoster";
@@ -33,6 +35,7 @@ function MatchStub({ match, featured, onOpen }: MatchStubProps): JSX.Element {
         <MoviePoster
           className="history-stub__poster"
           posterUrl={featured ? (movie.backdropUrl ?? movie.posterUrl) : movie.posterUrl}
+          mediaType={match.mediaType}
           alt=""
           thumbnail={!featured}
           sizes={STUB_POSTER_SIZES}
@@ -43,7 +46,7 @@ function MatchStub({ match, featured, onOpen }: MatchStubProps): JSX.Element {
               Latest match
             </span>
           )}
-          <span className="history-stub__title">{movieLabel(movie)}</span>
+          <span className="history-stub__title">{titleLabel(match)}</span>
           <span className="history-stub__detail">{matchStamp(match)}</span>
           {featured && movie.overview && (
             <span className="history-stub__overview" aria-hidden="true">
@@ -56,12 +59,12 @@ function MatchStub({ match, featured, onOpen }: MatchStubProps): JSX.Element {
   );
 }
 
-export function MatchHistory(): JSX.Element {
+export function MatchHistory({ mediaType = "MOVIE" }: { mediaType?: MediaType }): JSX.Element {
   const navigate = useNavigate();
   const isDesktop = useBreakpoint() === "desktop";
   const [selected, setSelected] = useState<Match | null>(null);
   const list = usePagedList<Match>(async (nextToken) => {
-    const page = await api.matches({ limit: HISTORY_PAGE_SIZE, nextToken });
+    const page = await api.matches({ limit: HISTORY_PAGE_SIZE, nextToken }, mediaType);
     return { items: page.matches, nextToken: page.nextToken ?? null };
   });
 
@@ -75,9 +78,9 @@ export function MatchHistory(): JSX.Element {
         empty={
           <EmptyState
             title="No matches yet"
-            message="When everyone likes the same movie, it'll show up here."
+            message={MODE_COPY[mediaType].noMatchesMessage}
             icon="heart"
-            action={<Button onClick={() => navigate("/")}>Start swiping</Button>}
+            action={<Button onClick={() => navigate(homePath(mediaType), { state: mediaType === "MOVIE" ? MOVIES_STATE : undefined })}>Start swiping</Button>}
           />
         }
         renderItem={(match, index) => (
@@ -90,7 +93,7 @@ export function MatchHistory(): JSX.Element {
         label={selected ? `${selected.movie.title} details` : "Match details"}
         size="lg"
       >
-        {selected && <MatchDetails key={selected.id} movie={selected.movie} eyebrow={matchStamp(selected)} />}
+        {selected && <MatchDetails key={selected.id} item={selected} eyebrow={matchStamp(selected)} />}
       </BottomSheet>
     </>
   );

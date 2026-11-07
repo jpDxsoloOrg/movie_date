@@ -114,3 +114,50 @@ describe("matchingMovies", () => {
     expect(matched.map(({ id }) => id)).toEqual([1, 2, 3]);
   });
 });
+
+describe("the show index", () => {
+  function storedShows(hasFiles: boolean[]) {
+    const body = JSON.stringify({
+      generatedAt: "2026-03-01T00:00:00.000Z",
+      shows: hasFiles.map((hasFile, index) => ({
+        id: index + 1,
+        tvdbId: index + 101,
+        genreIds: [],
+        castIds: [],
+        firstAirDate: null,
+        popularity: 1,
+        status: null,
+        seasonCount: null,
+        hasFile,
+      })),
+    });
+    return { Body: { transformToString: async () => body } } as never;
+  }
+
+  it("lives in its own object, since ids overlap", async () => {
+    s3.on(GetObjectCommand).resolves(storedShows([false]));
+    const { loadShowIndex } = await freshModule();
+    await loadShowIndex();
+    expect(s3.commandCalls(GetObjectCommand)[0]?.args[0].input.Key).toBe("shows.json");
+  });
+
+  it("treats a false hasFile as no signal while every show has one", async () => {
+    s3.on(GetObjectCommand).resolves(storedShows([false, false]));
+    const { showPresence } = await freshModule();
+    expect(await showPresence(1)).toBe("WATCHABLE");
+    expect(await showPresence(9)).toBe("ABSENT");
+  });
+
+  it("believes hasFile once any show has one", async () => {
+    s3.on(GetObjectCommand).resolves(storedShows([true, false]));
+    const { showPresence } = await freshModule();
+    expect(await showPresence(1)).toBe("WATCHABLE");
+    expect(await showPresence(2)).toBe("WAITING");
+  });
+
+  it("is absent everywhere before the first index", async () => {
+    s3.on(GetObjectCommand).rejects(Object.assign(new Error("Gone"), { name: "NoSuchKey" }));
+    const { showPresence } = await freshModule();
+    expect(await showPresence(1)).toBe("ABSENT");
+  });
+});

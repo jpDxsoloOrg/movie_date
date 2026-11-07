@@ -68,6 +68,22 @@ describe("getWatchOptions from RapidAPI", () => {
     expect(init?.headers).toMatchObject({ "x-rapidapi-key": "a-key" });
   });
 
+  it("keeps a link only if it's a web address, because it goes straight into an href", async () => {
+    stubFetch(() =>
+      jsonResponse({
+        streamingOptions: {
+          us: [
+            { service: service("netflix", "Netflix"), type: "subscription", link: "javascript:alert(1)" },
+            { service: service("hulu", "Hulu"), type: "subscription", link: "http://hulu.example" },
+            { service: service("prime", "Prime Video"), type: "subscription", link: "not a url" },
+          ],
+        },
+      }),
+    );
+    const options = await getWatchOptions(949, "user-1");
+    expect(options.map((option) => option.link)).toEqual([null, null, null]);
+  });
+
   it("keeps the cheapest option per service, with deep links", async () => {
     stubFetch(() =>
       jsonResponse({
@@ -234,5 +250,38 @@ describe("getWatchOptions spending limits", () => {
     const fetchStub = stubFetch(() => jsonResponse({}, 404));
     await expect(getWatchOptions(2147483647, "user-1")).rejects.toBeInstanceOf(NotFoundError);
     expect(fetchStub).not.toHaveBeenCalled();
+  });
+});
+
+describe("shows", () => {
+  const options = [
+    { service: service("netflix", "Netflix"), type: "subscription", link: "https://netflix.example/1" },
+  ];
+
+  it("asks RapidAPI's TV path, which answers in the same shape", async () => {
+    const fetchStub = stubFetch((url) => {
+      expect(url.pathname).toBe("/shows/tv/1399");
+      return jsonResponse({ streamingOptions: { us: options } });
+    });
+    const answer = await getWatchOptions(1399, "user-1", "TV");
+    expect(answer.map((option) => option.serviceId)).toEqual(["netflix"]);
+    expect(fetchStub).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to TMDB's TV providers", async () => {
+    stubFetch((url) => {
+      if (isRapidApi(url)) return jsonResponse({}, 500);
+      expect(url.pathname).toBe("/3/tv/1399/watch/providers");
+      return jsonResponse(tmdbProviders);
+    });
+    const answer = await getWatchOptions(1399, "user-1", "TV");
+    expect(answer.map((option) => option.serviceId)).toContain("netflix");
+  });
+
+  it("caches apart from the movie with the same number", async () => {
+    stubFetch(() => jsonResponse({ streamingOptions: { us: options } }));
+    await getWatchOptions(550, "user-1", "TV");
+    const cacheRows = dynamo.commandCalls(PutCommand).map((call) => call.args[0].input.Item?.pk);
+    expect(cacheRows).toContain("CACHE#watch#tv:550");
   });
 });

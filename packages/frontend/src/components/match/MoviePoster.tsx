@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { MODE_COPY } from "../../mode/modeCopy";
+import type { MediaType } from "../../services/api";
 import { Icon } from "../Icon";
 import "./MoviePoster.css";
 
@@ -23,16 +25,18 @@ export interface MoviePosterProps {
   /** The rendered width for a thumbnail, as the `sizes` attribute takes it. */
   sizes?: string;
   className?: string;
+  /** Picks what stands in for a missing poster. */
+  mediaType?: MediaType;
 }
 
-export function MoviePoster({ posterUrl, alt, thumbnail = false, sizes, className }: MoviePosterProps): JSX.Element {
+export function MoviePoster({ posterUrl, alt, thumbnail = false, sizes, className, mediaType = "MOVIE" }: MoviePosterProps): JSX.Element {
   const [failed, setFailed] = useState(false);
   const classes = ["match-poster", className].filter(Boolean).join(" ");
 
   if (!posterUrl || failed) {
     return (
       <div className={`${classes} match-poster--missing`} role={alt ? "img" : undefined} aria-label={alt || undefined}>
-        <Icon name="movie" />
+        <Icon name={MODE_COPY[mediaType].icon} />
       </div>
     );
   }

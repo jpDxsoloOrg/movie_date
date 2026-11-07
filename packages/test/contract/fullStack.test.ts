@@ -44,6 +44,8 @@ const AVATARS_BUCKET = "avatars-bucket";
 /** A movie TMDB knows little about: every optional field is missing, in TMDB's own ways. */
 const SPARSE_MOVIE_ID = 12;
 const FULL_MOVIE_ID = 11;
+/** TMDB's movie and TV ids overlap, so the show shares a movie's number on purpose. */
+const SHOW_ID = FULL_MOVIE_ID;
 
 function loadSchema(): GraphQLSchema {
   const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -174,6 +176,33 @@ function tmdb(url: URL): Response {
           flatrate: [{ provider_id: 8, provider_name: "Netflix", logo_path: "/netflix.jpg" }],
         },
       },
+    });
+  }
+  if (path === "discover/tv") {
+    return Response.json({
+      results: [{ id: SHOW_ID, original_language: "en", poster_path: `/show-${SHOW_ID}.jpg` }],
+      total_pages: 1,
+      total_results: 1,
+    });
+  }
+  if (path === `tv/${SHOW_ID}`) {
+    return Response.json({
+      name: "Full Show",
+      overview: "A commitment.",
+      first_air_date: "2019-04-01",
+      last_air_date: "2023-05-01",
+      status: "Ended",
+      number_of_seasons: 4,
+      number_of_episodes: 40,
+      networks: [{ name: "HBO" }],
+      episode_run_time: [],
+      last_episode_to_air: { runtime: 55 },
+      vote_average: 8.1,
+      vote_count: 200,
+      poster_path: `/show-${SHOW_ID}.jpg`,
+      backdrop_path: null,
+      genres: [{ id: 18, name: "Drama" }],
+      external_ids: { tvdb_id: 9000 },
     });
   }
   if (path === "genre/movie/list") return Response.json({ genres: [{ id: 18, name: "Drama" }] });
@@ -370,7 +399,7 @@ describe("the client against the real backend", () => {
     });
 
     const annLike = await api.swipe(SPARSE_MOVIE_ID, "LIKE");
-    expect(annLike).toEqual({ movieId: SPARSE_MOVIE_ID, direction: "LIKE", match: null });
+    expect(annLike).toEqual({ movieId: SPARSE_MOVIE_ID, mediaType: "MOVIE", direction: "LIKE", match: null });
 
     as("bob");
     const bobDeck = await api.deck(1);
@@ -383,6 +412,7 @@ describe("the client against the real backend", () => {
       roomId: annRoom.id,
       type: "MATCH_FOUND",
       movieId: SPARSE_MOVIE_ID,
+      mediaType: "MOVIE",
       matchId: match?.id,
       round: 1,
       actorId: "sub-bob",
@@ -392,13 +422,17 @@ describe("the client against the real backend", () => {
     expect(await api.pendingMatch()).toEqual(match);
     expect(await api.findMatch(match?.id ?? "")).toEqual(match);
     expect((await api.matches()).matches).toEqual([match]);
-    expect(await api.undoSwipe(SPARSE_MOVIE_ID)).toEqual({ movieId: SPARSE_MOVIE_ID, undone: false });
+    expect(await api.undoSwipe(SPARSE_MOVIE_ID)).toEqual({
+      movieId: SPARSE_MOVIE_ID,
+      mediaType: "MOVIE",
+      undone: false,
+    });
 
     const nextRound = await api.startNewRound(1);
     expect(nextRound.round).toBe(2);
     expect(await api.pendingMatch()).toBeNull();
     expect(published).toContainEqual(
-      expect.objectContaining({ roomId: annRoom.id, type: "ROUND_RESET", round: 2 }),
+      expect.objectContaining({ roomId: annRoom.id, type: "ROUND_RESET", mediaType: "MOVIE", round: 2 }),
     );
 
     as("bob");
@@ -410,6 +444,67 @@ describe("the client against the real backend", () => {
     expect(history.entries).toEqual([
       expect.objectContaining({ direction: "LIKE", round: 1, movie: expect.objectContaining({ id: SPARSE_MOVIE_ID }) }),
     ]);
+  });
+
+  it("defaults every mode-aware field to movies", async () => {
+    const room = await api.myRoom();
+    expect(room).toMatchObject({ tvRound: 1, tvFilters: { genreIds: [], cast: [], services: [] } });
+    expect((await api.deck(1)).cards[0]).toMatchObject({ mediaType: "MOVIE", show: null });
+  });
+
+  it("matches a show without touching the movie with the same id", async () => {
+    await api.me();
+    const room = await api.myRoom();
+    as("bob");
+    await api.me();
+    await api.joinRoom(room.code);
+
+    as("ann");
+    const deck = await api.deck(1, "TV");
+    expect(deck.nextPage).toBeNull();
+    expect(deck.cards).toHaveLength(1);
+    expect(deck.cards[0]).toMatchObject({
+      mediaType: "TV",
+      movie: { id: SHOW_ID, title: "Full Show", releaseYear: 2019, runtime: 55 },
+      show: { firstAirYear: 2019, lastAirYear: 2023, status: "Ended", seasonCount: 4, networks: ["HBO"] },
+    });
+
+    expect(await api.swipe(SHOW_ID, "LIKE", "TV")).toEqual({
+      movieId: SHOW_ID,
+      mediaType: "TV",
+      direction: "LIKE",
+      match: null,
+    });
+    expect(allMovies(await api.deck(1))).toContain(FULL_MOVIE_ID);
+    expect((await api.deck(1, "TV")).cards).toEqual([]);
+
+    as("bob");
+    expect((await api.deck(1, "TV")).cards[0]).toMatchObject({ likedByRoommate: true });
+    expect((await api.deck(1)).cards[0]).toMatchObject({ likedByRoommate: false });
+
+    const match = (await api.swipe(SHOW_ID, "LIKE", "TV")).match;
+    expect(match).toMatchObject({ mediaType: "TV", round: 1, show: { title: "Full Show" } });
+    expect(published).toContainEqual({
+      roomId: room.id,
+      type: "MATCH_FOUND",
+      movieId: SHOW_ID,
+      mediaType: "TV",
+      matchId: match?.id,
+      round: 1,
+      actorId: "sub-bob",
+    });
+
+    as("ann");
+    expect(await api.pendingMatch("TV")).toEqual(match);
+    expect(await api.pendingMatch()).toBeNull();
+    expect((await api.matches({}, "TV")).matches).toEqual([match]);
+    expect((await api.matches()).matches).toEqual([]);
+
+    const nextRound = await api.startNewRound(1, "TV");
+    expect(nextRound).toMatchObject({ round: 1, tvRound: 2 });
+    expect(published).toContainEqual(
+      expect.objectContaining({ roomId: room.id, type: "ROUND_RESET", mediaType: "TV", round: 2 }),
+    );
   });
 
   it("round-trips filters the client read back into the mutation that saves them", async () => {
@@ -431,6 +526,10 @@ describe("the client against the real backend", () => {
       services: ["netflix"],
       releaseDateGte: "2024-01-01",
       releaseDateLte: null,
+      showStatus: null,
+      commitment: null,
+      firstAirDateGte: null,
+      firstAirDateLte: null,
     });
 
     // The Filters screen edits the fragment it was given, so it must be valid input as-is.

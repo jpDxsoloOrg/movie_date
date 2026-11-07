@@ -57,6 +57,11 @@
   line-height: 1.05;
 }
 
+/* Only ever focused by the app, as the landing spot after View. */
+.match-found__title:focus {
+  outline: none;
+}
+
 .match-found__subtitle {
   margin-top: var(--space-1);
   font-family: var(--font-display);

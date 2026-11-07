@@ -10,6 +10,7 @@ export const PUBLISH_MUTATION = `mutation PublishRoomEvent($input: RoomEventInpu
     roomId
     type
     movieId
+    mediaType
     matchId
     round
     actorId

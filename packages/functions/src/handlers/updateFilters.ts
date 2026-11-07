@@ -1,4 +1,4 @@
-import type { FieldArguments, Room } from "@movie-date/core";
+import { resolveMediaType, type FieldArguments, type Room } from "@movie-date/core";
 import { publishRoomEvent } from "../lib/events.js";
 import { checkedFilters } from "../lib/filters.js";
 import type { ResolverContext } from "../lib/identity.js";
@@ -8,14 +8,20 @@ export async function updateFilters(
   args: FieldArguments["updateFilters"],
   context: ResolverContext,
 ): Promise<Room> {
-  const filters = checkedFilters(args.filters);
+  const mediaType = resolveMediaType(args.mediaType);
+  const filters = checkedFilters(args.filters, mediaType);
   const { roomId } = await getOrCreateProfile(context);
   await updateRoomMeta(roomId, {
     updateExpression: "SET #filters = :filters",
-    names: { "#filters": "filters" },
+    names: { "#filters": mediaType === "TV" ? "tvFilters" : "filters" },
     values: { ":filters": filters },
     conditionExpression: "attribute_exists(pk)",
   });
-  await publishRoomEvent({ roomId, type: "ROOM_UPDATED", actorId: context.userId });
+  await publishRoomEvent({
+    roomId,
+    type: "ROOM_UPDATED",
+    mediaType,
+    actorId: context.userId,
+  });
   return loadRoom(roomId, context.userId);
 }

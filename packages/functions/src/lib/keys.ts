@@ -112,6 +112,24 @@ export interface SwipeKeyParts extends MediaRef {
   sub: string;
 }
 
+/**
+ * SWIPE, TALLY, MATCH and MATCHED rows all end in their title. It may be typed or
+ * a bare id, and the live table is full of bare ones, so never pick a mode with a
+ * `movie:` key prefix: read it here. An old row's mode exists nowhere else.
+ */
+export function mediaRefOfSk(sk: string): MediaRef {
+  return parseMediaKey(sk.slice(sk.lastIndexOf("#") + 1));
+}
+
+/**
+ * The tally a swipe counted towards. The title is copied as written, because the
+ * likes of a bare-id swipe sit on a bare-id tally.
+ */
+export function tallyOfSwipe(row: TableKey): TableKey {
+  const [, round, , media] = row.sk.split("#");
+  return { pk: row.pk, sk: `TALLY#${round}#${media}` };
+}
+
 /** A swipe row keeps its round, owner and title only in the sort key. */
 export function parseSwipeSk(sk: string): SwipeKeyParts {
   const [, round, sub, media] = sk.split("#");

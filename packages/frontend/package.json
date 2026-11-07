@@ -40,6 +40,8 @@
     "./components/*": "./src/components/*.tsx",
     "./src/*": "./src/*",
     "./context/*": "./src/context/*.tsx",
+    "./mode/ModeProvider": "./src/mode/ModeProvider.tsx",
+    "./mode/*": "./src/mode/*.ts",
     "./AppRoutes": "./src/AppRoutes.tsx"
   }
 }

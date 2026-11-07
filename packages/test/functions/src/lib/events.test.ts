@@ -72,7 +72,7 @@ describe("publishRoomEvent", () => {
     const schema = readFileSync(new URL("../../../../../graphql/schema.graphql", import.meta.url), "utf8");
     const block = /type RoomEvent [^{]*\{([\s\S]*?)\}/.exec(schema)?.[1] ?? "";
     const fields = [...block.matchAll(/^ {2}(\w+):/gm)].map((field) => field[1] ?? "");
-    expect(fields).toHaveLength(6);
+    expect(fields).toHaveLength(7);
     for (const field of fields) expect(PUBLISH_MUTATION).toMatch(new RegExp(`^\\s+${field}$`, "m"));
   });
 

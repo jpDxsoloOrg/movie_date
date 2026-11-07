@@ -59,6 +59,8 @@ window.PointerEvent = FakePointerEvent as unknown as typeof PointerEvent;
 function makeCard(id: number, overrides: Partial<DeckCard> = {}): DeckCard {
   return {
     likedByRoommate: false,
+    mediaType: "MOVIE",
+    show: null,
     movie: {
       id,
       title: `Movie ${id}`,
@@ -79,7 +81,15 @@ function makePage(ids: number[], nextPage: number | null = null): DeckPage {
 }
 
 function makeMatch(id: number): Match {
-  return { id: `match-${id}`, roomId: "r", round: 1, matchedAt: "2026-01-01T00:00:00Z", movie: makeCard(id).movie };
+  return {
+    id: `match-${id}`,
+    roomId: "r",
+    round: 1,
+    matchedAt: "2026-01-01T00:00:00Z",
+    mediaType: "MOVIE",
+    movie: makeCard(id).movie,
+    show: null,
+  };
 }
 
 // The session outlives Home on purpose, so each test gets a room of its own.
@@ -92,8 +102,10 @@ function makeRoom(overrides: Partial<Room> = {}): Room {
     matchThreshold: 2,
     requireMajority: false,
     round: 1,
+    tvRound: 1,
     plexAvailable: false,
     filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
+    tvFilters: { genreIds: [], services: [], cast: [] },
     members: [
       { userId: "me", displayName: "Me", avatarUrl: null, isMe: true },
       { userId: "u2", displayName: "Sam", avatarUrl: null, isMe: false },
@@ -253,7 +265,7 @@ describe("Home deck states", () => {
     mocks.deck.mockResolvedValueOnce(makePage([], 6)).mockResolvedValueOnce(makePage([9]));
     renderHome();
     await topCard("Movie 9");
-    expect(mocks.deck).toHaveBeenLastCalledWith(6);
+    expect(mocks.deck).toHaveBeenLastCalledWith(6, "MOVIE");
     expect(screen.queryByRole("heading", { name: "No more movies" })).not.toBeInTheDocument();
   });
 
@@ -295,7 +307,7 @@ describe("Home dragging", () => {
   it("likes on a drag past the threshold and promotes the next card", async () => {
     renderHome();
     drag(await topCard("Movie 1"), [60, 120]);
-    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "LIKE"));
+    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "LIKE", "MOVIE"));
     await topCard("Movie 2");
   });
 
@@ -305,7 +317,7 @@ describe("Home dragging", () => {
     drag(card, [-60, -120], { release: false });
     expect(screen.getByText("Don't Watch")).toBeInTheDocument();
     fireEvent.pointerUp(card, { pointerId: 1, clientX: -120, clientY: 0 });
-    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "PASS"));
+    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "PASS", "MOVIE"));
   });
 
   it("springs back from a short, slow drag without swiping or opening details", async () => {
@@ -321,7 +333,7 @@ describe("Home dragging", () => {
   it("commits a fast flick short of the threshold", async () => {
     renderHome();
     drag(await topCard("Movie 1"), [20, 60], { stepMs: 16 });
-    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "LIKE"));
+    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "LIKE", "MOVIE"));
   });
 
   it("doesn't count a flick the person held still after", async () => {
@@ -424,7 +436,7 @@ describe("Home details sheet", () => {
     const sheet = within(await screen.findByRole("dialog", { name: "Movie 1 details" }));
     const player = await sheet.findByTitle("Movie 1 trailer");
     expect(player).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/yt-123?autoplay=1");
-    expect(mocks.trailer).toHaveBeenCalledWith(1);
+    expect(mocks.trailer).toHaveBeenCalledWith(1, "MOVIE");
     expect(sheet.getByRole("heading", { name: "Movie 1" })).toBeInTheDocument();
     expect(sheet.getByText("Overview 1")).toBeInTheDocument();
     expect(mocks.swipe).not.toHaveBeenCalled();
@@ -466,8 +478,8 @@ describe("Home buttons and keyboard", () => {
     await topCard("Movie 1");
     await userEvent.click(screen.getByRole("button", { name: "Pass" }));
     await userEvent.click(screen.getByRole("button", { name: "Like" }));
-    expect(mocks.swipe).toHaveBeenCalledWith(1, "PASS");
-    expect(mocks.swipe).toHaveBeenCalledWith(2, "LIKE");
+    expect(mocks.swipe).toHaveBeenCalledWith(1, "PASS", "MOVIE");
+    expect(mocks.swipe).toHaveBeenCalledWith(2, "LIKE", "MOVIE");
     await topCard("Movie 3");
   });
 
@@ -475,11 +487,11 @@ describe("Home buttons and keyboard", () => {
     renderHome();
     await topCard("Movie 1");
     pressKey("ArrowLeft");
-    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "PASS"));
+    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(1, "PASS", "MOVIE"));
     pressKey("ArrowRight");
-    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(2, "LIKE"));
+    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(2, "LIKE", "MOVIE"));
     pressKey("Backspace");
-    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(2, "MOVIE"));
   });
 
   it("leaves the keys alone while a dialog is open", async () => {
@@ -521,9 +533,9 @@ describe("Home optimistic swipes", () => {
     await topCard("Movie 4");
     await waitFor(() => expect(mocks.swipe).toHaveBeenCalledTimes(3));
     expect(mocks.swipe.mock.calls).toEqual([
-      [1, "LIKE"],
-      [2, "PASS"],
-      [3, "LIKE"],
+      [1, "LIKE", "MOVIE"],
+      [2, "PASS", "MOVIE"],
+      [3, "LIKE", "MOVIE"],
     ]);
   });
 
@@ -532,7 +544,7 @@ describe("Home optimistic swipes", () => {
     renderHome();
     drag(await topCard("Movie 1"), [60, 120]);
     drag(await topCard("Movie 2"), [-60, -120]);
-    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(2, "PASS"));
+    await waitFor(() => expect(mocks.swipe).toHaveBeenCalledWith(2, "PASS", "MOVIE"));
   });
 
   it("puts a refused swipe's card back on top and tells the person", async () => {
@@ -613,11 +625,11 @@ describe("Home undo", () => {
 
     await userEvent.click(undoButton());
     await topCard("Movie 2");
-    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(2, "MOVIE"));
 
     await userEvent.click(undoButton());
     await topCard("Movie 1");
-    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(1, "MOVIE"));
     expect(undoButton()).toBeDisabled();
   });
 
@@ -641,7 +653,7 @@ describe("Home undo", () => {
     expect(mocks.undoSwipe).not.toHaveBeenCalled();
 
     await act(async () => landing.resolve({ movieId: 1, direction: "LIKE", match: null }));
-    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(1, "MOVIE"));
   });
 
   it("skips the undo if the swipe it was undoing failed", async () => {
@@ -695,7 +707,7 @@ describe("Home undo", () => {
     await topCard("Movie 2");
     await userEvent.click(undoButton());
     await topCard("Movie 1");
-    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(mocks.undoSwipe).toHaveBeenCalledWith(1, "MOVIE"));
   });
 });
 
@@ -712,7 +724,7 @@ describe("Home paging and preloading", () => {
     expect(mocks.deck).toHaveBeenCalledTimes(1);
 
     pressKey("ArrowLeft");
-    await waitFor(() => expect(mocks.deck).toHaveBeenLastCalledWith(2));
+    await waitFor(() => expect(mocks.deck).toHaveBeenLastCalledWith(2, "MOVIE"));
     expect(mocks.deck).toHaveBeenCalledTimes(2);
   });
 
@@ -799,7 +811,7 @@ describe("Home deck resets", () => {
     await act(async () => emit(eventFor(room, "ROOM_UPDATED")));
     await topCard("Movie 7");
     expect(screen.queryByText("Overview 1")).not.toBeInTheDocument();
-    expect(mocks.deck).toHaveBeenLastCalledWith(1);
+    expect(mocks.deck).toHaveBeenLastCalledWith(1, "MOVIE");
   });
 
   it("restarts the deck and drops the old round's undo stack on ROUND_RESET", async () => {
@@ -958,7 +970,7 @@ describe("Home on Plex", () => {
     await userEvent.click(await sheet.findByRole("button", { name: "Request on Plex" }));
     await userEvent.click(await screen.findByRole("button", { name: "Request" }));
     expect(await sheet.findByText("Requested on Plex")).toBeInTheDocument();
-    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1);
+    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "MOVIE");
     expect(sheet.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Request Movie 1?" })).not.toBeInTheDocument();
     expect(await screen.findByText("Requested Movie 1 on Plex")).toBeInTheDocument();
@@ -1054,7 +1066,7 @@ describe("Home from 640px", () => {
     renderHome();
     await userEvent.click(await roomPanel().findByRole("button", { name: /Movie 7/ }));
     expect(await screen.findByRole("dialog", { name: "Movie 7 details" })).toBeInTheDocument();
-    expect(mocks.matches).toHaveBeenCalledWith({ limit: 3 });
+    expect(mocks.matches).toHaveBeenCalledWith({ limit: 3 }, "MOVIE");
   });
 
   it("has a place for the first match, and can retry a failed load", async () => {
@@ -1147,7 +1159,7 @@ describe("Home from 1024px", () => {
     renderHome();
     drag(await topCard("Movie 1"), [200]);
     await panelFor("Movie 2");
-    expect(mocks.swipe).toHaveBeenCalledWith(1, "LIKE");
+    expect(mocks.swipe).toHaveBeenCalledWith(1, "LIKE", "MOVIE");
   });
 
   it("waits for a card to settle, so a fast swiper spends no lookups on the ones skipped", async () => {
@@ -1157,7 +1169,7 @@ describe("Home from 1024px", () => {
     await panelFor("Movie 2");
     pressKey("ArrowLeft");
     await panelFor("Movie 3");
-    await waitFor(() => expect(mocks.watchOptions).toHaveBeenCalledWith(3));
+    await waitFor(() => expect(mocks.watchOptions).toHaveBeenCalledWith(3, "MOVIE"));
     expect(mocks.watchOptions).toHaveBeenCalledTimes(1);
     expect(mocks.trailer).toHaveBeenCalledTimes(1);
   });

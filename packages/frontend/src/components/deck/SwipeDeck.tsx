@@ -4,8 +4,9 @@ import { Button, IconButton } from "../Button";
 import { Icon } from "../Icon";
 import { Skeleton } from "../Skeleton";
 import { EmptyState, ErrorState } from "../StateMessage";
-import { errorMessage, type Movie } from "../../services/api";
-import { DECK_COPY } from "./deckCopy";
+import { errorMessage, type DeckCard } from "../../services/api";
+import { useMode } from "../../mode/ModeProvider";
+import { filtersPath } from "../../mode/modeRoutes";
 import { SwipeCard } from "./SwipeCard";
 import { STACK_SIZE, useDeck } from "./useDeck";
 import "./SwipeDeck.css";
@@ -19,20 +20,21 @@ function isTyping(target: EventTarget | null): boolean {
 
 export interface SwipeDeckProps {
   /** Left out where a details panel is already showing the top card. */
-  onOpenDetails?: (movie: Movie) => void;
+  onOpenDetails?: (card: DeckCard) => void;
   /** Null once there's no card to show. Not called while a deck loads, so a reload keeps the last one. */
-  onTopChange?: (movie: Movie | null) => void;
+  onTopChange?: (card: DeckCard | null) => void;
 }
 
-export function SwipeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.Element {
+function ModeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.Element {
   const navigate = useNavigate();
-  const { status, error, retry, entries, exiting, swipe, undo, canUndo, finishExit } = useDeck();
+  const { mode, copy } = useMode();
+  const { status, error, retry, keepWalking, entries, exiting, swipe, undo, canUndo, finishExit } = useDeck();
   const top = entries[0];
-  const topMovie = top?.card.movie ?? null;
+  const topCard = top?.card ?? null;
 
   useEffect(() => {
-    if (status !== "loading") onTopChange?.(topMovie);
-  }, [status, topMovie, onTopChange]);
+    if (status !== "loading") onTopChange?.(topCard);
+  }, [status, topCard, onTopChange]);
 
   // One list on purpose: a swiped card must stay the same element, keyed by movie,
   // to fly off from where the drag left it. Two lists would remount it at rest.
@@ -68,10 +70,10 @@ export function SwipeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.E
   }, [swipe, undo]);
 
   return (
-    <section className="deck" aria-label={DECK_COPY.deckLabel}>
+    <section className="deck" aria-label={copy.deckLabel}>
       <div className="deck__stack">
         {status === "loading" && (
-          <div className="deck__state" role="status" aria-label={DECK_COPY.loading}>
+          <div className="deck__state" role="status" aria-label={copy.loading}>
             <Skeleton shape="card" />
           </div>
         )}
@@ -83,9 +85,28 @@ export function SwipeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.E
         {status === "end" && (
           <div className="deck__state">
             <EmptyState
-              title={DECK_COPY.endTitle}
-              message={DECK_COPY.endMessage}
-              action={<Button onClick={() => navigate("/filters")}>Change Filters</Button>}
+              title={copy.endTitle}
+              message={copy.endMessage}
+              icon={copy.icon}
+              action={<Button onClick={() => navigate(filtersPath(mode))}>Change Filters</Button>}
+              onGradient
+            />
+          </div>
+        )}
+        {status === "paused" && (
+          <div className="deck__state">
+            <EmptyState
+              title={copy.pausedTitle}
+              message={copy.pausedMessage}
+              icon={copy.icon}
+              action={
+                <>
+                  <Button onClick={keepWalking}>Search further</Button>
+                  <Button variant="secondary" onClick={() => navigate(filtersPath(mode))}>
+                    Change Filters
+                  </Button>
+                </>
+              }
               onGradient
             />
           </div>
@@ -100,7 +121,7 @@ export function SwipeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.E
       <div className="deck__controls">
         <IconButton
           className="deck__control deck__control--pass"
-          label="Pass"
+          label={copy.passAction}
           aria-keyshortcuts="ArrowLeft"
           disabled={!top}
           onClick={() => swipe("PASS")}
@@ -118,7 +139,7 @@ export function SwipeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.E
         </IconButton>
         <IconButton
           className="deck__control deck__control--like"
-          label="Like"
+          label={copy.likeAction}
           aria-keyshortcuts="ArrowRight"
           disabled={!top}
           onClick={() => swipe("LIKE")}
@@ -129,15 +150,21 @@ export function SwipeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.E
 
       <p className="deck__hint">
         <span className="deck__hint-key">
-          <kbd className="md-kbd">←</kbd> Pass
+          <kbd className="md-kbd">←</kbd> {copy.passAction}
         </span>
         <span className="deck__hint-key">
           <kbd className="md-kbd">⌫</kbd> Undo
         </span>
         <span className="deck__hint-key">
-          <kbd className="md-kbd">→</kbd> Like
+          <kbd className="md-kbd">→</kbd> {copy.likeAction}
         </span>
       </p>
     </section>
   );
+}
+
+/** The key starts the deck over on a mode change, because each mode has its own session and pages. */
+export function SwipeDeck(props: SwipeDeckProps): JSX.Element {
+  const { mode } = useMode();
+  return <ModeDeck key={mode} {...props} />;
 }

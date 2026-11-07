@@ -1,24 +1,26 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useLogOut } from "../hooks/useLogOut";
+import { useMode } from "../mode/ModeProvider";
+import { SHOWS_HOME } from "../mode/modeRoutes";
 import { Icon, type IconName } from "./Icon";
 import JoinRoomDialog from "./JoinRoomDialog";
 import {
   APP_VERSION,
+  NAV_GOING_STEADY,
   NAV_HISTORY,
-  NAV_HOME,
   NAV_MEMBERS,
   NAV_PROFILE,
-  NAV_SEARCH,
   NAV_SETTINGS,
   NAV_TUTORIAL,
   TMDB_ATTRIBUTION,
+  navHome,
+  navSearch,
   type NavItem,
 } from "./navigation";
 import { BrandMark, Wordmark } from "./Wordmark";
 import "./SideNav.css";
 
-const FIND_LINKS: readonly NavItem[] = [NAV_HOME, NAV_SEARCH];
 const ROOM_LINKS: readonly NavItem[] = [NAV_HISTORY, NAV_MEMBERS];
 const ACCOUNT_LINKS: readonly NavItem[] = [NAV_PROFILE, NAV_SETTINGS, NAV_TUTORIAL];
 
@@ -58,14 +60,16 @@ function SideNavButton({
 
 /** The persistent navigation from 640px up. Under it, AppBar, Drawer and BottomNav do this job. */
 export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
+  const { mode, copy } = useMode();
   const logOut = useLogOut();
   const [joinOpen, setJoinOpen] = useState(false);
 
-  const renderLink = ({ to, label, railLabel, icon }: NavItem): JSX.Element => (
+  const renderLink = ({ to, label, railLabel, icon, state }: NavItem): JSX.Element => (
     <li key={to}>
       <NavLink
         to={to}
-        end={to === "/"}
+        state={state}
+        end={to === "/" || to === SHOWS_HOME}
         className="md-side-nav__item"
         aria-label={rail && railLabel ? label : undefined}
       >
@@ -78,12 +82,12 @@ export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
   return (
     <>
       <nav className={rail ? "md-side-nav md-side-nav--rail" : "md-side-nav"} aria-label="Main">
-        <Link to="/" className="md-side-nav__brand" aria-label="Movie Date">
+        <Link to="/" className="md-side-nav__brand" aria-label={`${copy.appTitle} home`}>
           {rail ? <BrandMark /> : <Wordmark />}
         </Link>
         <div className="md-side-nav__scroll">
           <ul className="md-side-nav__list">
-            {FIND_LINKS.map(renderLink)}
+            {[navHome(mode), NAV_GOING_STEADY, navSearch(mode)].map(renderLink)}
             <SideNavButton icon="door" label="Join Room" railLabel="Join" rail={rail} onClick={() => setJoinOpen(true)} />
           </ul>
           <ul className="md-side-nav__list">{ROOM_LINKS.map(renderLink)}</ul>

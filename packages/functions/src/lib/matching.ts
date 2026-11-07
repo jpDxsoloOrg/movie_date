@@ -1,5 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { effectiveThreshold, findNewMatches, isMatch, movieKey, type Match, type Movie } from "@movie-date/core";
+import {
+  effectiveThreshold,
+  findNewMatches,
+  isMatch,
+  mediaKey,
+  type Match,
+  type MediaType,
+  type Movie,
+  type Show,
+} from "@movie-date/core";
 import {
   cancellationCodes,
   getItem,
@@ -12,6 +21,7 @@ import {
 import { ConflictError } from "./errors.js";
 import { publishRoomEvent, revokeRoomSubscriptions } from "./events.js";
 import * as keys from "./keys.js";
+import { inMode, MEDIA_TYPES, roundAttribute, roundCondition, roundOf } from "./mediaMode.js";
 import {
   backoff,
   failedCondition,
@@ -37,7 +47,9 @@ interface MatchClaim {
   roomId: string;
   round: number;
   movieId: number;
+  mediaType: MediaType;
   movie: Movie;
+  show?: Show | undefined;
   threshold: number;
   actorId: string;
   matchedAt: string;
@@ -51,11 +63,20 @@ interface MatchClaim {
  * writes is relied on when reading cancellation codes below.
  */
 function matchWrites(claim: MatchClaim, matchId: string): TransactItems {
-  const { roomId, round, movieId, movie, threshold, matchedAt } = claim;
-  const matchKey = keys.match(roomId, matchedAt, movieKey(movieId));
-  const matchRow: MatchItem = { ...matchKey, matchId, movieId, round, matchedAt, movie };
+  const { roomId, round, movieId, mediaType, movie, show, threshold, matchedAt } = claim;
+  const media = mediaKey(mediaType, movieId);
+  const matchKey = keys.match(roomId, matchedAt, media);
+  const matchRow: MatchItem = {
+    ...matchKey,
+    matchId,
+    movieId,
+    round,
+    matchedAt,
+    movie,
+    ...(show ? { show } : {}),
+  };
   const sentinel: MatchedItem = {
-    ...keys.matched(roomId, round, movieKey(movieId)),
+    ...keys.matched(roomId, round, media),
     matchId,
     movieId,
     matchSk: matchKey.sk,
@@ -72,7 +93,7 @@ function matchWrites(claim: MatchClaim, matchId: string): TransactItems {
     {
       ConditionCheck: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, movieKey(movieId)),
+        Key: keys.tally(roomId, round, media),
         ConditionExpression: "likes >= :threshold",
         ExpressionAttributeValues: { ":threshold": threshold },
       },
@@ -81,8 +102,8 @@ function matchWrites(claim: MatchClaim, matchId: string): TransactItems {
       ConditionCheck: {
         TableName: tableName(),
         Key: keys.roomMeta(roomId),
-        ConditionExpression: "#round = :round",
-        ExpressionAttributeNames: { "#round": "round" },
+        ConditionExpression: roundCondition(mediaType, round),
+        ExpressionAttributeNames: { "#round": roundAttribute(mediaType) },
         ExpressionAttributeValues: { ":round": round },
       },
     },
@@ -90,7 +111,7 @@ function matchWrites(claim: MatchClaim, matchId: string): TransactItems {
 }
 
 async function claimMatch(claim: MatchClaim): Promise<Match | null> {
-  const { roomId, round, movieId, actorId, matchedAt } = claim;
+  const { roomId, round, movieId, mediaType, actorId, matchedAt } = claim;
   for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     const matchId = randomUUID();
     try {
@@ -99,17 +120,34 @@ async function claimMatch(claim: MatchClaim): Promise<Match | null> {
       if (!isTransactionCancelled(error)) throw error;
       const [sentinelCode, , tallyCode, roundCode] = cancellationCodes(error);
       if (failedCondition(sentinelCode)) {
-        const winner = await getItem<MatchedItem>(keys.matched(roomId, round, movieKey(movieId)), {
-          consistent: true,
-        });
+        const winner = await getItem<MatchedItem>(
+          keys.matched(roomId, round, mediaKey(mediaType, movieId)),
+          { consistent: true },
+        );
         return winner ? loadMatch(roomId, winner) : null;
       }
       if (failedCondition(tallyCode) || failedCondition(roundCode)) return null;
       await backoff(attempt);
       continue;
     }
-    await publishRoomEvent({ roomId, type: "MATCH_FOUND", movieId, matchId, round, actorId });
-    return { id: matchId, roomId, round, matchedAt, movie: claim.movie };
+    await publishRoomEvent({
+      roomId,
+      type: "MATCH_FOUND",
+      movieId,
+      mediaType,
+      matchId,
+      round,
+      actorId,
+    });
+    return {
+      id: matchId,
+      roomId,
+      round,
+      matchedAt,
+      mediaType,
+      movie: claim.movie,
+      show: claim.show ?? null,
+    };
   }
   throw new ConflictError();
 }
@@ -125,38 +163,45 @@ export async function evaluateMovie(
   roomId: string,
   round: number,
   movieId: number,
+  mediaType: MediaType,
   actorId: string,
 ): Promise<Match | null> {
+  const media = mediaKey(mediaType, movieId);
   const [sentinel, tally, meta, memberRows] = await Promise.all([
-    getItem<MatchedItem>(keys.matched(roomId, round, movieKey(movieId)), { consistent: true }),
-    getItem<TallyItem>(keys.tally(roomId, round, movieKey(movieId)), { consistent: true }),
+    getItem<MatchedItem>(keys.matched(roomId, round, media), { consistent: true }),
+    getItem<TallyItem>(keys.tally(roomId, round, media), { consistent: true }),
     requireRoomMeta(roomId),
     loadMemberRows(roomId),
   ]);
   if (sentinel) return loadMatch(roomId, sentinel);
-  if (!tally || meta.round !== round) return null;
+  if (!tally || roundOf(meta, mediaType) !== round) return null;
   const threshold = effectiveThreshold(meta, memberRows.length);
   if (!isMatch(tally.likes, threshold)) return null;
   return claimMatch({
     roomId,
     round,
     movieId,
+    mediaType,
     movie: tally.movie,
+    show: tally.show,
     threshold,
     actorId,
     matchedAt: new Date().toISOString(),
   });
 }
 
-/** After a lowered threshold or a member change, which can tip many tallies at once. */
-export async function reevaluateRoom(roomId: string, actorId: string): Promise<void> {
+async function reevaluateMode(roomId: string, mediaType: MediaType, actorId: string): Promise<void> {
   const meta = await requireRoomMeta(roomId);
+  const round = roundOf(meta, mediaType);
   const pk = keys.roomPk(roomId);
-  const [memberRows, tallies, sentinels] = await Promise.all([
+  const [memberRows, allTallies, allSentinels] = await Promise.all([
     loadMemberRows(roomId),
-    queryAll<TallyItem>(pk, { skPrefix: keys.prefixes.roundTallies(meta.round), consistent: true }),
-    queryAll<MatchedItem>(pk, { skPrefix: keys.prefixes.roundMatched(meta.round), consistent: true }),
+    queryAll<TallyItem>(pk, { skPrefix: keys.prefixes.roundTallies(round), consistent: true }),
+    queryAll<MatchedItem>(pk, { skPrefix: keys.prefixes.roundMatched(round), consistent: true }),
   ]);
+  // These are keyed by bare id below, so a show must never meet the movie with its number.
+  const tallies = allTallies.filter(inMode(mediaType));
+  const sentinels = allSentinels.filter(inMode(mediaType));
   const threshold = effectiveThreshold(meta, memberRows.length);
   const alreadyMatched = new Set(sentinels.map((sentinel) => sentinel.movieId));
   const tallyByMovie = new Map(tallies.map((tally) => [tally.movieId, tally]));
@@ -170,9 +215,11 @@ export async function reevaluateRoom(roomId: string, actorId: string): Promise<v
     if (tally) {
       await claimMatch({
         roomId,
-        round: meta.round,
+        round,
         movieId,
+        mediaType,
         movie: tally.movie,
+        show: tally.show,
         threshold,
         actorId,
         matchedAt: new Date(startedAt + position).toISOString(),
@@ -181,10 +228,15 @@ export async function reevaluateRoom(roomId: string, actorId: string): Promise<v
   }
 }
 
+/** After a lowered threshold or a member change, which can tip many tallies at once. */
+export async function reevaluateRoom(roomId: string, actorId: string): Promise<void> {
+  for (const mediaType of MEDIA_TYPES) await reevaluateMode(roomId, mediaType, actorId);
+}
+
 /** Each entry is at most two transaction items; DynamoDB allows 100 per transaction. */
 const SWIPES_PER_TRANSACTION = 40;
 
-function swipeRemovalWrites(roomId: string, round: number, row: SwipeItem): TransactItems {
+function swipeRemovalWrites(row: SwipeItem): TransactItems {
   const writes: TransactItems = [
     {
       Delete: {
@@ -198,7 +250,7 @@ function swipeRemovalWrites(roomId: string, round: number, row: SwipeItem): Tran
     writes.push({
       Update: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, movieKey(row.movieId)),
+        Key: keys.tallyOfSwipe(row),
         UpdateExpression: "ADD likes :decrement",
         ExpressionAttributeValues: { ":decrement": -1 },
       },
@@ -209,21 +261,27 @@ function swipeRemovalWrites(roomId: string, round: number, row: SwipeItem): Tran
 
 /**
  * Takes the caller's swipes and tally contributions out of the room's current
- * round. Each swipe and its decrement commit together, and the delete is
+ * round in both modes. Each swipe and its decrement commit together, and the delete is
  * conditional, so this can be interrupted and re-run, or race an undo, without
  * a like being subtracted twice.
  */
 export async function removeRoundSwipes(roomId: string, userId: string): Promise<void> {
-  const { round } = await requireRoomMeta(roomId);
+  const meta = await requireRoomMeta(roomId);
   for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
-    const rows = await queryAll<SwipeItem>(keys.roomPk(roomId), {
-      skPrefix: keys.prefixes.userRoundSwipes(round, userId),
-      consistent: true,
-    });
+    const perMode = await Promise.all(
+      MEDIA_TYPES.map(async (mediaType) => {
+        const rows = await queryAll<SwipeItem>(keys.roomPk(roomId), {
+          skPrefix: keys.prefixes.userRoundSwipes(roundOf(meta, mediaType), userId),
+          consistent: true,
+        });
+        return rows.filter(inMode(mediaType));
+      }),
+    );
+    const rows = perMode.flat();
     try {
       for (let start = 0; start < rows.length; start += SWIPES_PER_TRANSACTION) {
         const chunk = rows.slice(start, start + SWIPES_PER_TRANSACTION);
-        await transactWrite(chunk.flatMap((row) => swipeRemovalWrites(roomId, round, row)));
+        await transactWrite(chunk.flatMap(swipeRemovalWrites));
       }
       return;
     } catch (error) {

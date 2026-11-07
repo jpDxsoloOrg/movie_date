@@ -21,6 +21,10 @@ export function hourWindow(): string {
   return new Date().toISOString().slice(0, 13);
 }
 
+export function minuteWindow(): string {
+  return new Date().toISOString().slice(0, 16);
+}
+
 function countUpdate(ttlSeconds: number) {
   return {
     updateExpression: "SET expiresAt = if_not_exists(expiresAt, :expiresAt) ADD #count :one",

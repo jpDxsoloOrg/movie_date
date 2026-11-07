@@ -48,8 +48,10 @@ function makeRoom(overrides: Partial<Room> = {}): Room {
     matchThreshold: 2,
     requireMajority: false,
     round: 1,
+    tvRound: 1,
     plexAvailable: false,
     filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
+    tvFilters: { genreIds: [], services: [], cast: [] },
     members: [],
     ...overrides,
   };
@@ -522,8 +524,7 @@ describe("Filters: live count", () => {
 
     expect(await appear("About 1,234 movies")).toBeInTheDocument();
     expect(mocks.filterPreview).toHaveBeenLastCalledWith(
-      expect.objectContaining({ services: [], releaseDateGte: "2026-01-01" }),
-    );
+      expect.objectContaining({ services: [], releaseDateGte: "2026-01-01" }), "MOVIE");
   });
 
   it("waits for a pause, so a run of taps is one request", async () => {
@@ -641,8 +642,7 @@ describe("Filters: saving", () => {
 
     expect(await screen.findByText("Home screen")).toBeInTheDocument();
     expect(mocks.updateFilters).toHaveBeenCalledWith(
-      expect.objectContaining({ genreIds: [18], cast: [], services: [], releaseDateGte: "2026-01-01" }),
-    );
+      expect.objectContaining({ genreIds: [18], cast: [], services: [], releaseDateGte: "2026-01-01" }), "MOVIE");
     expect(setRoom).toHaveBeenCalledWith(
       expect.objectContaining({ filters: expect.objectContaining({ genreIds: [18] }) }),
     );

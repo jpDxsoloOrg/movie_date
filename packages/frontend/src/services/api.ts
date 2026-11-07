@@ -11,9 +11,11 @@ import type {
   RoomFieldsFragment,
   HistoryEntryFieldsFragment,
   MatchFieldsFragment,
+  MediaType,
   MemberFieldsFragment,
   MovieFieldsFragment,
   PersonFieldsFragment,
+  ShowFieldsFragment,
   SwipeDirection,
   TypedDocumentString,
   WatchOptionsQuery as WatchOptionsResult,
@@ -30,6 +32,7 @@ export type Profile = MeResult["me"];
 export type Room = RoomFieldsFragment;
 export type Member = MemberFieldsFragment;
 export type Movie = MovieFieldsFragment;
+export type Show = ShowFieldsFragment;
 export type Person = PersonFieldsFragment;
 export type Match = MatchFieldsFragment;
 export type HistoryEntry = HistoryEntryFieldsFragment;
@@ -40,7 +43,7 @@ export type DeckCard = DeckPage["cards"][number];
 export type FilterPreview = FilterPreviewResult["filterPreview"];
 export type PlexStatus = PlexStatusFieldsFragment;
 export type RoomEvent = NonNullable<OnRoomEventSubscription["onRoomEvent"]>;
-export type { FiltersInput, PlexAvailability, RoomEventType, SwipeDirection };
+export type { FiltersInput, MediaType, PlexAvailability, RoomEventType, SwipeDirection };
 
 export type ApiErrorCode =
   | "NOT_FOUND"
@@ -167,6 +170,7 @@ export const PlexStatusFields = graphql(`
   fragment PlexStatusFields on PlexStatus {
     availability
     canRequest
+    missingSeasons
   }
 `);
 
@@ -188,6 +192,22 @@ export const MemberFields = graphql(`
   }
 `);
 
+export const FiltersFields = graphql(`
+  fragment FiltersFields on Filters {
+    genreIds
+    services
+    releaseDateGte
+    releaseDateLte
+    showStatus
+    commitment
+    firstAirDateGte
+    firstAirDateLte
+    cast {
+      ...PersonFields
+    }
+  }
+`);
+
 export const RoomFields = graphql(`
   fragment RoomFields on Room {
     id
@@ -195,15 +215,13 @@ export const RoomFields = graphql(`
     matchThreshold
     requireMajority
     round
+    tvRound
     plexAvailable
     filters {
-      genreIds
-      services
-      releaseDateGte
-      releaseDateLte
-      cast {
-        ...PersonFields
-      }
+      ...FiltersFields
+    }
+    tvFilters {
+      ...FiltersFields
     }
     members {
       ...MemberFields
@@ -225,14 +243,37 @@ export const MovieFields = graphql(`
   }
 `);
 
+export const ShowFields = graphql(`
+  fragment ShowFields on Show {
+    id
+    title
+    overview
+    firstAirYear
+    lastAirYear
+    status
+    seasonCount
+    episodeCount
+    networks
+    episodeRuntime
+    voteAverage
+    posterUrl
+    backdropUrl
+    genres
+  }
+`);
+
 export const MatchFields = graphql(`
   fragment MatchFields on Match {
     id
     roomId
     round
     matchedAt
+    mediaType
     movie {
       ...MovieFields
+    }
+    show {
+      ...ShowFields
     }
   }
 `);
@@ -242,8 +283,12 @@ export const HistoryEntryFields = graphql(`
     direction
     round
     swipedAt
+    mediaType
     movie {
       ...MovieFields
+    }
+    show {
+      ...ShowFields
     }
   }
 `);
@@ -267,13 +312,17 @@ const MyRoomQuery = graphql(`
 `);
 
 const DeckQuery = graphql(`
-  query Deck($page: Int!) {
-    deck(page: $page) {
+  query Deck($page: Int!, $mediaType: MediaType) {
+    deck(page: $page, mediaType: $mediaType) {
       nextPage
       cards {
         likedByRoommate
+        mediaType
         movie {
           ...MovieFields
+        }
+        show {
+          ...ShowFields
         }
       }
     }
@@ -281,8 +330,8 @@ const DeckQuery = graphql(`
 `);
 
 const FilterPreviewQuery = graphql(`
-  query FilterPreview($filters: FiltersInput!) {
-    filterPreview(filters: $filters) {
+  query FilterPreview($filters: FiltersInput!, $mediaType: MediaType) {
+    filterPreview(filters: $filters, mediaType: $mediaType) {
       totalResults
       posterUrls
     }
@@ -298,14 +347,14 @@ const MovieQuery = graphql(`
 `);
 
 const TrailerQuery = graphql(`
-  query Trailer($movieId: Int!) {
-    trailer(movieId: $movieId)
+  query Trailer($movieId: Int!, $mediaType: MediaType) {
+    trailer(movieId: $movieId, mediaType: $mediaType)
   }
 `);
 
 const WatchOptionsQuery = graphql(`
-  query WatchOptions($movieId: Int!) {
-    watchOptions(movieId: $movieId) {
+  query WatchOptions($movieId: Int!, $mediaType: MediaType) {
+    watchOptions(movieId: $movieId, mediaType: $mediaType) {
       serviceId
       serviceName
       type
@@ -316,16 +365,16 @@ const WatchOptionsQuery = graphql(`
 `);
 
 const PlexStatusQuery = graphql(`
-  query PlexStatus($movieId: Int!) {
-    plexStatus(movieId: $movieId) {
+  query PlexStatus($movieId: Int!, $mediaType: MediaType) {
+    plexStatus(movieId: $movieId, mediaType: $mediaType) {
       ...PlexStatusFields
     }
   }
 `);
 
 const GenresQuery = graphql(`
-  query Genres {
-    genres {
+  query Genres($mediaType: MediaType) {
+    genres(mediaType: $mediaType) {
       id
       name
     }
@@ -341,8 +390,8 @@ const SearchPeopleQuery = graphql(`
 `);
 
 const MatchesQuery = graphql(`
-  query Matches($limit: Int, $nextToken: String) {
-    matches(limit: $limit, nextToken: $nextToken) {
+  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType) {
+    matches(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {
       nextToken
       matches {
         ...MatchFields
@@ -352,8 +401,8 @@ const MatchesQuery = graphql(`
 `);
 
 const SwipeHistoryQuery = graphql(`
-  query SwipeHistory($limit: Int, $nextToken: String) {
-    swipeHistory(limit: $limit, nextToken: $nextToken) {
+  query SwipeHistory($limit: Int, $nextToken: String, $mediaType: MediaType) {
+    swipeHistory(limit: $limit, nextToken: $nextToken, mediaType: $mediaType) {
       nextToken
       entries {
         ...HistoryEntryFields
@@ -363,8 +412,8 @@ const SwipeHistoryQuery = graphql(`
 `);
 
 const PendingMatchQuery = graphql(`
-  query PendingMatch {
-    pendingMatch {
+  query PendingMatch($mediaType: MediaType) {
+    pendingMatch(mediaType: $mediaType) {
       ...MatchFields
     }
   }
@@ -373,9 +422,10 @@ const PendingMatchQuery = graphql(`
 // --- Mutations ---
 
 const SwipeMutation = graphql(`
-  mutation Swipe($movieId: Int!, $direction: SwipeDirection!) {
-    swipe(movieId: $movieId, direction: $direction) {
+  mutation Swipe($movieId: Int!, $direction: SwipeDirection!, $mediaType: MediaType) {
+    swipe(movieId: $movieId, direction: $direction, mediaType: $mediaType) {
       movieId
+      mediaType
       direction
       match {
         ...MatchFields
@@ -385,17 +435,18 @@ const SwipeMutation = graphql(`
 `);
 
 const UndoSwipeMutation = graphql(`
-  mutation UndoSwipe($movieId: Int!) {
-    undoSwipe(movieId: $movieId) {
+  mutation UndoSwipe($movieId: Int!, $mediaType: MediaType) {
+    undoSwipe(movieId: $movieId, mediaType: $mediaType) {
       movieId
+      mediaType
       undone
     }
   }
 `);
 
 const UpdateFiltersMutation = graphql(`
-  mutation UpdateFilters($filters: FiltersInput!) {
-    updateFilters(filters: $filters) {
+  mutation UpdateFilters($filters: FiltersInput!, $mediaType: MediaType) {
+    updateFilters(filters: $filters, mediaType: $mediaType) {
       ...RoomFields
     }
   }
@@ -426,8 +477,8 @@ const LeaveRoomMutation = graphql(`
 `);
 
 const StartNewRoundMutation = graphql(`
-  mutation StartNewRound($expectedRound: Int!) {
-    startNewRound(expectedRound: $expectedRound) {
+  mutation StartNewRound($expectedRound: Int!, $mediaType: MediaType) {
+    startNewRound(expectedRound: $expectedRound, mediaType: $mediaType) {
       ...RoomFields
     }
   }
@@ -476,8 +527,8 @@ const UnlinkPlexMutation = graphql(`
 `);
 
 const RequestOnPlexMutation = graphql(`
-  mutation RequestOnPlex($movieId: Int!) {
-    requestOnPlex(movieId: $movieId) {
+  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType) {
+    requestOnPlex(movieId: $movieId, mediaType: $mediaType) {
       ...PlexStatusFields
     }
   }
@@ -490,6 +541,7 @@ export const OnRoomEventDocument = graphql(`
       roomId
       type
       movieId
+      mediaType
       matchId
       round
       actorId
@@ -515,30 +567,37 @@ const MATCH_LOOKUP_PAGE_SIZE = 50;
 export const api = {
   me: async () => (await execute(MeQuery)).me,
   myRoom: async () => (await execute(MyRoomQuery)).myRoom,
-  deck: async (page: number) => (await execute(DeckQuery, { page })).deck,
-  filterPreview: async (filters: FiltersInput) =>
-    (await execute(FilterPreviewQuery, { filters })).filterPreview,
+  deck: async (page: number, mediaType?: MediaType) => (await execute(DeckQuery, { page, mediaType })).deck,
+  filterPreview: async (filters: FiltersInput, mediaType?: MediaType) =>
+    (await execute(FilterPreviewQuery, { filters, mediaType })).filterPreview,
   movie: async (id: number) => (await execute(MovieQuery, { id })).movie,
-  trailer: async (movieId: number) => (await execute(TrailerQuery, { movieId })).trailer ?? null,
-  watchOptions: async (movieId: number) => (await execute(WatchOptionsQuery, { movieId })).watchOptions,
-  plexStatus: async (movieId: number) => (await execute(PlexStatusQuery, { movieId })).plexStatus ?? null,
-  genres: async () => (await execute(GenresQuery)).genres,
+  trailer: async (movieId: number, mediaType?: MediaType) =>
+    (await execute(TrailerQuery, { movieId, mediaType })).trailer ?? null,
+  watchOptions: async (movieId: number, mediaType?: MediaType) =>
+    (await execute(WatchOptionsQuery, { movieId, mediaType })).watchOptions,
+  plexStatus: async (movieId: number, mediaType?: MediaType) =>
+    (await execute(PlexStatusQuery, { movieId, mediaType })).plexStatus ?? null,
+  genres: async (mediaType?: MediaType) => (await execute(GenresQuery, { mediaType })).genres,
   searchPeople: async (query: string) => (await execute(SearchPeopleQuery, { query })).searchPeople,
-  matches: async (page: PageRequest = {}) => (await execute(MatchesQuery, page)).matches,
-  swipeHistory: async (page: PageRequest = {}) => (await execute(SwipeHistoryQuery, page)).swipeHistory,
-  pendingMatch: async () => (await execute(PendingMatchQuery)).pendingMatch ?? null,
+  matches: async (page: PageRequest = {}, mediaType?: MediaType) =>
+    (await execute(MatchesQuery, { ...page, mediaType })).matches,
+  swipeHistory: async (page: PageRequest = {}, mediaType?: MediaType) =>
+    (await execute(SwipeHistoryQuery, { ...page, mediaType })).swipeHistory,
+  pendingMatch: async (mediaType?: MediaType) =>
+    (await execute(PendingMatchQuery, { mediaType })).pendingMatch ?? null,
 
-  swipe: async (movieId: number, direction: SwipeDirection) =>
-    (await execute(SwipeMutation, { movieId, direction })).swipe,
-  undoSwipe: async (movieId: number) => (await execute(UndoSwipeMutation, { movieId })).undoSwipe,
-  updateFilters: async (filters: FiltersInput) =>
-    (await execute(UpdateFiltersMutation, { filters })).updateFilters,
+  swipe: async (movieId: number, direction: SwipeDirection, mediaType?: MediaType) =>
+    (await execute(SwipeMutation, { movieId, direction, mediaType })).swipe,
+  undoSwipe: async (movieId: number, mediaType?: MediaType) =>
+    (await execute(UndoSwipeMutation, { movieId, mediaType })).undoSwipe,
+  updateFilters: async (filters: FiltersInput, mediaType?: MediaType) =>
+    (await execute(UpdateFiltersMutation, { filters, mediaType })).updateFilters,
   updateRoomSettings: async (matchThreshold: number, requireMajority: boolean) =>
     (await execute(UpdateRoomSettingsMutation, { matchThreshold, requireMajority })).updateRoomSettings,
   joinRoom: async (code: string) => (await execute(JoinRoomMutation, { code })).joinRoom,
   leaveRoom: async () => (await execute(LeaveRoomMutation)).leaveRoom,
-  startNewRound: async (expectedRound: number) =>
-    (await execute(StartNewRoundMutation, { expectedRound })).startNewRound,
+  startNewRound: async (expectedRound: number, mediaType?: MediaType) =>
+    (await execute(StartNewRoundMutation, { expectedRound, mediaType })).startNewRound,
   updateProfile: async (changes: { displayName?: string; avatarKey?: string }) =>
     (await execute(UpdateProfileMutation, changes)).updateProfile,
 
@@ -550,7 +609,8 @@ export const api = {
   startPlexLink: async () => (await execute(StartPlexLinkMutation)).startPlexLink,
   confirmPlexLink: async (code: string) => (await execute(ConfirmPlexLinkMutation, { code })).confirmPlexLink,
   unlinkPlex: async () => (await execute(UnlinkPlexMutation)).unlinkPlex,
-  requestOnPlex: async (movieId: number) => (await execute(RequestOnPlexMutation, { movieId })).requestOnPlex,
+  requestOnPlex: async (movieId: number, mediaType: MediaType = "MOVIE") =>
+    (await execute(RequestOnPlexMutation, { movieId, mediaType })).requestOnPlex,
 
   /**
    * Posts an already cropped image to S3 and returns the key for updateProfile.
@@ -575,12 +635,12 @@ export const api = {
    * The schema has no match-by-id query, so a reload of /match/:id finds it here:
    * pendingMatch covers the usual case, the history covers an older one.
    */
-  findMatch: async (matchId: string): Promise<Match | null> => {
-    const pending = await api.pendingMatch();
+  findMatch: async (matchId: string, mediaType?: MediaType): Promise<Match | null> => {
+    const pending = await api.pendingMatch(mediaType);
     if (pending?.id === matchId) return pending;
     let nextToken: string | null | undefined;
     do {
-      const page = await api.matches({ limit: MATCH_LOOKUP_PAGE_SIZE, nextToken });
+      const page = await api.matches({ limit: MATCH_LOOKUP_PAGE_SIZE, nextToken }, mediaType);
       const found = page.matches.find((match) => match.id === matchId);
       if (found) return found;
       nextToken = page.nextToken;
