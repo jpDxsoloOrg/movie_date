@@ -31,7 +31,7 @@ function toDraft(movie: Movie, userId: string, email: string): RequestDraft {
   };
 }
 
-/** Movies only until Plex Request's Sonarr fix is live. A TV id must say so, or it reads as the movie with that number. */
+/** Movies only until show requests are built (decision 42). A TV id must say so, or it reads as the movie with that number. */
 export async function requestOnPlex(
   { movieId, mediaType }: FieldArguments["requestOnPlex"],
   context: ResolverContext,

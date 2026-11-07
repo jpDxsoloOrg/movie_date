@@ -1,8 +1,0 @@
-app_identifier("com.dxsolo.movie") # The bundle identifier of your app
-apple_id("dxsolo@gmail.com") # Your Apple Developer Portal username
-team_id("K4S5UU8894")
-#git_url("git@github.com:JamesKPreston/movie_date_match.git")
-
-
-# For more information about the Appfile, see:
-#     https://docs.fastlane.tools/advanced/#appfile

@@ -72,8 +72,8 @@ function LinkedPanel({ movieId, movieTitle, mediaType, onGradient }: PanelProps)
   const [sending, setSending] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
   const requested = useRef(false);
-  // requestOnPlex is movies only until the Sonarr lookup fix ships: a show id would
-  // be taken for the movie with the same number (decision 42).
+  // requestOnPlex is movies only for now: a show id would be taken for the movie
+  // with the same number (decision 42).
   const canRequest = mediaType === "MOVIE" && (status?.canRequest ?? false);
 
   // The button that opened the dialog is gone by now, and focus would drop out of the sheet.

@@ -30,7 +30,7 @@ export async function loadPlexStatus(movieId: number, plexUserId: string): Promi
 /**
  * The index alone: Plex Request has no status op for shows yet, and `movieStatus`
  * would answer for the movie with this number. So a show can't read as REQUESTED,
- * nor say which seasons are missing, and requests stay off until its Sonarr fix ships.
+ * nor say which seasons are missing, and requests stay off for shows (decision 42).
  */
 export async function loadShowPlexStatus(showId: number): Promise<PlexStatus> {
   const presence = await showPresence(showId);

@@ -1,8 +1,9 @@
 # Movie Date web rewrite: build spec
 
 Replaces the Flutter + Supabase mobile app with a hosted, mobile-first website.
-`graphql/schema.graphql` is the API contract. The Flutter source in `lib/` is the
-reference for behaviour and look until it is removed at the end of the rewrite.
+`graphql/schema.graphql` is the API contract. The Flutter source was the reference for
+behaviour and look. It has been removed from this branch and stays in git history, so the
+`lib/` and `assets/` paths below can be read there, for example at commit `0ce2733`.
 
 ## Stack
 
