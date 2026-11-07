@@ -1,0 +1,12 @@
+.match-poster {
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  background: var(--color-surface-muted);
+}
+
+.match-poster--missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}

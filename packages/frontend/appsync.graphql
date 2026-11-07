@@ -1,0 +1,9 @@
+# Scalars and directives AppSync defines for us, declared here so tooling can read
+# graphql/schema.graphql. AppSync accepts them undeclared; graphql-js does not, and
+# codegen would reject the schema as invalid.
+scalar AWSDateTime
+scalar AWSJSON
+
+directive @aws_subscribe(mutations: [String!]!) on FIELD_DEFINITION
+directive @aws_cognito_user_pools on FIELD_DEFINITION | OBJECT
+directive @aws_iam on FIELD_DEFINITION | OBJECT

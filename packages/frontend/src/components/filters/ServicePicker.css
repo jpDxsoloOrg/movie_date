@@ -1,0 +1,32 @@
+.service-picker.md-tile-grid {
+  grid-template-columns: repeat(auto-fill, minmax(4.75rem, 1fr));
+}
+
+.service-picker .md-tile {
+  /* From the top, so a two-line label doesn't knock its logo out of the row. */
+  justify-content: flex-start;
+  min-height: 6rem;
+  padding: var(--space-2) 2px;
+}
+
+.service-picker .md-tile__media {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.service-picker .md-tile__label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* On a black plate, as in Where to Watch: the light logo plate would wash the mark out. */
+.plex-mark {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-2);
+  background: var(--color-app-bar);
+  color: var(--color-accent);
+}

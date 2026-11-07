@@ -1,0 +1,81 @@
+.filters {
+  display: flex;
+  flex-direction: column;
+}
+
+.filters__form {
+  min-width: 0;
+}
+
+.filters__layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-4);
+}
+
+/* The header brings its own side padding, for pages where it sits outside a gutter. */
+.filters__layout > .md-page-header {
+  padding-inline: 0;
+}
+
+/* Neither box may affect layout: the form is the real child of the sheet or the grid. */
+.filters__fields-slot,
+.filters__fields-host {
+  display: contents;
+}
+
+/* Stays in view while the sheet scrolls, running to the sheet's edges. */
+.filters__sheet-summary {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-1) var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* The full-screen panel has no rounded top for the handle to sit in. */
+.md-sheet__header:has(+ .md-sheet__body > .filters__sheet-summary) {
+  padding-top: var(--space-2);
+}
+
+.filters__tablet-summary {
+  padding-block: var(--space-2) var(--space-3);
+}
+
+.filters__sticky-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: auto calc(-1 * var(--space-4)) 0;
+  padding: var(--space-3) var(--space-4) calc(var(--safe-bottom) + var(--space-3));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-page);
+}
+
+@media (min-width: 1024px) {
+  .filters__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(19rem, 32%, 24rem);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    gap: 0 var(--space-6);
+    padding-bottom: var(--space-6);
+  }
+
+  .filters__layout > .md-page-header {
+    grid-column: 1;
+  }
+
+  .filters__layout .filters__form {
+    grid-column: 1;
+  }
+
+  .filters__layout .preview-ticket {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    margin-top: var(--space-4);
+  }
+}

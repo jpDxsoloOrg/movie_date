@@ -1,0 +1,5 @@
+.show-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

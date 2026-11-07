@@ -1,0 +1,166 @@
+.md-side-nav {
+  position: relative;
+  z-index: var(--z-app-bar);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: calc(var(--sidebar-width) + var(--safe-left));
+  height: 100%;
+  padding: calc(var(--safe-top) + var(--space-4)) var(--space-3) calc(var(--safe-bottom) + var(--space-3))
+    calc(var(--safe-left) + var(--space-3));
+  background: var(--color-app-bar);
+  color: var(--color-on-app-bar);
+  box-shadow: 1px 0 0 rgb(255 255 255 / 8%);
+}
+
+.md-side-nav__brand {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  margin-bottom: var(--space-4);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-field);
+  color: inherit;
+  text-decoration: none;
+}
+
+.md-side-nav__scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow-y: auto;
+  /* Keeps the focus ring and the active pill clear of the scroller's edge. */
+  margin: 0 calc(-1 * var(--space-2));
+  padding: var(--space-1) var(--space-2);
+}
+
+.md-side-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.md-side-nav__list--end {
+  margin-top: auto;
+}
+
+.md-side-nav__pinned {
+  flex: none;
+  margin-top: var(--space-1);
+}
+
+.md-side-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: var(--color-on-app-bar-muted);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.md-side-nav__item:hover {
+  background: var(--color-app-bar-hover);
+  color: var(--color-on-app-bar);
+}
+
+.md-side-nav__item.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-weight: 700;
+}
+
+.md-side-nav__item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-brand);
+}
+
+.md-side-nav__footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-3) 0;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  color: var(--color-on-app-bar-muted);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.md-side-nav--rail {
+  width: calc(var(--rail-width) + var(--safe-left));
+  padding-right: var(--space-2);
+  padding-left: calc(var(--safe-left) + var(--space-2));
+}
+
+.md-side-nav--rail .md-side-nav__brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.md-side-nav--rail .md-side-nav__item {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 3.5rem;
+  padding: var(--space-1);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+.md-side-nav--rail .md-side-nav__scroll {
+  gap: var(--space-2);
+}
+
+/* A phone on its side: all seven entries still fit, at the minimum touch size. That costs
+   the brand, whose only job is a link home that's already in the list. */
+@media (max-height: 480px) {
+  .md-side-nav--rail {
+    padding-top: calc(var(--safe-top) + var(--space-2));
+    padding-bottom: calc(var(--safe-bottom) + var(--space-2));
+  }
+
+  .md-side-nav--rail .md-side-nav__brand {
+    display: none;
+  }
+
+  .md-side-nav--rail .md-side-nav__scroll {
+    gap: var(--space-1);
+  }
+
+  .md-side-nav--rail .md-side-nav__list {
+    gap: 0;
+  }
+
+  .md-side-nav--rail .md-side-nav__item {
+    gap: 0;
+    min-height: var(--touch-target);
+    padding: 0 var(--space-1);
+    font-size: 0.6875rem;
+  }
+}

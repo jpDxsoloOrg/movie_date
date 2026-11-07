@@ -1,0 +1,142 @@
+.match-found {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* clip, not hidden: hidden would make this a scroller and stop the poster sticking. */
+  overflow: clip;
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+}
+
+.match-found .match-details {
+  max-width: 68rem;
+}
+
+.match-found--message {
+  padding-top: var(--space-7);
+}
+
+.match-found__message {
+  width: 100%;
+  max-width: 26rem;
+}
+
+/* A cinema marquee: a dark board with a row of bulbs along each edge. */
+.match-found__marquee {
+  position: relative;
+  padding: calc(var(--space-4) + 0.625rem) var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-scrim);
+  backdrop-filter: blur(14px);
+  color: var(--color-on-gradient);
+  text-align: center;
+}
+
+.match-found__marquee::before,
+.match-found__marquee::after {
+  content: "";
+  position: absolute;
+  right: var(--space-3);
+  left: var(--space-3);
+  height: 0.5rem;
+  background: radial-gradient(circle closest-side, var(--color-accent-text) 55%, transparent) 0 0 / 1rem 0.5rem repeat-x;
+}
+
+.match-found__marquee::before {
+  top: var(--space-2);
+}
+
+.match-found__marquee::after {
+  bottom: var(--space-2);
+}
+
+.match-found__title {
+  font-size: var(--font-size-hero);
+  line-height: 1.05;
+}
+
+/* Only ever focused by the app, as the landing spot after View. */
+.match-found__title:focus {
+  outline: none;
+}
+
+.match-found__subtitle {
+  margin-top: var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.match-found__marquee .match-found__headline-skeleton {
+  width: 70%;
+  height: 2.5rem;
+  margin: 0 auto var(--space-2);
+}
+
+.match-found__tagline-skeleton {
+  width: 50%;
+  margin: 0 auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .match-found .match-details__poster:not(.md-skeleton) {
+    animation: match-found-pop var(--duration-slow) var(--ease-out) backwards;
+  }
+
+  .match-found .match-details__poster-frame::before {
+    animation: match-found-rays 60s linear infinite;
+  }
+
+  .match-found .match-details__ticket {
+    animation: match-found-rise 480ms var(--ease-out) 120ms backwards;
+  }
+
+  /* Runs a few laps and settles: endless motion would pull the eye from the details below. */
+  .match-found__marquee::before,
+  .match-found__marquee::after {
+    animation: match-found-bulbs 800ms steps(4) 6;
+  }
+
+  .match-found__marquee::after {
+    animation-direction: reverse;
+  }
+}
+
+@keyframes match-found-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.88) rotate(-2deg);
+  }
+}
+
+@keyframes match-found-rays {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes match-found-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+}
+
+@keyframes match-found-bulbs {
+  to {
+    background-position-x: 1rem;
+  }
+}
+
+.match-found__actions {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* The footer has no panel, so this needs its own plate on the gradient. */
+.match-found__actions .md-button--ghost {
+  background: var(--color-scrim);
+  color: var(--color-on-gradient);
+}

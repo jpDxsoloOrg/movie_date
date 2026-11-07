@@ -1,0 +1,61 @@
+/* Drop shadow rather than box shadow: it has to follow the punched-out notches. */
+.room-ticket {
+  --room-ticket-notch: 11px;
+  container-type: inline-size;
+  min-width: 0;
+  filter: drop-shadow(var(--shadow-raised));
+}
+
+.room-ticket__layout {
+  display: flex;
+  flex-direction: column;
+}
+
+.room-ticket__main,
+.room-ticket__stub {
+  min-width: 0;
+  padding: var(--space-5);
+  mask-composite: intersect;
+}
+
+.room-ticket__main {
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: var(--gradient-brand);
+  color: var(--color-on-brand);
+  mask-image:
+    radial-gradient(circle var(--room-ticket-notch) at 0 100%, transparent 97%, black),
+    radial-gradient(circle var(--room-ticket-notch) at 100% 100%, transparent 97%, black);
+}
+
+.room-ticket__stub {
+  border-top: 2px dashed var(--color-border);
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  background: var(--color-surface-raised);
+  mask-image:
+    radial-gradient(circle var(--room-ticket-notch) at 0 0, transparent 97%, black),
+    radial-gradient(circle var(--room-ticket-notch) at 100% 0, transparent 97%, black);
+}
+
+@container (min-width: 36rem) {
+  .room-ticket__layout {
+    flex-direction: row;
+  }
+
+  .room-ticket__main {
+    flex: 1 1 55%;
+    border-radius: var(--radius-card) 0 0 var(--radius-card);
+    mask-image:
+      radial-gradient(circle var(--room-ticket-notch) at 100% 0, transparent 97%, black),
+      radial-gradient(circle var(--room-ticket-notch) at 100% 100%, transparent 97%, black);
+  }
+
+  .room-ticket__stub {
+    flex: 1 1 45%;
+    border-top: 0;
+    border-left: 2px dashed var(--color-border);
+    border-radius: 0 var(--radius-card) var(--radius-card) 0;
+    mask-image:
+      radial-gradient(circle var(--room-ticket-notch) at 0 0, transparent 97%, black),
+      radial-gradient(circle var(--room-ticket-notch) at 0 100%, transparent 97%, black);
+  }
+}

@@ -1,0 +1,219 @@
+/* Sized by its own width rather than the viewport: the same ticket sits on a page and in a sheet. */
+.match-details {
+  --match-notch: 0.625rem;
+  --match-panel: var(--color-surface-muted);
+  --match-perforation: var(--color-border);
+  --match-poster-width: min(52cqw, 11rem);
+  --match-poster-overlap: 2.5rem;
+  container-type: inline-size;
+  width: 100%;
+}
+
+.match-details--on-gradient {
+  --match-panel: var(--color-scrim);
+  --match-perforation: color-mix(in srgb, var(--color-on-gradient) 45%, transparent);
+  --match-poster-width: min(70cqw, 17rem, 44dvh);
+  --match-poster-overlap: 3.5rem;
+  color: var(--color-on-gradient);
+}
+
+.match-details__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  justify-items: center;
+}
+
+.match-details__header,
+.match-details__footer,
+.match-details__ticket {
+  width: 100%;
+}
+
+.match-details__poster-frame {
+  position: relative;
+  z-index: 1;
+  width: var(--match-poster-width);
+  /* The poster stands on the ticket, like a card propped against it. */
+  margin-bottom: calc(-1 * var(--match-poster-overlap) - var(--space-4));
+}
+
+.match-details__poster {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Rays behind the poster, after the sunbursts on 1970s one-sheets. */
+.match-details--on-gradient .match-details__poster-frame::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: 190%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    color-mix(in srgb, var(--color-on-gradient) 26%, transparent) 0deg 9deg,
+    transparent 9deg 18deg
+  );
+  mask: radial-gradient(closest-side, #000 40%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.match-details__ticket {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.match-details__feature,
+.match-details__stub {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--match-panel);
+}
+
+/* Two panels with a notch on each shared corner, so the tear line works at any height. */
+.match-details__feature {
+  gap: var(--space-3);
+  padding-top: calc(var(--match-poster-overlap) + var(--space-4));
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  mask:
+    radial-gradient(circle var(--match-notch) at 0 100%, transparent 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--match-notch) at 100% 100%, transparent 97%, #000) right / 51% 100% no-repeat;
+}
+
+.match-details__stub {
+  gap: var(--space-4);
+  border-top: 2px dashed var(--match-perforation);
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  mask:
+    radial-gradient(circle var(--match-notch) at 0 0, transparent 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--match-notch) at 100% 0, transparent 97%, #000) right / 51% 100% no-repeat;
+}
+
+.match-details--on-gradient .match-details__feature,
+.match-details--on-gradient .match-details__stub {
+  backdrop-filter: blur(14px);
+}
+
+.match-details__eyebrow {
+  color: var(--color-accent-text);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.match-details--on-gradient .match-details__eyebrow {
+  color: inherit;
+}
+
+.match-details__title {
+  font-size: clamp(var(--font-size-xl), 7cqw, var(--font-size-display));
+  overflow-wrap: anywhere;
+}
+
+.match-details__year {
+  /* A range must not break at its dash. */
+  white-space: nowrap;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.match-details__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.match-details__meta:empty {
+  display: none;
+}
+
+.match-details__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.match-details__fact .md-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.match-details__genres {
+  min-width: 0;
+}
+
+.match-details__overview {
+  line-height: 1.55;
+}
+
+.match-details__skeleton-short {
+  width: 70%;
+}
+
+.match-details .match-details__skeleton-tiles {
+  height: 4.5rem;
+}
+
+@container (min-width: 38rem) {
+  .match-details__grid {
+    grid-template-columns: clamp(13rem, 40cqw, 28rem) minmax(0, 1fr);
+    gap: var(--space-3) var(--space-6);
+    align-items: start;
+  }
+
+  .match-details__poster-frame {
+    position: sticky;
+    top: var(--space-4);
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .match-details--framed .match-details__poster-frame {
+    grid-row: 1 / span 3;
+    grid-column: 1;
+  }
+
+  /* Any wider and the fade would be cut by the screen's clip on either side. */
+  .match-details--on-gradient .match-details__poster-frame::before {
+    width: 150%;
+  }
+
+  .match-details--framed .match-details__header,
+  .match-details--framed .match-details__ticket,
+  .match-details--framed .match-details__footer {
+    grid-column: 2;
+  }
+
+  .match-details__feature {
+    padding: var(--space-5);
+  }
+
+  .match-details__stub {
+    padding: var(--space-4) var(--space-5) var(--space-5);
+  }
+}
+
+/* A sheet has less room than the page, so its poster stays a supporting size. */
+@container (min-width: 38rem) {
+  .match-details:not(.match-details--framed) .match-details__grid {
+    grid-template-columns: 15rem minmax(0, 1fr);
+    column-gap: var(--space-5);
+  }
+
+  .match-details:not(.match-details--framed) .match-details__poster-frame {
+    top: 0;
+  }
+}

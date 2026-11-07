@@ -1,0 +1,19 @@
+{
+  "name": "movie-date",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build -w @movie-date/frontend"
+  },
+  "devDependencies": {
+    "graphql": "^16.9.0",
+    "sst": "4.17.1",
+    "typescript": "^5.6.3"
+  }
+}

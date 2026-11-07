@@ -1,0 +1,130 @@
+.actor-picker {
+  position: relative;
+}
+
+.actor-picker .md-field__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+/* In the flow on phones: the sheet body scrolls, so a floating panel would be cut off,
+   and the keyboard leaves no room for one. */
+.actor-picker__panel {
+  margin-top: var(--space-2);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-field);
+  background: var(--color-surface-raised);
+}
+
+.actor-picker__list {
+  max-height: 18rem;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.actor-picker__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.actor-picker__option:hover,
+.actor-picker__option--active {
+  background: var(--color-hover-wash);
+}
+
+.actor-picker__option--active {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.actor-picker__face {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.actor-picker__name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.actor-picker__check {
+  flex: none;
+  color: var(--color-accent-text);
+}
+
+.actor-picker__message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.actor-picker__panel .md-skeleton-list {
+  padding: var(--space-2);
+}
+
+.actor-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.actor-picker__chips .md-chip {
+  --chip-height: var(--touch-target);
+
+  padding-left: 3px;
+}
+
+.actor-picker__chips .md-chip__leading {
+  width: 2.375rem;
+  height: 2.375rem;
+}
+
+.actor-picker__browse {
+  align-self: flex-start;
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: text-decoration-color var(--duration-fast);
+}
+
+.actor-picker__browse:hover {
+  text-decoration-color: currentcolor;
+}
+
+@media (min-width: 640px) {
+  .actor-picker__panel {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    z-index: 3;
+    box-shadow: var(--shadow-card);
+  }
+}

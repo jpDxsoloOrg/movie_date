@@ -1,0 +1,37 @@
+{
+  "name": "@movie-date/functions",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.696.0",
+    "@aws-sdk/client-dynamodb": "^3.696.0",
+    "@aws-sdk/client-lambda": "^3.1164.0",
+    "@aws-sdk/client-s3": "^3.696.0",
+    "@aws-sdk/client-sesv2": "^3.1164.0",
+    "@aws-sdk/client-ssm": "^3.696.0",
+    "@aws-sdk/credential-provider-node": "^3.696.0",
+    "@aws-sdk/lib-dynamodb": "^3.696.0",
+    "@aws-sdk/s3-presigned-post": "^3.696.0",
+    "@movie-date/core": "*",
+    "@smithy/protocol-http": "^4.1.7",
+    "@smithy/signature-v4": "^4.2.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.10.1"
+  },
+  "exports": {
+    "./lib/*": "./src/lib/*.ts",
+    "./handlers/*": "./src/handlers/*.ts",
+    "./resolver": "./src/resolver.ts",
+    "./preSignUp": "./src/preSignUp.ts",
+    "./postConfirmation": "./src/postConfirmation.ts",
+    "./plexIndexJob": "./src/plexIndexJob.ts",
+    "./src/*": "./src/*"
+  }
+}

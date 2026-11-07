@@ -1,0 +1,197 @@
+.deck-panel {
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.deck-panel__scroller {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: deck-panel-enter var(--duration-slow) var(--ease-out);
+}
+
+.deck-panel__hero.md-skeleton,
+.deck-panel__hero {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--color-app-bar);
+}
+
+/* The picture melts into the panel, so the title reads as part of the same frame. */
+.deck-panel__hero::after {
+  content: "";
+  position: absolute;
+  inset: 45% 0 0;
+  background: linear-gradient(to top, var(--color-surface), transparent);
+  pointer-events: none;
+}
+
+.deck-panel__hero--playing::after {
+  content: none;
+}
+
+.deck-panel__hero--playing .deck-details__video {
+  height: 100%;
+  border-radius: 0;
+}
+
+.deck-panel__backdrop {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+
+.deck-panel__backdrop--missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-brand);
+  color: var(--color-on-brand);
+}
+
+.deck-panel__backdrop--missing .md-icon {
+  width: 3rem;
+  height: 3rem;
+}
+
+.deck-panel__play.md-button {
+  position: absolute;
+  z-index: 1;
+  left: var(--space-4);
+  bottom: var(--space-3);
+  background: var(--color-app-bar);
+  color: var(--color-on-app-bar);
+  box-shadow: var(--shadow-raised);
+}
+
+.deck-panel__play .md-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.deck-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-5);
+}
+
+.deck-panel__title {
+  font-size: clamp(1.75rem, 2.4vw, 2.75rem);
+  text-wrap: balance;
+}
+
+.deck-panel__genres {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.deck-panel__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deck-panel__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.deck-panel__fact .md-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-text-muted);
+}
+
+.deck-panel__fact--rating .md-icon {
+  color: var(--color-accent-text);
+}
+
+.deck-panel__overview {
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+
+/* WhereToWatch centres itself for the match screen; here it lines up with the text. */
+.deck-panel .where-to-watch {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.deck-panel .where-to-watch__title {
+  font-size: var(--font-size-lg);
+}
+
+.deck-panel .where-to-watch__list {
+  justify-content: flex-start;
+}
+
+.deck-panel .where-to-watch__tile {
+  align-items: flex-start;
+  width: auto;
+}
+
+.deck-panel .where-to-watch .md-state {
+  align-items: flex-start;
+  min-height: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.deck-panel .where-to-watch .md-state__icon {
+  display: none;
+}
+
+.deck-panel .where-to-watch .md-state__title {
+  font-size: var(--font-size-md);
+}
+
+.deck-panel__watch-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.deck-panel__watch-tiles {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.deck-panel__watch-tiles .md-skeleton {
+  width: 60px;
+  height: 60px;
+}
+
+.deck-panel__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-6);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+@keyframes deck-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

@@ -1,0 +1,188 @@
+.deck-room {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4) calc(var(--safe-right) + var(--space-4)) calc(var(--safe-bottom) + var(--space-5)) var(--space-4);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.deck-room__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.deck-room__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+.deck-room__title {
+  font-size: var(--font-size-lg);
+  white-space: nowrap;
+}
+
+.deck-room__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-field);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.deck-room__link:hover {
+  text-decoration: underline;
+}
+
+.deck-room__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.deck-room__members {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deck-room__member {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.deck-room__member .room-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.deck-room__member-name {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.deck-room__you {
+  flex: none;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.deck-room__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Read-only here, so it doesn't need a control's height. */
+.deck-room__filters .md-chip {
+  --chip-height: 1.75rem;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
+.deck-room__matches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 calc(-1 * var(--space-2));
+  padding: 0;
+  list-style: none;
+}
+
+.deck-room__match {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+
+.deck-room__match:hover {
+  background: var(--color-surface-muted);
+}
+
+.deck-room__match-poster {
+  flex: none;
+  width: 2.5rem;
+  height: 3.75rem;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.deck-room__match-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.deck-room__match-title {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.deck-room__match-date {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.deck-room__match-icon.md-icon {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-accent-text);
+}
+
+.deck-room__match-skeleton.md-skeleton {
+  height: 4.75rem;
+}
+
+.deck-room__retry {
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}

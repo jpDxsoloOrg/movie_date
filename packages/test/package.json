@@ -1,0 +1,27 @@
+{
+  "name": "@movie-date/test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movie-date/core": "*",
+    "@movie-date/frontend": "*",
+    "@movie-date/functions": "*"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "aws-sdk-client-mock": "^4.1.0",
+    "graphql": "^16.9.0",
+    "jsdom": "^24.1.3",
+    "vitest": "^2.1.8"
+  }
+}

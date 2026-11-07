@@ -1,0 +1,39 @@
+import { ANY_SERVICE, selectableProviders } from "@movie-date/core";
+import type { FiltersInput, MediaType } from "../../services/api";
+
+interface StashedDraft {
+  roomId: string;
+  mediaType: MediaType;
+  draft: FiltersInput;
+}
+
+/**
+ * Filters unmounts on the way to ActorSearch, and a browser back can't carry
+ * router state, so the unsaved form waits here. It's keyed by room and mode so a
+ * draft can't follow someone into another room, account or deck.
+ */
+let stashed: StashedDraft | null = null;
+
+export function stashFilterDraft(roomId: string, draft: FiltersInput, mediaType: MediaType = "MOVIE"): void {
+  stashed = { roomId, mediaType, draft };
+}
+
+export function peekFilterDraft(roomId: string, mediaType: MediaType = "MOVIE"): FiltersInput | null {
+  return stashed?.roomId === roomId && stashed.mediaType === mediaType ? stashed.draft : null;
+}
+
+export function clearFilterDraft(): void {
+  stashed = null;
+}
+
+/** The schema says an empty list means any service, so the marker is never saved. */
+export function normaliseServices(services: readonly string[]): string[] {
+  return services.includes(ANY_SERVICE) ? [] : [...services];
+}
+
+/** The specific services in force. `plex` drops out while no member has it linked. */
+export function activeServices(services: readonly string[], plexAvailable: boolean): string[] {
+  if (services.includes(ANY_SERVICE)) return [];
+  const selectable = selectableProviders(plexAvailable);
+  return services.filter((key) => selectable.some((provider) => provider.key === key));
+}

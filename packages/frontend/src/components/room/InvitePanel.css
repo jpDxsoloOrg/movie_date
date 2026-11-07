@@ -1,0 +1,116 @@
+.room-invite {
+  min-width: 0;
+}
+
+.room-invite__main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+.room-invite__title {
+  font-size: var(--font-size-lg);
+}
+
+.room-invite__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* Sized for the widest possible code, WWWWWW, which has the whole row to itself. */
+.room-invite__code {
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 11cqi, 3.5rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  font-variant-numeric: lining-nums;
+  overflow-wrap: anywhere;
+}
+
+/* The shared hover wash is white, which disappears on the bright half of the ticket. */
+.room-invite__copy-code {
+  flex: none;
+  background: var(--color-scrim);
+  color: var(--color-on-gradient);
+}
+
+.room-invite__copy-code:hover:not(:disabled) {
+  background: var(--color-app-bar);
+}
+
+@container (min-width: 36rem) {
+  .room-invite__code {
+    font-size: clamp(2.25rem, 6cqi, 3rem);
+  }
+}
+
+.room-invite__hint {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.room-invite__stub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.room-invite__link-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.room-invite__link {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-field);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+}
+
+.room-invite__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.room-invite__actions .md-button {
+  flex: 1 1 8rem;
+  padding-inline: var(--space-3);
+}
+
+.room-invite__actions .md-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A QR code needs its quiet zone on a light ground, and Shows mode is no exception. */
+.room-invite__qr {
+  width: 11rem;
+  height: 11rem;
+  margin: 0 auto;
+  padding: var(--space-1);
+  border-radius: var(--radius-field);
+  background: var(--color-logo-plate);
+}
+
+.room-invite__qr-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}

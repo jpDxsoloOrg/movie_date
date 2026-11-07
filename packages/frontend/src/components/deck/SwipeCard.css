@@ -1,0 +1,258 @@
+.deck-card {
+  --deck-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: absolute;
+  inset: 0 0 var(--space-4);
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-app-bar);
+  box-shadow: var(--shadow-card);
+  color: var(--color-on-gradient);
+  cursor: grab;
+  /* The browser must hand every touch to the drag, not scroll or zoom with it. */
+  touch-action: none;
+  transform-origin: 50% 100%;
+  transition: transform 320ms var(--deck-spring);
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  will-change: transform;
+}
+
+.deck-card--depth-0 {
+  z-index: 3;
+}
+
+/* --deck-drag runs 0 to 1 as the top card nears a swipe, so the next one rises to meet it. */
+.deck-card--depth-1 {
+  z-index: 2;
+  transform: translateY(calc(var(--space-2) * (1 - var(--deck-drag, 0)))) scale(calc(0.96 + 0.04 * var(--deck-drag, 0)));
+  pointer-events: none;
+}
+
+.deck-card--depth-2 {
+  z-index: 1;
+  transform: translateY(calc(var(--space-4) - var(--space-2) * var(--deck-drag, 0))) scale(calc(0.92 + 0.04 * var(--deck-drag, 0)));
+  pointer-events: none;
+  animation: deck-card-deal var(--duration-normal) ease-out;
+}
+
+.deck-card--dragging,
+.deck__stack:has(.deck-card--dragging) .deck-card--depth-1,
+.deck__stack:has(.deck-card--dragging) .deck-card--depth-2 {
+  transition: none;
+}
+
+.deck-card--dragging {
+  cursor: grabbing;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .deck-card--depth-0:hover {
+    transform: translateY(-4px);
+  }
+}
+
+/* Out of the way at once, so the next card can be dragged while this one flies. */
+.deck-card--exiting {
+  z-index: 4;
+  pointer-events: none;
+  transition: transform 340ms cubic-bezier(0.2, 0.75, 0.3, 1);
+}
+
+.deck-card--return-like {
+  animation: deck-card-return-like 340ms var(--deck-spring);
+}
+
+.deck-card--return-pass {
+  animation: deck-card-return-pass 340ms var(--deck-spring);
+}
+
+.deck-card__poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.deck-card__poster--missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 40%;
+  opacity: 0.6;
+}
+
+.deck-card__poster--missing .md-icon {
+  width: 4rem;
+  height: 4rem;
+}
+
+.deck-card__scrim {
+  position: absolute;
+  inset: 25% 0 0;
+  background: var(--gradient-card-scrim);
+  pointer-events: none;
+}
+
+.deck-card__info.md-icon-button {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  background: var(--color-scrim);
+}
+
+.deck-card__info.md-icon-button:hover:not(:disabled) {
+  background: var(--color-app-bar);
+}
+
+.deck-card__text {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-6) var(--space-4) var(--space-4);
+  /* Follows the text at any card height, solid under every line and fading only
+     through the top padding; the poster-wide scrim alone leaves it on bright art. */
+  background: var(--gradient-card-text);
+  pointer-events: none;
+}
+
+.deck-card__title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.deck-card__meta {
+  font-size: var(--font-size-sm);
+}
+
+.deck-card__overview {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.deck-card__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 22%;
+  pointer-events: none;
+  animation: deck-card-overlay var(--duration-fast) ease-out;
+}
+
+/* On the trailing side of the card, so the stamp is still on screen when the drag commits. */
+.deck-card__overlay--like {
+  justify-content: flex-start;
+  padding-left: var(--space-3);
+  background: color-mix(in srgb, var(--color-like) 26%, transparent);
+}
+
+.deck-card__overlay--pass {
+  justify-content: flex-end;
+  padding-right: var(--space-3);
+  background: color-mix(in srgb, var(--color-pass) 26%, transparent);
+}
+
+/* A box-office stamp. The dark plate is what keeps green and red legible over any poster. */
+.deck-card__overlay-label {
+  padding: var(--space-1) var(--space-4);
+  border: 3px solid currentcolor;
+  border-radius: var(--radius-field);
+  background: var(--color-page);
+  box-shadow: var(--shadow-raised);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 9cqw, 2.5rem);
+  font-weight: 800;
+  /* A word to a line: on one line, the stamp has left a phone's screen by the time a drag commits. */
+  width: min-content;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.deck-card__overlay--like .deck-card__overlay-label {
+  color: var(--color-toast-success);
+  transform: rotate(-7deg);
+}
+
+.deck-card__overlay--pass .deck-card__overlay-label {
+  color: var(--color-toast-error);
+  transform: rotate(7deg);
+}
+
+/* A small phone keeps the overview from burying the poster. */
+@media (max-height: 680px) {
+  .deck-card__text {
+    padding-bottom: var(--space-3);
+  }
+
+  .deck-card__overview {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+}
+
+/* A short phone in landscape can't fit the overview over the poster. */
+@media (max-height: 520px) {
+  .deck-card__overview {
+    display: none;
+  }
+
+  .deck-card__text {
+    padding-top: var(--space-5);
+  }
+
+  .deck-card__overlay {
+    align-items: center;
+    padding-top: 0;
+  }
+
+  .deck-card__title {
+    display: block;
+    font-size: var(--font-size-lg);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+@keyframes deck-card-deal {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes deck-card-overlay {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes deck-card-return-like {
+  from {
+    transform: translateX(120vw) rotate(28deg);
+  }
+}
+
+@keyframes deck-card-return-pass {
+  from {
+    transform: translateX(-120vw) rotate(-28deg);
+  }
+}

@@ -1,0 +1,125 @@
+/* Positions live here rather than in the component because inline styles are reserved for per-frame values. */
+.match-celebration {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.match-celebration__piece {
+  position: absolute;
+  top: -1rem;
+  width: 0.5rem;
+  height: 0.875rem;
+  border-radius: 2px;
+  animation: match-celebration-fall 1.8s ease-in both;
+}
+
+/* Every third piece a streamer, so the fall doesn't look like one repeated shape. */
+.match-celebration__piece:nth-child(3n) {
+  width: 0.25rem;
+  height: 1.25rem;
+  animation-duration: 2.3s;
+}
+
+.match-celebration__piece:nth-child(1) {
+  left: 6%;
+  background: var(--color-on-gradient);
+  animation-delay: 0ms;
+}
+
+.match-celebration__piece:nth-child(2) {
+  left: 14%;
+  background: var(--color-accent);
+  animation-delay: 180ms;
+}
+
+.match-celebration__piece:nth-child(3) {
+  left: 23%;
+  background: var(--color-brand-red);
+  animation-delay: 60ms;
+}
+
+.match-celebration__piece:nth-child(4) {
+  left: 31%;
+  background: var(--color-on-gradient);
+  animation-delay: 320ms;
+}
+
+.match-celebration__piece:nth-child(5) {
+  left: 40%;
+  background: var(--color-accent);
+  animation-delay: 120ms;
+}
+
+.match-celebration__piece:nth-child(6) {
+  left: 48%;
+  background: var(--color-brand-red);
+  animation-delay: 240ms;
+}
+
+.match-celebration__piece:nth-child(7) {
+  left: 56%;
+  background: var(--color-on-gradient);
+  animation-delay: 20ms;
+}
+
+.match-celebration__piece:nth-child(8) {
+  left: 63%;
+  background: var(--color-accent);
+  animation-delay: 380ms;
+}
+
+.match-celebration__piece:nth-child(9) {
+  left: 71%;
+  background: var(--color-brand-red);
+  animation-delay: 140ms;
+}
+
+.match-celebration__piece:nth-child(10) {
+  left: 79%;
+  background: var(--color-on-gradient);
+  animation-delay: 280ms;
+}
+
+.match-celebration__piece:nth-child(11) {
+  left: 86%;
+  background: var(--color-accent);
+  animation-delay: 80ms;
+}
+
+.match-celebration__piece:nth-child(12) {
+  left: 93%;
+  background: var(--color-brand-red);
+  animation-delay: 340ms;
+}
+
+.match-celebration__piece:nth-child(13) {
+  left: 35%;
+  background: var(--color-on-gradient);
+  animation-delay: 420ms;
+}
+
+.match-celebration__piece:nth-child(14) {
+  left: 67%;
+  background: var(--color-accent);
+  animation-delay: 460ms;
+}
+
+@keyframes match-celebration-fall {
+  from {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(80vh) rotate(540deg);
+  }
+}
+
+/* The global reduced-motion rule only shortens animations, which would flash the pieces. */
+@media (prefers-reduced-motion: reduce) {
+  .match-celebration {
+    display: none;
+  }
+}

@@ -1,0 +1,97 @@
+.md-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: var(--space-2);
+}
+
+.md-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 6.5rem;
+  /* Narrow sides, so "Paramount+" clears the border in a wider fallback font. */
+  padding: var(--space-3) var(--space-1);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast),
+    border-color var(--duration-fast),
+    transform var(--duration-normal) var(--ease-out);
+}
+
+.md-tile:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-surface-raised);
+  transform: translateY(-2px);
+}
+
+.md-tile:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.md-tile:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.md-tile--selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.md-tile__media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  overflow: hidden;
+  border-radius: var(--radius-field);
+}
+
+.md-tile__media img {
+  width: 100%;
+  height: 100%;
+  padding: var(--space-1);
+  background: var(--color-logo-plate);
+  object-fit: contain;
+}
+
+.md-tile__label {
+  max-width: 100%;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.md-tile__description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.md-tile__check {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.md-tile__check .md-icon {
+  width: 1rem;
+  height: 1rem;
+}

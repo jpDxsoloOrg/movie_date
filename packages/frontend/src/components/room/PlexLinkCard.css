@@ -1,0 +1,86 @@
+.room-plex__mark {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-field);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+.room-plex__copy {
+  color: var(--color-text-muted);
+}
+
+.room-plex__copy--small {
+  font-size: var(--font-size-sm);
+}
+
+/* An address has no spaces to wrap at, and a long one must not widen a phone layout. */
+.room-plex__email {
+  color: var(--color-text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.room-plex__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.room-plex__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.room-plex__actions .md-button {
+  flex: 1 1 8rem;
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.room-plex__actions .room-plex__submit {
+  flex-basis: 100%;
+}
+
+.room-plex__linked {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-field);
+  background: var(--color-surface-muted);
+}
+
+.room-plex__linked-mark {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--color-like);
+  color: var(--color-on-gradient);
+}
+
+.room-plex__linked-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.room-plex__linked-text .room-plex__email {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}
+
+.room-plex__unlink {
+  align-self: flex-start;
+}

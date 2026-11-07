@@ -1,0 +1,42 @@
+.active-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.active-filters__list {
+  flex: 1;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  list-style: none;
+  /* Chips running under an edge say there are more, with no scrollbar to show it. */
+  -webkit-mask: linear-gradient(to right, #000 calc(100% - var(--space-5)), transparent);
+  mask: linear-gradient(to right, #000 calc(100% - var(--space-5)), transparent);
+}
+
+.active-filters__list::-webkit-scrollbar {
+  display: none;
+}
+
+.active-filters__list > li {
+  flex: none;
+  max-width: 15rem;
+}
+
+.active-filters__clear {
+  flex: none;
+  padding-right: var(--space-2);
+  padding-left: var(--space-2);
+  white-space: nowrap;
+}
+
+.active-filters__empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

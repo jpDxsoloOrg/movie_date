@@ -1,0 +1,101 @@
+.md-collage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--color-page);
+}
+
+.md-collage__wall {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  width: 130%;
+  transform: translate(-50%, -50%) rotate(-7deg);
+}
+
+.md-collage__column {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  animation: md-collage-drift 48s ease-in-out infinite alternate;
+}
+
+.md-collage__column:nth-child(even) {
+  margin-top: 12%;
+  animation-direction: alternate-reverse;
+}
+
+/* Three columns on a phone. The rest stay display: none, which also keeps their lazy
+   images from downloading. */
+.md-collage__column:nth-child(n + 4) {
+  display: none;
+}
+
+.md-collage__poster {
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-field);
+  background: linear-gradient(160deg, var(--theme-gradient-start), var(--theme-gradient-end));
+}
+
+.md-collage__poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The mode's colours laid over the posters, then darkened to where the form sits. */
+.md-collage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, transparent, var(--color-page) 82%),
+    linear-gradient(160deg, var(--theme-gradient-start), var(--theme-gradient-end));
+  background-blend-mode: normal;
+  opacity: 0.86;
+  mix-blend-mode: multiply;
+}
+
+@media (min-width: 640px) {
+  /* Four wide columns, because six narrow ones fall short of a portrait tablet's height. */
+  .md-collage__column:nth-child(4) {
+    display: flex;
+  }
+
+  .md-collage__wall {
+    width: 118%;
+  }
+
+  .md-collage::after {
+    background:
+      radial-gradient(90% 90% at 50% 50%, transparent, var(--color-page)),
+      linear-gradient(160deg, var(--theme-gradient-start), var(--theme-gradient-end));
+  }
+}
+
+@media (min-width: 1024px) {
+  .md-collage__column:nth-child(n + 4) {
+    display: flex;
+  }
+}
+
+@keyframes md-collage-drift {
+  from {
+    transform: translateY(-3%);
+  }
+  to {
+    transform: translateY(3%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-collage__column {
+    animation: none;
+  }
+}

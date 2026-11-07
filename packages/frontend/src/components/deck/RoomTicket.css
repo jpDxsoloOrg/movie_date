@@ -1,0 +1,137 @@
+/* The mask is on the paper, not the button, or it would clip the focus ring. */
+.deck-ticket,
+.deck-ticket-strip {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.deck-ticket {
+  --ticket-notch: 9px;
+  flex: none;
+  width: 100%;
+  border-radius: var(--radius-field);
+  color: var(--color-on-brand);
+  text-align: left;
+  filter: drop-shadow(0 6px 12px color-mix(in srgb, var(--color-app-bar) 45%, transparent));
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.deck-ticket:hover {
+  transform: translateY(-2px) rotate(-0.6deg);
+}
+
+.deck-ticket:active {
+  transform: scale(0.98);
+}
+
+.deck-ticket__paper {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-field);
+  background: var(--gradient-brand);
+  mask:
+    radial-gradient(circle var(--ticket-notch) at 0 var(--ticket-tear), transparent 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--ticket-notch) at 100% var(--ticket-tear), transparent 97%, #000) right / 51% 100% no-repeat;
+  --ticket-tear: 5.25rem;
+}
+
+.deck-ticket__main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: var(--ticket-tear);
+  padding: 0 var(--space-4);
+}
+
+.deck-ticket__eyebrow,
+.deck-ticket__admit {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.deck-ticket__code {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+}
+
+.deck-ticket__stub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border-top: 2px dashed color-mix(in srgb, var(--color-on-brand) 45%, transparent);
+}
+
+.deck-ticket__invite {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.deck-ticket__invite .md-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.deck-ticket-strip {
+  flex: none;
+  align-self: center;
+  border-radius: var(--radius-field);
+  color: var(--color-on-app-bar);
+  font-size: var(--font-size-sm);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.deck-ticket-strip:active {
+  transform: scale(0.97);
+}
+
+.deck-ticket-strip__paper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-5) 0 var(--space-4);
+  border-radius: var(--radius-field);
+  background: var(--color-app-bar);
+  mask:
+    radial-gradient(circle 7px at 0 50%, transparent 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 7px at 100% 50%, transparent 97%, #000) right / 51% 100% no-repeat;
+}
+
+.deck-ticket-strip__code {
+  font-family: var(--font-display);
+  font-size: var(--font-size-md);
+  letter-spacing: 0.08em;
+}
+
+.deck-ticket-strip__faces {
+  display: inline-flex;
+}
+
+.deck-ticket-strip__faces .room-avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid var(--color-app-bar);
+}
+
+.deck-ticket-strip__faces .room-avatar + .room-avatar {
+  margin-left: calc(-1 * var(--space-2));
+}
+
+.deck-ticket-strip__faces .room-avatar .md-icon {
+  width: 1rem;
+  height: 1rem;
+}

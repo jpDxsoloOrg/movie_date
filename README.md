@@ -1,267 +1,108 @@
 # Movie Date
 
-Movie Date is a Flutter mobile application that helps couples or groups find movies to watch together using a Tinder-like swiping mechanism. Set up filters for genres, release dates, and streaming services, then everyone starts swiping. When all room members swipe right on the same movie, it's a match!
+Movie Date helps couples and groups agree on what to watch. Everyone joins a room, swipes
+through the same deck, and when enough of you like the same title, it's a match.
+
+It's a mobile-first website that also installs as an app, live at
+https://d19oka7lgeykfv.cloudfront.net. It replaced the original Flutter and Supabase mobile
+app, whose code is in this repo's git history.
 
 ## Features
 
-### Complete
-- Create a room with customizable filters (genres, release dates, actors, streaming services)
-- Swipe left or right on movies with posters, descriptions, runtime, and ratings
-- Real-time match notifications when all room members like the same movie
-- Join existing rooms via room code
-- Watch trailers directly in the app
-- View streaming service availability for each movie
-- Configurable match threshold (number of required matches)
-- User profiles with avatars and display names
-- Bottom navigation with Home, Join Room, and Search
+- **Two modes:** Movies, and Going Steady for TV shows, each with its own theme, deck,
+  filters, matches and round. Everyone shares one room, and members can be in different modes.
+- **Rooms:** join with a code, an invite link or a QR code. Choose how many likes make a
+  match, or require a majority.
+- **Swiping:** drag, tap the buttons or use the keyboard, and undo a swipe.
+- **Live matches:** everyone in the room hears about a match as it happens, including one
+  in the other mode.
+- **Filters:** genres, actors, streaming services and release dates, with a live count of
+  what's in the deck. Shows add status and commitment level, which is how many seasons you're
+  in for.
+- **Title details:** trailers, facts, and where to watch.
+- **History:** past matches and your swipes in each mode.
+- **Plex:** link a Plex Request account to see what's in the library, filter to it, and
+  request a missing movie. Requesting shows isn't available yet.
+- **Accounts:** sign up with an email, set a display name and avatar, and reset a forgotten
+  password. A first-run tutorial can be reopened from the menu.
+- **Layouts:** separate navigation and layouts for phone, tablet and desktop.
 
-### In Progress
-- Skip and undo swipe functions
-- View history of swiped movies
+## How it's built
 
-## Tech Stack
+An npm workspace in TypeScript:
 
-- **Framework**: Flutter 3.24.3 (managed via FVM)
-- **Language**: Dart >=3.4.3 <4.0.0
-- **State Management**: Riverpod 2.3.6 with code generation
-- **Navigation**: Go Router 13.2.0
-- **Backend**: Supabase (authentication, database, real-time subscriptions)
-- **Movie Data**: TMDB API
-- **Streaming Info**: RapidAPI (Where to Watch)
+| Package | Contents |
+|---|---|
+| `packages/core` | Types and rules shared by both sides |
+| `packages/functions` | The AppSync Lambda resolver, Cognito triggers and the Plex index job |
+| `packages/frontend` | The React 18 and Vite PWA |
+| `packages/test` | vitest suites for all of the above |
 
-## Requirements
+`graphql/schema.graphql` is the API contract. Title data comes from TMDB and streaming
+availability from RapidAPI.
 
-- Flutter SDK 3.24.3+ (or use FVM)
-- Dart SDK >=3.4.3 <4.0.0
-- A device or emulator (iOS/Android)
-- Supabase account (for backend)
-- TMDB API key
-- RapidAPI key (for streaming info)
+## Running it
 
-## Installation
-
-### 1. Clone the Repository
+You need Node 22 and npm.
 
 ```bash
-git clone https://github.com/yourusername/movie_date.git
-cd movie_date
+npm ci
+npm test
+npm run typecheck
+npm run build
 ```
 
-### 2. Install Flutter (using FVM recommended)
+Run the tests from the repo root.
+
+To work on the site locally, create `packages/frontend/.env.local` with the values from a
+deployed stage. `sst deploy` prints them as `api`, `apiRealtime`, `userPoolId` and
+`userPoolClientId`:
+
+```
+VITE_GRAPHQL_URL=
+VITE_GRAPHQL_REALTIME_URL=
+VITE_USER_POOL_ID=
+VITE_USER_POOL_CLIENT_ID=
+```
+
+If you don't have the realtime value, delete that line rather than leaving it blank: the site
+works it out when the line is missing, but a blank value breaks live updates. Then start Vite
+with `npm run dev -w @movie-date/frontend`. There's no local backend.
+
+### Testing against the live site
+
+`scripts/e2e-live.mjs` drives real browsers through the production stack and deletes what
+it creates. Playwright isn't a dependency of this repo, so point the script at an install:
 
 ```bash
-# Install FVM if not already installed
-dart pub global activate fvm
-
-# Install the required Flutter version
-fvm install 3.24.3
-fvm use 3.24.3
-
-# Or use Flutter directly (version 3.24.3+)
-flutter --version
+AWS_PROFILE=league-szn PLAYWRIGHT_MODULE=/path/to/node_modules/playwright node scripts/e2e-live.mjs
 ```
 
-### 3. Set Up Environment Variables
+The comment at the top of the script explains its options and how to recover from a killed run.
 
-Create a `.env` file in the project root with the following variables:
+## Hosting
 
-```env
-API_KEY=your_tmdb_api_key
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
-WHERE_TO_WATCH_API=your_rapidapi_key
-```
+Everything runs on AWS in `us-east-1` and is defined with SST in `sst.config.ts`:
 
-To obtain these keys:
-- **TMDB API Key**: Register at [themoviedb.org](https://www.themoviedb.org/settings/api)
-- **Supabase**: Create a project at [supabase.com](https://supabase.com)
-- **RapidAPI**: Subscribe to a "Where to Watch" API at [rapidapi.com](https://rapidapi.com)
+- CloudFront and S3 serve the site
+- AppSync serves the GraphQL API and realtime subscriptions, backed by one Lambda
+- DynamoDB holds all app data in a single table
+- S3 stores avatars
+- Cognito handles accounts
+- SES sends Plex link codes
+- A scheduled Lambda refreshes the Plex library index every 6 hours
 
-### 4. Install Dependencies
+The TMDB and RapidAPI keys are SecureStrings in SSM, so they stay out of the repo and the
+browser. Deploying is a manual step:
 
 ```bash
-flutter pub get
+AWS_PROFILE=league-szn npx sst deploy --stage production
 ```
 
-### 5. Run Code Generation (if needed)
+CI (`.github/workflows/ci.yml`) typechecks, tests and builds every pull request.
 
-```bash
-flutter pub run build_runner build --delete-conflicting-outputs
-```
+## More
 
-### 6. Run the App
-
-```bash
-# iOS Simulator
-flutter run -d ios
-
-# Android Emulator
-flutter run -d android
-
-# Specific device
-flutter devices  # List available devices
-flutter run -d <device_id>
-```
-
-## Testing
-
-The project has comprehensive unit tests covering models, services, and utilities.
-
-### Run All Tests
-
-```bash
-flutter test
-```
-
-### Run Specific Test Files
-
-```bash
-# Run model tests
-flutter test test/models/models_test.dart
-
-# Run service tests
-flutter test test/services/
-
-# Run with verbose output
-flutter test --reporter=expanded
-```
-
-### Test Coverage
-
-| Component | Tests | Description |
-|-----------|-------|-------------|
-| Models | 17 | Profile, Room, Match, Member serialization |
-| API Types | 14 | Movie, Movie2, Person fromJson/toJson |
-| MovieFilters | 18 | Filter serialization with dates, persons |
-| MovieService | 22 | All 8 service methods |
-| RoomService | 17 | All 7 service methods |
-| ConversionUtils | 12 | Movie2 to Movie conversion |
-| Widgets | 37 | LoginPage, MainPage widget tests |
-| **Total** | **137** | All tests passing |
-
-## Project Structure
-
-```
-lib/
-├── api/                  # TMDB API integration
-│   ├── types/           # API response models (Movie, Person, Genre)
-│   ├── filters/         # Query filter objects (MovieFilters)
-│   └── utils/           # Enums and utilities
-├── controllers/         # Riverpod state controllers
-├── models/              # Data models (Profile, Room, Match, Member)
-├── pages/               # UI screens (12 pages)
-├── providers/           # Riverpod providers
-├── repositories/        # Abstract repository interfaces
-├── router/              # Go Router configuration
-├── services/            # Business logic (MovieService, RoomService)
-├── supabase/repositories/  # Supabase implementations
-├── tmdb/repositories/   # TMDB implementations
-├── utils/               # Constants, helpers
-├── widgets/             # Reusable UI components
-└── main.dart            # App entry point
-
-test/
-├── api/                 # API type and filter tests
-├── models/              # Model serialization tests
-├── pages/               # Widget tests
-├── services/            # Service unit tests
-└── utils/               # Utility tests
-```
-
-## Building for Production
-
-### Android
-
-```bash
-# Build APK
-flutter build apk --release
-
-# Build App Bundle (for Play Store)
-flutter build appbundle --release
-```
-
-The APK will be at `build/app/outputs/flutter-apk/app-release.apk`
-The AAB will be at `build/app/outputs/bundle/release/app-release.aab`
-
-### iOS
-
-```bash
-# Build for App Store
-flutter build ios --release
-
-# Build IPA
-flutter build ipa --release
-```
-
-The IPA will be at `build/ios/ipa/`
-
-### Deployment
-
-#### Android (Google Play Store)
-1. Build the App Bundle: `flutter build appbundle --release`
-2. Upload to Google Play Console
-3. Configure release track (internal, alpha, beta, production)
-
-#### iOS (App Store)
-1. Build the archive: `flutter build ipa --release`
-2. Open in Xcode: `open build/ios/archive/Runner.xcarchive`
-3. Use Xcode Organizer to upload to App Store Connect
-
-#### Fastlane (Automated)
-
-The project includes Fastlane configurations for iOS and Android:
-
-```bash
-# iOS deployment
-cd ios && fastlane beta
-
-# Android deployment
-cd android && fastlane beta
-```
-
-## Database Schema (Supabase)
-
-The app uses the following main tables:
-- `profiles` - User profiles with avatars and display names
-- `rooms` - Movie rooms with filters and match thresholds
-- `members` - Room membership (users in rooms)
-- `movie_choices` - User swipe choices per room
-- `matches` - Match tracking with count per movie
-
-## Contributing
-
-We welcome contributions! To contribute:
-
-1. Fork the repository
-2. Create a feature branch:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-3. Make your changes and add tests
-4. Run tests to ensure they pass:
-   ```bash
-   flutter test
-   ```
-5. Commit your changes:
-   ```bash
-   git commit -m "Add your feature description"
-   ```
-6. Push and create a pull request:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-### Development Guidelines
-
-- Follow the existing code style (enforced by `flutter_lints`)
-- Add tests for new functionality
-- Update `CLAUDE.md` for significant architectural changes
-- Run code generation after modifying `@riverpod` providers
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For questions or feedback, please contact us at dxsolo@gmail.com.
+- [CLAUDE.md](CLAUDE.md): a working guide to the code
+- [packages/frontend/README.md](packages/frontend/README.md): how screens are built
+- [docs/](docs/): the specs, the design notes and the decisions awaiting review

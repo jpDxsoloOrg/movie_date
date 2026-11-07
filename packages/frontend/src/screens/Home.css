@@ -1,0 +1,142 @@
+.home {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--column-width);
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  padding: var(--space-2) calc(var(--safe-right) + var(--space-4)) var(--space-3) calc(var(--safe-left) + var(--space-4));
+}
+
+.home__stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home__mode {
+  flex: none;
+  align-self: center;
+}
+
+/* No height of its own, so a banner never moves the deck mid-swipe. The margin takes back the stage's gap. */
+.home__banner-slot {
+  position: relative;
+  z-index: var(--z-toast);
+  flex: none;
+  height: 0;
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+/*
+ * From the rail up the panels are flush, full-height slabs of the dark page, so what's
+ * left of the gradient reads as the lit screen in a dark room, with the deck on it.
+ */
+@media (min-width: 640px) {
+  .home {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(15rem, 34vw, 18rem);
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .home__stage {
+    /* A dragged card has to pass over the panels, whichever side it leaves by. */
+    position: relative;
+    z-index: 1;
+    /* The deck sizes itself to this box, so a poster keeps its shape at any window. */
+    container-type: size;
+    align-items: center;
+    justify-content: center;
+    /* The deck sizes to the content box, so this padding is what keeps it clear of the switch. */
+    --home-mode-space: calc(var(--touch-target) + var(--space-3));
+    padding: calc(var(--home-mode-space) + var(--space-2)) var(--space-4) calc(var(--safe-bottom) + var(--space-4));
+    background: radial-gradient(
+      ellipse at 50% 42%,
+      transparent 45%,
+      color-mix(in srgb, var(--color-page) 38%, transparent)
+    );
+  }
+
+  .home__mode {
+    position: absolute;
+    top: var(--space-2);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Under the switch and inside the stage, clear of the panels either side. */
+  .home__banner-slot {
+    position: absolute;
+    top: calc(var(--home-mode-space) + var(--space-2));
+    left: 50%;
+    width: min(26rem, 100% - 2 * var(--space-4));
+    margin: 0;
+    transform: translateX(-50%);
+  }
+
+  .home__side {
+    display: contents;
+  }
+}
+
+/* Three parts need room for a poster between them; until then the panels share a column. */
+@media (min-width: 1024px) and (max-width: 1199.98px) {
+  .home {
+    grid-template-columns: minmax(0, 1fr) clamp(19rem, 32vw, 22rem);
+  }
+
+  .home__side {
+    display: block;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+  }
+
+  .home__side .deck-panel,
+  .home__side .deck-room {
+    box-shadow: none;
+  }
+
+  .home__side .deck-panel__scroller,
+  .home__side .deck-room {
+    height: auto;
+    overflow: visible;
+  }
+
+  .home__side .deck-room {
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+@media (min-width: 1024px) {
+  .home__stage {
+    padding: calc(var(--home-mode-space) + var(--space-2)) var(--space-5) calc(var(--safe-bottom) + var(--space-5));
+  }
+}
+
+@media (min-width: 1200px) {
+  .home {
+    grid-template-columns: clamp(19rem, 26vw, 32rem) minmax(0, 1fr) clamp(16.5rem, 19vw, 23rem);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .home__side .deck-panel {
+    grid-area: 1 / 1;
+  }
+
+  .home__stage {
+    grid-area: 1 / 2;
+  }
+
+  .home__side .deck-room {
+    grid-area: 1 / 3;
+  }
+}
