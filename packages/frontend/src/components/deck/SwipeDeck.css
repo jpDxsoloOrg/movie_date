@@ -1,0 +1,72 @@
+.deck {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.deck__stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  /* A poster's 2:3 at the column's width; on a tall monitor it would only stretch. */
+  max-height: 44rem;
+}
+
+.deck__state {
+  position: absolute;
+  inset: 0 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.deck__controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+}
+
+.deck__controls .deck__control {
+  width: 4rem;
+  height: 4rem;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+  transition: transform var(--duration-fast) ease-out;
+}
+
+.deck__controls .deck__control:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+
+.deck__controls .deck__control:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.deck__controls .deck__control .md-icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.deck__controls .deck__control--undo {
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-accent-text);
+}
+
+.deck__controls .deck__control--undo .md-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.deck__control--pass {
+  color: var(--color-pass);
+}
+
+.deck__control--like {
+  color: var(--color-like);
+}

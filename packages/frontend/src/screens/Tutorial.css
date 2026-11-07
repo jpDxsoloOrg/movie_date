@@ -1,0 +1,179 @@
+.tutorial {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--gradient-page);
+}
+
+/* Nothing in the scene may form a stacking context, or the spotlit element
+   couldn't rise above the scrim. */
+.tutorial__scene {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.tutorial__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--app-bar-height) + var(--safe-top));
+  padding-top: var(--safe-top);
+  background: var(--color-app-bar);
+  color: var(--color-on-app-bar);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.tutorial__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: var(--column-width);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.tutorial__code {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-field);
+  color: var(--color-on-gradient);
+  font-size: var(--font-size-lg);
+}
+
+.tutorial__code.tutorial__spot {
+  background: var(--color-app-bar);
+}
+
+.tutorial__card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-app-bar);
+  color: var(--color-on-gradient);
+  box-shadow: var(--shadow-card);
+}
+
+.tutorial__logo {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: var(--space-5);
+  object-fit: contain;
+}
+
+.tutorial__card-text {
+  padding: var(--space-4);
+  background: var(--gradient-card-scrim);
+  font-size: var(--font-size-sm);
+}
+
+.tutorial__card-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.tutorial__card--swiping {
+  animation: tutorial-swipe 2.4s ease-in-out infinite;
+}
+
+.tutorial__nav {
+  flex: none;
+  display: flex;
+  height: calc(var(--bottom-nav-height) + var(--safe-bottom));
+  padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: var(--color-surface);
+}
+
+.tutorial__nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: var(--radius-field);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.tutorial__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--color-scrim);
+}
+
+.tutorial__spot {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 0 3px var(--color-accent);
+}
+
+/* The card is tall enough to sit under the panel, as it did in the old walkthrough. */
+.tutorial__panel {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + var(--space-4));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: calc(100% - 2 * var(--space-4));
+  max-width: 24rem;
+  max-height: calc(100% - var(--app-bar-height) - var(--bottom-nav-height) - var(--safe-top) - var(--safe-bottom));
+  overflow-y: auto;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-app-bar);
+  color: var(--color-on-app-bar);
+  transform: translateX(-50%);
+  outline: none;
+}
+
+.tutorial__progress {
+  color: var(--color-skeleton);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.tutorial__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.tutorial__actions .md-button {
+  padding-inline: var(--space-4);
+}
+
+.tutorial__panel .tutorial__skip {
+  margin-right: auto;
+  color: var(--color-on-app-bar);
+}
+
+@keyframes tutorial-swipe {
+  25% {
+    transform: translateX(-12%) rotate(-4deg);
+  }
+  75% {
+    transform: translateX(12%) rotate(4deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial__card--swiping {
+    animation: none;
+  }
+}

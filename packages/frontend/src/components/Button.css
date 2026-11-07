@@ -1,0 +1,92 @@
+.md-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-5);
+  border: 2px solid transparent;
+  border-radius: var(--radius-field);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter var(--duration-fast), background-color var(--duration-fast);
+}
+
+.md-button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.md-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.md-button--primary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.md-button--brand {
+  background: var(--color-brand-red);
+  color: #fff;
+}
+
+.md-button--secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.md-button--ghost {
+  background: transparent;
+  color: var(--color-accent-text);
+}
+
+.md-button--block {
+  display: flex;
+  width: 100%;
+}
+
+.md-button--loading .md-button__label {
+  visibility: hidden;
+}
+
+.md-button__spinner {
+  position: absolute;
+  width: 1.25em;
+  height: 1.25em;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: md-button-spin 0.7s linear infinite;
+}
+
+@keyframes md-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.md-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.md-icon-button:hover:not(:disabled) {
+  background: rgb(128 128 128 / 18%);
+}
+
+.md-icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

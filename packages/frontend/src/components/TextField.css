@@ -1,0 +1,56 @@
+.md-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.md-field__label {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.md-field__control {
+  position: relative;
+}
+
+.md-field__input {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-field);
+  background: var(--color-surface);
+  /* Below 16px, iOS zooms the page on focus. */
+  font-size: var(--font-size-md);
+}
+
+.md-field__input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.md-field__input--error {
+  border-color: var(--color-error);
+}
+
+.md-field__input[type="password"],
+.md-field__control:has(.md-field__toggle) .md-field__input {
+  padding-right: calc(var(--touch-target) + var(--space-1));
+}
+
+.md-field__toggle {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  color: var(--color-text-muted);
+}
+
+.md-field__note {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.md-field__note--error {
+  color: var(--color-error);
+}

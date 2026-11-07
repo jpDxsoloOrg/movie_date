@@ -1,0 +1,29 @@
+.actor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-1) 0;
+}
+
+.actor-row__image {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.actor-row__image--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.actor-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

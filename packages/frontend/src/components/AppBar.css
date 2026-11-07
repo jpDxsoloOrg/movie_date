@@ -1,0 +1,28 @@
+.md-app-bar {
+  position: relative;
+  z-index: var(--z-app-bar);
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: calc(var(--app-bar-height) + var(--safe-top));
+  padding: var(--safe-top) calc(var(--safe-right) + var(--space-1)) 0 calc(var(--safe-left) + var(--space-1));
+  background: var(--color-app-bar);
+  color: var(--color-on-app-bar);
+  box-shadow: var(--shadow-raised);
+}
+
+.md-app-bar__title {
+  flex: 1;
+  overflow: hidden;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+/* Matches the menu button, so the title stays truly centred. */
+.md-app-bar__balance {
+  flex: none;
+  width: var(--touch-target);
+}

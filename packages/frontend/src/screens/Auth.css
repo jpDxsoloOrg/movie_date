@@ -1,0 +1,63 @@
+.md-auth {
+  height: 100dvh;
+  overflow-y: auto;
+  background: var(--color-surface);
+}
+
+.md-auth__column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 100%;
+  width: 100%;
+  max-width: 24rem;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + var(--space-4)) var(--space-4) calc(var(--safe-bottom) + var(--space-4));
+}
+
+.md-auth__logo {
+  height: 100px;
+  width: auto;
+}
+
+.md-auth__wordmark {
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--color-brand-red);
+}
+
+.md-auth__wordmark-date {
+  color: var(--color-brand-green);
+}
+
+.md-auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.md-auth__form .md-field__label {
+  color: var(--color-brand-red);
+}
+
+.md-auth__form .md-field__input:focus {
+  border-color: var(--color-brand-red);
+}
+
+.md-auth__note {
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.md-auth__link {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--color-brand-red);
+  text-decoration: none;
+  font-weight: 600;
+}

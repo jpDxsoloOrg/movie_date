@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck packages
+        run: npm run typecheck
+      # sst install only unpacks the platform types locally, so this needs no AWS
+      # credentials; sst.config.ts can't be typechecked without them.
+      - name: Typecheck infrastructure
+        run: |
+          npx sst install --stage production
+          npx tsc -p packages/test/infra/tsconfig.json
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build

@@ -1,0 +1,97 @@
+.actor-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4) var(--space-4);
+}
+
+.actor-search__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.actor-search__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-lg);
+}
+
+.actor-search__form {
+  position: relative;
+}
+
+.actor-search__form .md-field__input {
+  padding-right: calc(var(--touch-target) + var(--space-1));
+}
+
+/* The browser's own clear button would sit under the search icon. */
+.actor-search__form .md-field__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.actor-search__submit {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  color: var(--color-text-muted);
+}
+
+.actor-search__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.actor-search__section .md-state {
+  min-height: 0;
+  padding: var(--space-4);
+}
+
+.actor-search__heading {
+  font-size: var(--font-size-md);
+}
+
+.actor-search__hint {
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.actor-search__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Its own scroll pane, as in the old app, so the selected list stays in view. */
+.actor-search__list--results {
+  max-height: 45dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.actor-search__list .md-button {
+  flex: none;
+  padding-right: var(--space-4);
+  padding-left: var(--space-4);
+}
+
+.actor-search__remove {
+  flex: none;
+  color: var(--color-error);
+}
+
+.actor-search__prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.actor-search__prompt-actions .md-button {
+  flex: 1 1 auto;
+  padding-right: var(--space-3);
+  padding-left: var(--space-3);
+}

@@ -1,0 +1,56 @@
+.match-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.match-details__poster {
+  width: 70%;
+  max-width: 16rem;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.match-details__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: center;
+}
+
+/* White text alone fails contrast on the amber end of the gradient. */
+.match-details--on-gradient .match-details__panel {
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-scrim);
+  color: var(--color-on-gradient);
+}
+
+.match-details__title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.match-details__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-5);
+}
+
+.match-details__meta:empty {
+  display: none;
+}
+
+.match-details__fact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.match-details__overview {
+  line-height: 1.5;
+}

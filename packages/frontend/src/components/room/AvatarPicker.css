@@ -1,0 +1,18 @@
+.room-avatar-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.room-avatar-picker__preview {
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.room-avatar-picker__preview:disabled {
+  cursor: progress;
+}

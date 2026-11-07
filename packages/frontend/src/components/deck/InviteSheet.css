@@ -1,0 +1,49 @@
+.deck-invite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.deck-invite__title {
+  font-size: var(--font-size-lg);
+}
+
+.deck-invite__hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.deck-invite__code {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+.deck-invite__qr {
+  width: 15rem;
+  height: 15rem;
+  max-width: 100%;
+}
+
+.deck-invite__link {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  user-select: all;
+}
+
+.deck-invite__actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.deck-invite__actions .md-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

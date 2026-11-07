@@ -1,0 +1,174 @@
+/*
+ * Design tokens and the base layer. Imported first in main.tsx: Vite emits CSS in
+ * module-graph order, and this must come before component CSS so components can
+ * override it.
+ */
+:root {
+  /* Identity */
+  --color-gradient-start: #ff5f6d;
+  --color-gradient-end: #ffc371;
+  --gradient-page: linear-gradient(to bottom, var(--color-gradient-start), var(--color-gradient-end));
+
+  --color-accent: #ff9800;
+  --color-on-accent: #1a1a1a; /* White on this orange fails contrast. */
+  --color-accent-text: #b85c00; /* Orange dark enough for text on white. */
+  --color-brand-red: #d32f2f;
+  --color-brand-green: #2e7d32;
+
+  /* Swipe overlays */
+  --color-like: #2e7d32;
+  --color-pass: #d32f2f;
+
+  /* Surfaces */
+  --color-app-bar: #000000;
+  --color-on-app-bar: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f4f5;
+  --color-page: #fafafa;
+  --color-border: #d4d4d8;
+  --color-scrim: rgb(0 0 0 / 55%);
+  --gradient-card-scrim: linear-gradient(to top, rgb(0 0 0 / 70%), transparent);
+
+  /* Text */
+  --color-text: #18181b;
+  --color-text-muted: #52525b;
+  --color-on-gradient: #ffffff;
+  --color-error: #c62828;
+
+  /* Toasts */
+  --color-toast: #27272a;
+  --color-toast-success: #1b5e20;
+  --color-toast-error: #b71c1c;
+
+  /* Skeletons */
+  --color-skeleton: #e4e4e7;
+  --color-skeleton-shine: #f4f4f5;
+
+  /* Type */
+  --font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+
+  /* Spacing, on a 4px grid */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Shape */
+  --radius-field: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 20px;
+  --radius-pill: 9999px;
+  --shadow-card: 0 8px 24px rgb(0 0 0 / 25%);
+  --shadow-raised: 0 4px 12px rgb(0 0 0 / 30%);
+
+  /* Layout */
+  --touch-target: 44px;
+  --column-width: 30rem; /* The phone-width column on wide screens. */
+  --app-bar-height: 56px;
+  --bottom-nav-height: 64px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-normal: 220ms;
+
+  /* Stacking */
+  --z-app-bar: 10;
+  --z-overlay: 100;
+  --z-toast: 200;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  /* The page never scrolls; .md-page__content does. Stops pull-to-refresh
+     and rubber-banding fighting the deck. */
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--color-accent-text);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,235 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+# Default auth is the Cognito user pool. IAM is only for the backend publishing
+# room events, so everything a RoomEvent carries is marked for both.
+
+enum SwipeDirection {
+  LIKE
+  PASS
+}
+
+enum RoomEventType {
+  "A swipe completed a match. movieId and matchId are set."
+  MATCH_FOUND
+  "Filters or match threshold changed. Clients reload the deck/room."
+  ROOM_UPDATED
+  "Someone joined or left. Clients reload the member list."
+  MEMBERS_CHANGED
+  "Back to Start was pressed. round is the new round; clients restart the deck."
+  ROUND_RESET
+}
+
+type Profile {
+  id: ID!
+  email: String!
+  displayName: String!
+  avatarUrl: String
+}
+
+"What other room members may see. Never includes an email."
+type Member {
+  userId: ID!
+  displayName: String!
+  avatarUrl: String
+  isMe: Boolean!
+}
+
+type Person {
+  id: Int!
+  name: String!
+  profileUrl: String
+  knownForDepartment: String
+}
+
+type Genre {
+  id: Int!
+  name: String!
+}
+
+type Filters {
+  genreIds: [Int!]!
+  cast: [Person!]!
+  "Keys from the provider catalogue, e.g. netflix. Empty means any service."
+  services: [String!]!
+  "YYYY-MM-DD"
+  releaseDateGte: String
+  "YYYY-MM-DD"
+  releaseDateLte: String
+}
+
+input PersonInput {
+  id: Int!
+  name: String!
+  profileUrl: String
+  knownForDepartment: String
+}
+
+input FiltersInput {
+  genreIds: [Int!]!
+  cast: [PersonInput!]!
+  services: [String!]!
+  releaseDateGte: String
+  releaseDateLte: String
+}
+
+type Room {
+  id: ID!
+  code: String!
+  filters: Filters!
+  matchThreshold: Int!
+  requireMajority: Boolean!
+  "Increments on Back to Start. Swipes and tallies belong to one round."
+  round: Int!
+  members: [Member!]!
+}
+
+type Movie {
+  id: Int!
+  title: String!
+  overview: String!
+  releaseYear: Int
+  runtime: Int
+  voteAverage: Float
+  posterUrl: String
+  backdropUrl: String
+  genres: [String!]!
+}
+
+type DeckCard {
+  movie: Movie!
+  "True if another room member already liked it this round; these sort first."
+  likedByRoommate: Boolean!
+}
+
+type DeckPage {
+  cards: [DeckCard!]!
+  "Pass to deck() for more. Null when TMDB has nothing further."
+  nextPage: Int
+}
+
+type SwipeResult {
+  movieId: Int!
+  direction: SwipeDirection!
+  "Set when this swipe completed a match, so the swiper doesn't wait on the subscription."
+  match: Match
+}
+
+type UndoResult {
+  movieId: Int!
+  "False when there was nothing to undo or the movie already matched."
+  undone: Boolean!
+}
+
+type WatchOption {
+  serviceId: String!
+  serviceName: String!
+  "subscription, free, rent, buy or addon"
+  type: String!
+  "Deep link to the title when the provider gives one."
+  link: String
+  "Provider logo URL for services outside the bundled icon set."
+  logoUrl: String
+}
+
+type Match {
+  id: ID!
+  roomId: ID!
+  round: Int!
+  matchedAt: AWSDateTime!
+  movie: Movie!
+}
+
+type HistoryEntry {
+  movie: Movie!
+  direction: SwipeDirection!
+  round: Int!
+  swipedAt: AWSDateTime!
+}
+
+type HistoryPage {
+  entries: [HistoryEntry!]!
+  nextToken: String
+}
+
+type MatchPage {
+  matches: [Match!]!
+  nextToken: String
+}
+
+type AvatarUpload {
+  "POST target for the browser's multipart upload."
+  url: String!
+  "JSON object of form fields to send before the file."
+  fields: AWSJSON!
+  "Pass to updateProfile once the upload succeeds."
+  key: String!
+}
+
+type RoomEvent @aws_cognito_user_pools @aws_iam {
+  roomId: ID!
+  type: RoomEventType!
+  movieId: Int
+  matchId: ID
+  round: Int
+  "Who caused it, so a client can ignore its own echo."
+  actorId: ID
+}
+
+input RoomEventInput {
+  roomId: ID!
+  type: RoomEventType!
+  movieId: Int
+  matchId: ID
+  round: Int
+  actorId: ID
+}
+
+type Query {
+  "Creates the profile and a first room on first call, so sign-up needs no extra step."
+  me: Profile!
+  "The caller's current room."
+  myRoom: Room!
+  "Unswiped movies for the caller. page starts at 1."
+  deck(page: Int!): DeckPage!
+  movie(id: Int!): Movie!
+  "YouTube id of the best trailer, or null."
+  trailer(movieId: Int!): String
+  watchOptions(movieId: Int!): [WatchOption!]!
+  genres: [Genre!]!
+  searchPeople(query: String!): [Person!]!
+  "Matches in the caller's room, newest first, across all rounds."
+  matches(limit: Int, nextToken: String): MatchPage!
+  "The caller's own swipes in the current room, newest first."
+  swipeHistory(limit: Int, nextToken: String): HistoryPage!
+  "A match the current round already has, for clients that were offline when it happened."
+  pendingMatch: Match
+}
+
+type Mutation {
+  swipe(movieId: Int!, direction: SwipeDirection!): SwipeResult!
+  undoSwipe(movieId: Int!): UndoResult!
+  updateFilters(filters: FiltersInput!): Room!
+  updateRoomSettings(matchThreshold: Int!, requireMajority: Boolean!): Room!
+  "Case-insensitive. Leaves the caller's current room first."
+  joinRoom(code: String!): Room!
+  "Leaves the current room and puts the caller in a new one of their own."
+  leaveRoom: Room!
+  "Back to Start. expectedRound makes a double press from two members a no-op."
+  startNewRound(expectedRound: Int!): Room!
+  updateProfile(displayName: String, avatarKey: String): Profile!
+  createAvatarUpload(contentType: String!): AvatarUpload!
+
+  "Backend only. Pass-through that fans out to onRoomEvent subscribers."
+  publishRoomEvent(input: RoomEventInput!): RoomEvent! @aws_iam
+}
+
+type Subscription {
+  "A resolver rejects the subscription unless the caller is a member of roomId."
+  onRoomEvent(roomId: ID!): RoomEvent
+    @aws_subscribe(mutations: ["publishRoomEvent"])
+    @aws_cognito_user_pools
+}

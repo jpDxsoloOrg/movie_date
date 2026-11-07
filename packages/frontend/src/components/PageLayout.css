@@ -1,0 +1,41 @@
+.md-page {
+  display: flex;
+  flex-direction: column;
+  /* dvh tracks the mobile browser's collapsing chrome, so it can't clip the deck. */
+  height: 100dvh;
+  background: var(--color-page);
+}
+
+.md-page--gradient {
+  background: var(--gradient-page);
+}
+
+.md-page__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.md-page__column {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--column-width);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--safe-right) 0 var(--safe-left);
+}
+
+.md-page__column > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.md-page__content--fill {
+  overflow: hidden;
+}
+
+.md-page__content--fill .md-page__column {
+  height: 100%;
+}

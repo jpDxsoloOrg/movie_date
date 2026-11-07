@@ -1,0 +1,84 @@
+.where-to-watch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.where-to-watch__title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+}
+
+.where-to-watch__list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.where-to-watch__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: 4.5rem;
+  border-radius: var(--radius-field);
+  color: inherit;
+  text-decoration: none;
+}
+
+.where-to-watch__tile--link {
+  transition: transform var(--duration-fast);
+}
+
+.where-to-watch__tile--link:hover {
+  transform: translateY(-2px);
+}
+
+/* The skeleton variant needs the size too, hence the specificity over md-skeleton--rect. */
+.where-to-watch .where-to-watch__logo {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-field);
+  object-fit: contain;
+}
+
+.where-to-watch .where-to-watch__logo--text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Service names run long, so this tile grows rather than clipping them. */
+  width: 100%;
+  height: auto;
+  min-height: 60px;
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.where-to-watch__type {
+  font-size: var(--font-size-xs);
+}
+
+.where-to-watch__attribution {
+  font-size: var(--font-size-xs);
+}
+
+/* Dark and red wordmarks disappear on the dark panel. */
+.where-to-watch--on-gradient img.where-to-watch__logo {
+  padding: var(--space-1);
+  background: var(--color-surface);
+}
+
+.where-to-watch--on-gradient,
+.where-to-watch--on-gradient .where-to-watch__attribution a {
+  color: var(--color-on-gradient);
+}

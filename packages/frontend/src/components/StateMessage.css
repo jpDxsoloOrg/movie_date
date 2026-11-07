@@ -1,0 +1,23 @@
+.md-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 100%;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+.md-state__title {
+  font-size: var(--font-size-lg);
+}
+
+.md-state__message {
+  color: var(--color-text-muted);
+}
+
+.md-state--on-gradient,
+.md-state--on-gradient .md-state__message {
+  color: var(--color-on-gradient);
+}

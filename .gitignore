@@ -48,3 +48,12 @@ ios/Runner.ipa
 # FVM Version Cache
 .fvm/
 ios/fastlane/report.xml
+
+# Web rewrite (npm workspaces, SST, Vite)
+node_modules/
+.sst/
+dist/
+dev-dist/
+coverage/
+.env.*
+sst-env.d.ts
