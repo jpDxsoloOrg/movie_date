@@ -87,6 +87,7 @@ interface SiteArgs {
   path: string;
   errorPage?: string;
   domain?: { name: string; dns: false; cert: string };
+  edge?: { viewerRequest?: { injection: string } };
   environment: Record<string, string>;
   transform: { cdn: (args: { defaultCacheBehavior: Record<string, unknown> }) => void };
 }
@@ -556,6 +557,53 @@ describe("sst.config.ts", () => {
 
     it("clears uploads that never became avatars, and nothing else", () => {
       expect(production.bucketLifecycle).toMatchObject([{ prefix: "pending/", expiresIn: "1 day" }]);
+    });
+  });
+
+  describe("old cloudfront.net address", () => {
+    interface EdgeResponse {
+      statusCode: number;
+      headers: Record<string, { value: string }>;
+      body?: { data: string };
+    }
+    type Query = Record<string, { value: string; multiValue?: { value: string }[] }>;
+
+    function viewerRequest(host: string, uri: string, querystring: Query = {}): EdgeResponse | undefined {
+      const injection = production.site?.edge?.viewerRequest?.injection ?? "";
+      const handler = new Function("event", injection) as (event: unknown) => EdgeResponse | undefined;
+      return handler({ request: { uri, querystring, headers: { host: { value: host } } } });
+    }
+
+    it("redirects to the custom domain, keeping the path and query", () => {
+      const response = viewerRequest("d19oka7lgeykfv.cloudfront.net", "/join/ABC234", {
+        ref: { value: "share" },
+        tag: { value: "a", multiValue: [{ value: "a" }, { value: "b" }] },
+      });
+      expect(response?.statusCode).toBe(301);
+      expect(response?.headers.location.value).toBe(
+        "https://moviedate.jpdxsolo.com/join/ABC234?ref=share&tag=a&tag=b",
+      );
+    });
+
+    it("redirects a bare path without a stray question mark", () => {
+      expect(viewerRequest("d19oka7lgeykfv.cloudfront.net", "/")?.headers.location.value).toBe(
+        "https://moviedate.jpdxsolo.com/",
+      );
+    });
+
+    it("serves a worker that retires installed copies instead of redirecting sw.js", () => {
+      const response = viewerRequest("d19oka7lgeykfv.cloudfront.net", "/sw.js");
+      expect(response?.statusCode).toBe(200);
+      expect(response?.headers["content-type"].value).toBe("text/javascript");
+      const script = response?.body?.data ?? "";
+      expect(script).toContain("registration.unregister()");
+      expect(script).toContain("caches.delete");
+      expect(() => new Function(script)).not.toThrow();
+    });
+
+    it("leaves the custom domain alone", () => {
+      expect(viewerRequest("moviedate.jpdxsolo.com", "/sw.js")).toBeUndefined();
+      expect(viewerRequest("moviedate.jpdxsolo.com", "/")).toBeUndefined();
     });
   });
 

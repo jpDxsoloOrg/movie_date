@@ -26,6 +26,40 @@ const PLEX_INTEGRATION_FUNCTION = "plex-request-api-devtest-integration";
 const MAIL_DOMAIN = "jpdxsolo.com";
 const SITE_DOMAIN = `moviedate.${MAIL_DOMAIN}`;
 const MAIL_FROM = `noreply@${MAIL_DOMAIN}`;
+
+// Served as /sw.js on the old cloudfront.net address. An installed copy of the app
+// loads pages from its own cache and never sees a redirect, but it does fetch
+// /sw.js to check for updates, and a redirected worker script fails that check.
+// This worker takes over, clears the cache, and reloads each window so the
+// redirect below reaches it.
+const RETIRE_SERVICE_WORKER = `self.addEventListener("install",()=>self.skipWaiting());self.addEventListener("activate",e=>e.waitUntil((async()=>{await self.registration.unregister();for(const k of await caches.keys())await caches.delete(k);for(const c of await self.clients.matchAll({type:"window"}))c.navigate(c.url)})()));`;
+
+// Runs before SST's own check, which would answer the cloudfront.net address with
+// a 403. Sends it to the custom domain instead, keeping the path and query.
+const LEGACY_HOST_REDIRECT = `
+if (event.request.headers.host.value.includes("cloudfront.net")) {
+  var legacy = event.request;
+  if (legacy.uri === "/sw.js") {
+    return {
+      statusCode: 200,
+      statusDescription: "OK",
+      headers: { "content-type": { value: "text/javascript" }, "cache-control": { value: "no-cache" } },
+      body: { encoding: "text", data: ${JSON.stringify(RETIRE_SERVICE_WORKER)} },
+    };
+  }
+  var query = [];
+  for (var key in legacy.querystring) {
+    var entry = legacy.querystring[key];
+    (entry.multiValue || [entry]).forEach(function (item) {
+      query.push(item.value ? key + "=" + item.value : key);
+    });
+  }
+  return {
+    statusCode: 301,
+    statusDescription: "Moved Permanently",
+    headers: { location: { value: "https://${SITE_DOMAIN}" + legacy.uri + (query.length ? "?" + query.join("&") : "") } },
+  };
+}`;
 /** Partition key of the job's lease, the only row it may touch. */
 const PLEX_INDEX_PK = "PLEX#INDEX";
 
@@ -434,6 +468,7 @@ export default $config({
         dns: false,
         cert: aws.acm.getCertificateOutput({ domain: "*.jpdxsolo.com", statuses: ["ISSUED"], mostRecent: true }).arn,
       },
+      edge: { viewerRequest: { injection: LEGACY_HOST_REDIRECT } },
       build: { command: "npm run build", output: "dist" },
       assets: {
         // Later entries win. SST's default marks everything but HTML immutable for
