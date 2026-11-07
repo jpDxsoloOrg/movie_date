@@ -225,6 +225,9 @@ type Mutation {
 
   "Backend only. Pass-through that fans out to onRoomEvent subscribers."
   publishRoomEvent(input: RoomEventInput!): RoomEvent! @aws_iam
+
+  "Backend only. Closes a departed member's open onRoomEvent subscriptions to that room."
+  revokeRoomSubscriptions(roomId: ID!, userId: ID!): Boolean @aws_iam
 }
 
 type Subscription {

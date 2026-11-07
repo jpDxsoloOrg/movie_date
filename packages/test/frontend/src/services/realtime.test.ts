@@ -203,6 +203,23 @@ describe("reconnect", () => {
   });
 });
 
+describe("revoked by the backend", () => {
+  it("resyncs and redials, so another device finds the room its user moved to", async () => {
+    const onResync = vi.fn();
+    stop = subscribeToRoom({ roomId: "r", onEvent: vi.fn(), onResync });
+    await flush();
+    latestSocket().handshake();
+    onResync.mockClear();
+    const revoked = latestSocket();
+
+    revoked.receive({ type: "complete", id: "x" });
+
+    expect(onResync).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(latestSocket()).not.toBe(revoked);
+  });
+});
+
 describe("tab focus", () => {
   it("resyncs on focus, once for the focus and visibility pair", async () => {
     const onResync = vi.fn();

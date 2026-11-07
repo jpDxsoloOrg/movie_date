@@ -116,6 +116,8 @@ export type Mutation = {
   leaveRoom: Room;
   /** Backend only. Pass-through that fans out to onRoomEvent subscribers. */
   publishRoomEvent: RoomEvent;
+  /** Backend only. Closes a departed member's open onRoomEvent subscriptions to that room. */
+  revokeRoomSubscriptions?: Maybe<Scalars['Boolean']['output']>;
   /** Back to Start. expectedRound makes a double press from two members a no-op. */
   startNewRound: Room;
   swipe: SwipeResult;
@@ -138,6 +140,12 @@ export type MutationJoinRoomArgs = {
 
 export type MutationPublishRoomEventArgs = {
   input: RoomEventInput;
+};
+
+
+export type MutationRevokeRoomSubscriptionsArgs = {
+  roomId: Scalars['ID']['input'];
+  userId: Scalars['ID']['input'];
 };
 
 

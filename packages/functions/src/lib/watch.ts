@@ -1,5 +1,8 @@
 import { findProvider, PROVIDERS, type WatchOption, type WatchOptionType } from "@movie-date/core";
 import { cached, DAY_SECONDS } from "./cache.js";
+import { NotFoundError, ValidationError } from "./errors.js";
+import { globalLimit, userLimit } from "./keys.js";
+import { consume, dayWindow } from "./limits.js";
 import { getRapidApiKey } from "./secrets.js";
 import {
   asRecord,
@@ -12,6 +15,15 @@ import {
 } from "./tmdb.js";
 
 const RAPIDAPI_HOST = "streaming-availability.p.rapidapi.com";
+
+/**
+ * Every uncached movie is a billable lookup, and sign-up is open. Past either limit
+ * callers still get an answer, from TMDB, which has no deep links but costs nothing.
+ * A couple choosing a film reads a handful of these a night.
+ */
+const RAPIDAPI_USER_DAILY_LIMIT = 50;
+const RAPIDAPI_GLOBAL_DAILY_LIMIT = 500;
+const RAPIDAPI_LIMIT_NAME = "rapidapi";
 
 /** Cheapest way to watch first, since each service only gets one entry. */
 const TYPE_PREFERENCE: readonly WatchOptionType[] = ["free", "subscription", "addon", "rent", "buy"];
@@ -100,14 +112,37 @@ async function fromTmdb(movieId: number): Promise<WatchOption[]> {
   return onePerService(options);
 }
 
-export function getWatchOptions(movieId: number): Promise<WatchOption[]> {
-  return cached("watch", String(movieId), DAY_SECONDS, async () => {
-    const apiKey = await getRapidApiKey();
-    if (!apiKey) return fromTmdb(movieId);
+/** The user's limit goes first, so someone already over it can't drain the shared one. */
+async function mayCallRapidApi(userId: string): Promise<boolean> {
+  const window = dayWindow();
+  return (
+    (await consume(userLimit(userId, RAPIDAPI_LIMIT_NAME, window), RAPIDAPI_USER_DAILY_LIMIT)) &&
+    (await consume(globalLimit(RAPIDAPI_LIMIT_NAME, window), RAPIDAPI_GLOBAL_DAILY_LIMIT))
+  );
+}
+
+async function loadWatchOptions(movieId: number, userId: string): Promise<WatchOption[]> {
+  const apiKey = await getRapidApiKey();
+  if (!apiKey || !(await mayCallRapidApi(userId))) return fromTmdb(movieId);
+  try {
+    return await fromRapidApi(movieId, apiKey);
+  } catch {
+    return fromTmdb(movieId);
+  }
+}
+
+export async function getWatchOptions(movieId: number, userId: string): Promise<WatchOption[]> {
+  // Here too, not just in TMDB's path helper: that runs after RapidAPI has been paid for.
+  if (!Number.isInteger(movieId) || movieId < 1) throw new ValidationError("Invalid movie id.");
+  // Null marks a movie neither service knows, so a repeat of a bad id costs nothing.
+  const options = await cached<WatchOption[] | null>("watch", String(movieId), DAY_SECONDS, async () => {
     try {
-      return await fromRapidApi(movieId, apiKey);
-    } catch {
-      return fromTmdb(movieId);
+      return await loadWatchOptions(movieId, userId);
+    } catch (error) {
+      if (error instanceof NotFoundError) return null;
+      throw error;
     }
   });
+  if (options === null) throw new NotFoundError();
+  return options;
 }

@@ -15,6 +15,7 @@ vi.mock("@movie-date/frontend/services/api", () => ({
 }));
 vi.mock("@movie-date/frontend/services/realtime", () => ({ subscribeToRoom: mocks.subscribeToRoom }));
 
+import { peekFilterDraft, stashFilterDraft } from "@movie-date/frontend/components/filters/filterDraft";
 import { RoomProvider, type RoomContextValue } from "@movie-date/frontend/context/RoomProvider";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
 import { useRoom, useRoomEvents } from "@movie-date/frontend/hooks/useRoom";
@@ -386,5 +387,45 @@ describe("mutations", () => {
     await screen.findByTestId("room");
     act(() => context.setMe({ ...context.me, displayName: "New" }));
     expect(context.me.displayName).toBe("New");
+  });
+});
+
+describe("filter draft lifetime", () => {
+  const draft = { genreIds: [18], cast: [], services: [] };
+
+  function Goto({ to }: { to: string }): JSX.Element {
+    const navigate = useNavigate();
+    return <button onClick={() => navigate(to)}>go</button>;
+  }
+
+  async function renderAt(path: string, to: string) {
+    mocks.me.mockResolvedValue({ id: "me", email: "a@b.c", displayName: "Me", avatarUrl: null });
+    mocks.myRoom.mockResolvedValue(makeRoom());
+    mocks.pendingMatch.mockResolvedValue(null);
+    mocks.subscribeToRoom.mockReturnValue(mocks.unsubscribe);
+    render(
+      <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: false, v7_relativeSplatPath: true }}>
+        <ToastProvider>
+          <RoomProvider>
+            <Goto to={to} />
+          </RoomProvider>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    return screen.findByRole("button", { name: "go" });
+  }
+
+  it("survives the trip between Filters and ActorSearch", async () => {
+    const go = await renderAt("/filters/actors", "/filters");
+    stashFilterDraft("room-1", draft);
+    act(() => go.click());
+    expect(peekFilterDraft("room-1")).toEqual(draft);
+  });
+
+  it("is dropped when something takes the person anywhere else", async () => {
+    const go = await renderAt("/filters/actors", "/match/m1");
+    stashFilterDraft("room-1", draft);
+    act(() => go.click());
+    expect(peekFilterDraft("room-1")).toBeNull();
   });
 });

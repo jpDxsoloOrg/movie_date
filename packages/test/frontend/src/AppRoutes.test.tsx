@@ -123,6 +123,13 @@ describe("routes", () => {
     await screen.findByText("screen:match");
     expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
   });
+
+  it("gives actor search no nav or menu to slip past its unsaved prompt", async () => {
+    renderAt("/filters/actors");
+    await screen.findByText("screen:actors");
+    expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open menu" })).not.toBeInTheDocument();
+  });
 });
 
 describe("auth guard", () => {

@@ -39,3 +39,8 @@
 .md-page__content--fill .md-page__column {
   height: 100%;
 }
+
+/* The bars normally absorb the insets; with none, the content must. */
+.md-page__content--bare {
+  padding: var(--safe-top) 0 var(--safe-bottom);
+}

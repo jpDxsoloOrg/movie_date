@@ -27,7 +27,7 @@ export default function ActorSearch(): JSX.Element {
   const location = useLocation();
   const guarded = (location.state as ActorRouteState | null)?.unsavedGuard === true;
 
-  // Pinned so that joining another room from the nav can't file this draft under it.
+  // Pinned so that a room change while this is open can't file the draft under it.
   const [roomId] = useState(room.id);
   const [baseDraft] = useState(() => peekFilterDraft(room.id) ?? room.filters);
   const [selected, setSelected] = useState<Person[]>(baseDraft.cast);

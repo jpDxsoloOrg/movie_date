@@ -25,10 +25,21 @@
 
 .filters__date-fields {
   display: grid;
-  /* Stacks on the narrowest phones rather than clipping the native date text. */
-  grid-template-columns: repeat(auto-fit, minmax(9.25rem, 1fr));
+  /* One per row on phones: iOS Safari sizes date inputs from their own content,
+     so side by side they spill out of their columns and overlap. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
+}
+
+@media (min-width: 480px) {
+  .filters__date-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.filters__date-fields .md-field {
+  min-width: 0;
 }
 
 .filters__date-fields .md-field__label {
@@ -36,7 +47,17 @@
 }
 
 .filters__date-fields .md-field__input {
+  display: block;
+  box-sizing: border-box;
   min-width: 0;
+  max-width: 100%;
+  /* Without this iOS keeps its native control width and ignores the column. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.filters__date-fields .md-field__input::-webkit-date-and-time-value {
+  text-align: left;
 }
 
 .filters__actions {

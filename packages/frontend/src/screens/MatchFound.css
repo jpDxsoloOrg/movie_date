@@ -14,6 +14,9 @@
 }
 
 .match-found__header {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-scrim);
   color: var(--color-on-gradient);
   text-align: center;
 }

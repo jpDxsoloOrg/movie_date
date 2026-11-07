@@ -125,7 +125,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-4);
+  padding: var(--space-6) var(--space-4) var(--space-4);
+  /* Follows the text at any card height, solid under every line and fading only
+     through the top padding; the poster-wide scrim alone leaves it on bright art. */
+  background: var(--gradient-card-text);
   pointer-events: none;
 }
 
@@ -137,7 +140,6 @@
 
 .deck-card__meta {
   font-size: var(--font-size-sm);
-  opacity: 0.85;
 }
 
 .deck-card__overview {
@@ -183,6 +185,18 @@
 @media (max-height: 520px) {
   .deck-card__overview {
     display: none;
+  }
+
+  .deck-card__text {
+    padding-top: var(--space-5);
+  }
+
+  .deck-card__title {
+    overflow: hidden;
+    padding-right: var(--touch-target);
+    font-size: var(--font-size-lg);
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 }
 

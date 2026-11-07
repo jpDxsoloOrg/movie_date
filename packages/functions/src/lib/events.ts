@@ -16,6 +16,10 @@ export const PUBLISH_MUTATION = `mutation PublishRoomEvent($input: RoomEventInpu
   }
 }`;
 
+export const REVOKE_MUTATION = `mutation RevokeRoomSubscriptions($roomId: ID!, $userId: ID!) {
+  revokeRoomSubscriptions(roomId: $roomId, userId: $userId)
+}`;
+
 /** Runs inside a user's swipe, so a stalled AppSync must not stall them with it. */
 const PUBLISH_TIMEOUT_MS = 3000;
 
@@ -33,8 +37,8 @@ function getSigner(): SignatureV4 {
   return signer;
 }
 
-async function send(endpoint: URL, input: RoomEventInput): Promise<void> {
-  const body = JSON.stringify({ query: PUBLISH_MUTATION, variables: { input } });
+async function send(endpoint: URL, query: string, variables: Record<string, unknown>): Promise<void> {
+  const body = JSON.stringify({ query, variables });
   const signed = await getSigner().sign(
     new HttpRequest({
       method: "POST",
@@ -66,8 +70,23 @@ export async function publishRoomEvent(input: RoomEventInput): Promise<void> {
   try {
     const url = process.env.GRAPHQL_URL;
     if (!url) throw new Error("GRAPHQL_URL is not set");
-    await send(new URL(url), input);
+    await send(new URL(url), PUBLISH_MUTATION, { input });
   } catch (error) {
     console.error(`Publishing ${input.type} failed`, error);
+  }
+}
+
+/**
+ * Membership is only checked when a subscription starts, so this is what stops one
+ * outliving the membership. Best effort for the same reason as publishing: the move
+ * has committed, and the worst a failure leaves is events without any room data.
+ */
+export async function revokeRoomSubscriptions(roomId: string, userId: string): Promise<void> {
+  try {
+    const url = process.env.GRAPHQL_URL;
+    if (!url) throw new Error("GRAPHQL_URL is not set");
+    await send(new URL(url), REVOKE_MUTATION, { roomId, userId });
+  } catch (error) {
+    console.error("Revoking room subscriptions failed", error);
   }
 }

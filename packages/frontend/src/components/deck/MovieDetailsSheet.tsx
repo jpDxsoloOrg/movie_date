@@ -26,9 +26,9 @@ function Trailer({ movie }: { movie: Movie }): JSX.Element {
   return (
     <iframe
       className="deck-details__video"
-      src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailerId)}`}
+      src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailerId)}?autoplay=1`}
       title={`${movie.title} trailer`}
-      allow="encrypted-media; picture-in-picture; fullscreen"
+      allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
       allowFullScreen
       referrerPolicy="strict-origin-when-cross-origin"
     />

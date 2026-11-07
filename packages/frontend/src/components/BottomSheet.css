@@ -19,7 +19,12 @@
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
   outline: none;
+  transition: transform var(--duration-fast) ease-out;
   animation: md-sheet-rise var(--duration-normal) ease-out;
+}
+
+.md-sheet__panel--dragging {
+  transition: none;
 }
 
 .md-sheet__header {
@@ -29,6 +34,9 @@
   justify-content: center;
   align-items: center;
   height: var(--touch-target);
+  cursor: grab;
+  /* The drag owns this strip; the browser mustn't scroll or refresh with it. */
+  touch-action: none;
 }
 
 .md-sheet__handle {

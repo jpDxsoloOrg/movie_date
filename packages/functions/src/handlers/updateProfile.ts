@@ -1,4 +1,5 @@
 import type { FieldArguments, Profile } from "@movie-date/core";
+import { deleteAvatar, PENDING_PREFIX, promoteAvatar } from "../lib/avatars.js";
 import { updateItem } from "../lib/db.js";
 import { ForbiddenError, ValidationError } from "../lib/errors.js";
 import type { ResolverContext } from "../lib/identity.js";
@@ -18,12 +19,13 @@ function checkedDisplayName(displayName: string): string {
 }
 
 /** The whole shape is checked, so `..` can't climb out of the caller's prefix. */
-function checkedAvatarKey(avatarKey: string, userId: string): string {
-  const prefix = `avatars/${userId}/`;
-  if (!avatarKey.startsWith(prefix) || !AVATAR_KEY_PATTERN.test(avatarKey.slice(prefix.length))) {
+function uploadFileName(avatarKey: string, userId: string): string {
+  const prefix = `${PENDING_PREFIX}/${userId}/`;
+  const fileName = avatarKey.slice(prefix.length);
+  if (!avatarKey.startsWith(prefix) || !AVATAR_KEY_PATTERN.test(fileName)) {
     throw new ForbiddenError("That image doesn't belong to you.");
   }
-  return avatarKey;
+  return fileName;
 }
 
 export async function updateProfile(
@@ -39,12 +41,13 @@ export async function updateProfile(
     assignments.push("displayName = :displayName");
     values[":displayName"] = checkedDisplayName(args.displayName);
   }
-  if (args.avatarKey != null) {
-    assignments.push("avatarKey = :avatarKey");
-    values[":avatarKey"] = checkedAvatarKey(args.avatarKey, userId);
-  }
+  const fileName = args.avatarKey != null ? uploadFileName(args.avatarKey, userId) : undefined;
 
   const profile = await getOrCreateProfile(context);
+  if (args.avatarKey != null && fileName !== undefined) {
+    assignments.push("avatarKey = :avatarKey");
+    values[":avatarKey"] = await promoteAvatar(args.avatarKey, userId, fileName);
+  }
   if (assignments.length === 0) return toProfile(profile, userId);
 
   const updated = await updateItem<ProfileItem>(keys.profile(userId), {
@@ -52,5 +55,12 @@ export async function updateProfile(
     values,
     conditionExpression: "attribute_exists(pk)",
   });
+  // Only now: a client retrying a failed save still needs the upload in place.
+  if (args.avatarKey != null) {
+    await deleteAvatar(args.avatarKey);
+    if (profile.avatarKey && profile.avatarKey !== values[":avatarKey"]) {
+      await deleteAvatar(profile.avatarKey);
+    }
+  }
   return toProfile(updated ?? profile, userId);
 }

@@ -1,10 +1,10 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const auth = vi.hoisted(() => ({ signOut: vi.fn() }));
+const auth = vi.hoisted(() => ({ signOut: vi.fn(), revokeSessions: vi.fn(async () => undefined) }));
 vi.mock("@movie-date/frontend/services/auth", () => auth);
 vi.mock("@movie-date/frontend/components/JoinRoomDialog", () => ({
   default: ({ open }: { open: boolean }) => (open ? <p>join-dialog</p> : null),
@@ -20,6 +20,7 @@ import { PageLayout } from "@movie-date/frontend/components/PageLayout";
 import { EmptyState, ErrorState } from "@movie-date/frontend/components/StateMessage";
 import { TextField } from "@movie-date/frontend/components/TextField";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
+import { useFocusTrap } from "@movie-date/frontend/hooks/useFocusTrap";
 import { useToast } from "@movie-date/frontend/hooks/useToast";
 
 function Path(): JSX.Element {
@@ -90,8 +91,19 @@ describe("Drawer", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Log Out" }));
 
-    expect(auth.signOut).toHaveBeenCalledOnce();
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledOnce());
     expect(screen.getByTestId("path")).toHaveTextContent("/login");
+  });
+
+  it("revokes the session first, while the tokens that need are still there", async () => {
+    inRouter(<Drawer open onClose={vi.fn()} />, "/settings");
+
+    await userEvent.click(screen.getByRole("button", { name: "Log Out" }));
+
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalled());
+    expect(auth.revokeSessions.mock.invocationCallOrder[0]).toBeLessThan(
+      auth.signOut.mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
   it("closes on Escape and returns focus to the opener", async () => {
@@ -147,6 +159,16 @@ describe("PageLayout", () => {
     );
     expect(screen.getByRole("main")).toHaveTextContent("content");
     expect(container.querySelector(".md-page--gradient")).not.toBeNull();
+  });
+
+  it("has no bars or menu in bare mode, so the screen's own buttons are the only exits", () => {
+    inRouter(
+      <PageLayout bare bottomNav>
+        content
+      </PageLayout>,
+    );
+    expect(screen.getByRole("main")).toHaveTextContent("content");
+    expect(screen.queryByRole("button", { name: "Open menu" })).not.toBeInTheDocument();
   });
 
   it("opens the drawer from the app bar", async () => {
@@ -229,6 +251,162 @@ describe("BottomSheet", () => {
       </BottomSheet>,
     );
     expect(screen.queryByText("body")).not.toBeInTheDocument();
+  });
+});
+
+describe("BottomSheet gestures", () => {
+  /** jsdom has no PointerEvent, and without one fireEvent drops the coordinates. */
+  class FakePointerEvent extends MouseEvent {
+    readonly pointerId: number;
+
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 0;
+    }
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("PointerEvent", FakePointerEvent);
+    window.PointerEvent = FakePointerEvent as unknown as typeof PointerEvent;
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function renderSheet(onClose: () => void) {
+    render(
+      <BottomSheet open onClose={onClose} label="Movie details">
+        <button>inside</button>
+      </BottomSheet>,
+    );
+    const panel = screen.getByRole("dialog", { name: "Movie details" });
+    const backdrop = panel.parentElement as HTMLElement;
+    const header = panel.querySelector(".md-sheet__header") as HTMLElement;
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ height: 500 } as DOMRect);
+    return { panel, backdrop, header };
+  }
+
+  it("ignores a click whose press began elsewhere, like the tap that opened it", () => {
+    const onClose = vi.fn();
+    const { backdrop } = renderSheet(onClose);
+    fireEvent.click(backdrop);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes on a real tap on the backdrop", () => {
+    const onClose = vi.fn();
+    const { backdrop } = renderSheet(onClose);
+    fireEvent.pointerDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("closes when the handle is dragged far enough", () => {
+    const onClose = vi.fn();
+    const { header } = renderSheet(onClose);
+    fireEvent.pointerDown(header, { pointerId: 1, button: 0, clientY: 0 });
+    fireEvent.pointerMove(header, { pointerId: 1, clientY: 200 });
+    fireEvent.pointerUp(header, { pointerId: 1, clientY: 200 });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("follows the finger, and doesn't go above where it started", () => {
+    const { header, panel } = renderSheet(vi.fn());
+    fireEvent.pointerDown(header, { pointerId: 1, button: 0, clientY: 100 });
+    fireEvent.pointerMove(header, { pointerId: 1, clientY: 140 });
+    expect(panel.style.transform).toBe("translateY(40px)");
+    fireEvent.pointerMove(header, { pointerId: 1, clientY: 50 });
+    expect(panel.style.transform).toBe("translateY(0px)");
+  });
+
+  it("leaves a press on Close to the button", () => {
+    const onClose = vi.fn();
+    const { header } = renderSheet(onClose);
+    const close = within(header).getByRole("button", { name: "Close" });
+    fireEvent.pointerDown(close, { pointerId: 1, button: 0, clientY: 0 });
+    fireEvent.pointerUp(close, { pointerId: 1, clientY: 0 });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+});
+
+describe("focus containment behind a dialog", () => {
+  function Harness(): JSX.Element {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button onClick={() => setOpen(true)}>open</button>
+        <BottomSheet open={open} onClose={() => setOpen(false)} label="Sheet">
+          <iframe title="player" />
+        </BottomSheet>
+      </>
+    );
+  }
+
+  function renderInRoot() {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
+    render(<Harness />, { container: root });
+    return root;
+  }
+
+  afterEach(() => {
+    document.getElementById("root")?.remove();
+  });
+
+  it("makes the page inert while open and gives focus back after", async () => {
+    const root = renderInRoot();
+    const opener = screen.getByRole("button", { name: "open" });
+    await userEvent.click(opener);
+    expect(root).toHaveAttribute("inert");
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Sheet" }), { key: "Escape" });
+    expect(root).not.toHaveAttribute("inert");
+    expect(opener).toHaveFocus();
+  });
+
+  it("leaves #root alone for a dialog inside it, like the Tutorial", () => {
+    function InPlace(): JSX.Element {
+      const trap = useFocusTrap<HTMLDivElement>(true, vi.fn());
+      return <div ref={trap.ref} tabIndex={-1} />;
+    }
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
+    render(<InPlace />, { container: root });
+    expect(root).not.toHaveAttribute("inert");
+  });
+
+  it("stays inert until the last of two dialogs has closed", async () => {
+    const root = renderInRoot();
+    const second = render(
+      <Modal open onClose={vi.fn()} title="Second">
+        <p>body</p>
+      </Modal>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "open", hidden: true }));
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Sheet", hidden: true }), { key: "Escape" });
+    expect(root).toHaveAttribute("inert");
+    second.unmount();
+    expect(root).not.toHaveAttribute("inert");
+  });
+
+  it("sends Tab coming out of the iframe to Close, and Shift+Tab from Close to the iframe", async () => {
+    renderInRoot();
+    await userEvent.click(screen.getByRole("button", { name: "open" }));
+    const dialog = screen.getByRole("dialog", { name: "Sheet" });
+    const close = within(dialog).getByRole("button", { name: "Close" });
+
+    const sentinel = dialog.querySelector<HTMLElement>("[data-focus-sentinel]");
+    sentinel?.focus();
+    expect(close).toHaveFocus();
+
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(within(dialog).getByTitle("player")).toHaveFocus();
   });
 });
 

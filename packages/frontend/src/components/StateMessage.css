@@ -17,6 +17,12 @@
   color: var(--color-text-muted);
 }
 
+/* White alone tops out under 3:1 anywhere on the gradient, so it gets a panel. */
+.md-state--on-gradient {
+  border-radius: var(--radius-card);
+  background: var(--color-scrim);
+}
+
 .md-state--on-gradient,
 .md-state--on-gradient .md-state__message {
   color: var(--color-on-gradient);

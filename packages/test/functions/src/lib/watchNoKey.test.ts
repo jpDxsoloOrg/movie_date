@@ -21,7 +21,7 @@ it("goes straight to TMDB when there is no RapidAPI key", async () => {
   dynamo.on(GetCommand).resolves({});
   dynamo.on(PutCommand).resolves({});
   const fetchStub = stubFetch(() => jsonResponse({ results: {} }));
-  expect(await getWatchOptions(949)).toEqual([]);
+  expect(await getWatchOptions(949, "user-1")).toEqual([]);
   const hosts = fetchStub.mock.calls.map(([input]) => new URL(input).hostname);
   expect(hosts).toEqual(["api.themoviedb.org"]);
 });

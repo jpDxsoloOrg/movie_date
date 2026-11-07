@@ -1,3 +1,4 @@
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 /**
  * The frontend and backend suites each mock the other side, so neither can notice
  * the two disagreeing. Here the real `api` client's documents go through the real
@@ -205,6 +206,7 @@ function rapidApi(): Response {
 
 let table: FakeDynamo;
 const ssm = mockClient(SSMClient);
+const s3 = mockClient(S3Client);
 let published: Record<string, unknown>[];
 let rapidApiDown: boolean;
 let uploads: { url: string; fieldNames: string[] }[];
@@ -256,6 +258,10 @@ beforeEach(() => {
   table = new FakeDynamo();
   ssm.reset();
   ssm.on(GetParameterCommand).resolves({ Parameter: { Value: "test-key" } });
+  s3.reset();
+  s3.on(GetObjectCommand).resolves({
+    Body: { transformToByteArray: async () => Uint8Array.from([0xff, 0xd8, 0xff, 0xe0]) },
+  } as never);
   published = [];
   uploads = [];
   rapidApiDown = false;
@@ -298,7 +304,8 @@ describe("the frontend's documents", () => {
           : [],
       ),
     );
-    const clientFields = rootFieldNames().filter((field) => field !== "publishRoomEvent");
+    const backendOnly = ["publishRoomEvent", "revokeRoomSubscriptions"];
+    const clientFields = rootFieldNames().filter((field) => !backendOnly.includes(field));
     expect([...new Set(selected)].sort()).toEqual(clientFields.sort());
   });
 
@@ -480,13 +487,13 @@ describe("the client against the real backend", () => {
     const { id } = await api.me();
     const key = await api.uploadAvatar(new Blob(["jpeg"], { type: "image/jpeg" }), "image/jpeg");
 
-    expect(key).toMatch(new RegExp(`^avatars/${id}/[0-9a-f-]{36}$`));
+    expect(key).toMatch(new RegExp(`^pending/${id}/[0-9a-f-]{36}$`));
     const [upload] = uploads;
     expect(upload?.fieldNames).toEqual(expect.arrayContaining(["Content-Type", "Policy", "key"]));
     expect(upload?.fieldNames.at(-1)).toBe("file");
 
     const profile = await api.updateProfile({ displayName: "Ann", avatarKey: key });
-    const avatarUrl = `https://${AVATARS_BUCKET}.s3.amazonaws.com/${key}`;
+    const avatarUrl = `https://${AVATARS_BUCKET}.s3.amazonaws.com/${key.replace("pending/", "avatars/")}`;
     expect(profile).toMatchObject({ displayName: "Ann", avatarUrl });
     expect((await api.myRoom()).members[0]).toMatchObject({ displayName: "Ann", avatarUrl });
   });

@@ -46,6 +46,10 @@ function value(token: string, values: Values): unknown {
 }
 
 function passes(expression: string, row: Row | undefined, names: Names, values: Values): boolean {
+  return expression.split(/\s+OR\s+/).some((alternative) => allPass(alternative, row, names, values));
+}
+
+function allPass(expression: string, row: Row | undefined, names: Names, values: Values): boolean {
   return expression.split(/\s+AND\s+/).every((clause) => {
     const trimmed = clause.trim();
     const existence = /^attribute_(not_)?exists\(([#\w]+)\)$/.exec(trimmed);
@@ -53,11 +57,12 @@ function passes(expression: string, row: Row | undefined, names: Names, values: 
       const present = row !== undefined && attribute(existence[2] ?? "", names) in row;
       return existence[1] ? !present : present;
     }
-    const comparison = /^([#\w]+) (=|>=) (:\w+)$/.exec(trimmed);
+    const comparison = /^([#\w]+) (=|>=|<) (:\w+)$/.exec(trimmed);
     if (!comparison) throw new Error(`Unsupported condition: ${trimmed}`);
     const actual = row?.[attribute(comparison[1] ?? "", names)];
     const expected = value(comparison[3] ?? "", values);
     if (comparison[2] === "=") return actual === expected;
+    if (comparison[2] === "<") return typeof actual === "number" && actual < (expected as number);
     return typeof actual === "number" && actual >= (expected as number);
   });
 }

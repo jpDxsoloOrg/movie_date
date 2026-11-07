@@ -54,6 +54,15 @@ export function cache(kind: string, key: string): TableKey {
   return { pk: `CACHE#${kind}#${key}`, sk: "CACHE" };
 }
 
+/** Under the user's own partition, so it leaves with the rest of their rows. */
+export function userLimit(sub: string, name: string, window: string): TableKey {
+  return { pk: userPk(sub), sk: `LIMIT#${name}#${window}` };
+}
+
+export function globalLimit(name: string, window: string): TableKey {
+  return { pk: `LIMIT#${name}`, sk: window };
+}
+
 /**
  * `begins_with` prefixes. Each ends at a `#` so round 1 can't pick up round 10,
  * and `matches()` keeps its trailing `#` so it can't pick up `MATCHED#` rows.

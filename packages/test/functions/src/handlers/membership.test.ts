@@ -11,7 +11,9 @@ import { movieNamed, roomOf, user } from "../support/roomFixture";
 const publishRoomEvent = vi.hoisted(() => vi.fn());
 const getMovie = vi.hoisted(() => vi.fn());
 
-vi.mock("@movie-date/functions/src/lib/events.ts", () => ({ publishRoomEvent }));
+const revokeRoomSubscriptions = vi.hoisted(() => vi.fn());
+
+vi.mock("@movie-date/functions/src/lib/events.ts", () => ({ publishRoomEvent, revokeRoomSubscriptions }));
 vi.mock("@movie-date/functions/src/lib/tmdb.ts", () => ({ getMovie }));
 
 let table: FakeDynamo;
@@ -36,6 +38,8 @@ beforeEach(() => {
   table = new FakeDynamo();
   publishRoomEvent.mockReset();
   publishRoomEvent.mockResolvedValue(undefined);
+  revokeRoomSubscriptions.mockReset();
+  revokeRoomSubscriptions.mockResolvedValue(undefined);
   getMovie.mockReset();
   getMovie.mockImplementation(async (movieId: number) => movieNamed(movieId));
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -44,6 +48,67 @@ beforeEach(() => {
 afterEach(() => {
   table.restore();
   vi.restoreAllMocks();
+});
+
+describe("subscription revocation", () => {
+  it("closes the leaver's subscriptions to the room they left", async () => {
+    const room = await roomOf("ann", "bob");
+    revokeRoomSubscriptions.mockClear();
+    await leaveRoom({}, user("bob"));
+    expect(revokeRoomSubscriptions.mock.calls).toEqual([[room.id, "sub-bob"]]);
+  });
+
+  it("closes them on a move to another room too, before anyone is told", async () => {
+    const from = await roomOf("ann");
+    const to = await roomOf("bob");
+    revokeRoomSubscriptions.mockClear();
+    publishRoomEvent.mockClear();
+    await joinRoom({ code: to.code }, user("ann"));
+    expect(revokeRoomSubscriptions.mock.calls).toEqual([[from.id, "sub-ann"]]);
+    expect(revokeRoomSubscriptions.mock.invocationCallOrder[0]).toBeLessThan(
+      publishRoomEvent.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+});
+
+describe("joinRoom wrong code limit", () => {
+  const WRONG_CODE = "ZZZZZZ";
+  const LIMIT = 10;
+
+  async function guess(times: number): Promise<void> {
+    for (let attempt = 0; attempt < times; attempt += 1) {
+      await expect(joinRoom({ code: WRONG_CODE }, user("ann"))).rejects.toMatchObject({ code: "VALIDATION" });
+    }
+  }
+
+  it("refuses more guesses once the limit is reached", async () => {
+    await roomOf("ann");
+    await guess(LIMIT);
+    await expect(joinRoom({ code: WRONG_CODE }, user("ann"))).rejects.toMatchObject({ code: "RATE_LIMITED" });
+  });
+
+  it("refuses a right code too, so a refusal can't be read as a wrong guess", async () => {
+    await roomOf("ann");
+    const target = await roomOf("bob");
+    await guess(LIMIT);
+    await expect(joinRoom({ code: target.code }, user("ann"))).rejects.toMatchObject({ code: "RATE_LIMITED" });
+  });
+
+  it("counts per person, and the row expires", async () => {
+    await roomOf("ann");
+    const target = await roomOf("cat");
+    await guess(LIMIT);
+    await roomOf("bob");
+    await expect(joinRoom({ code: target.code }, user("bob"))).resolves.toBeDefined();
+    const [row] = table.findByPkPrefix("USER#sub-ann").filter((item) => String(item.sk).startsWith("LIMIT#join#"));
+    expect(row?.expiresAt).toEqual(expect.any(Number));
+  });
+
+  it("doesn't count a malformed code, which never reaches the table", async () => {
+    await roomOf("ann");
+    await expect(joinRoom({ code: "no" }, user("ann"))).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(table.findByPkPrefix("USER#sub-ann").filter((item) => String(item.sk).startsWith("LIMIT#"))).toEqual([]);
+  });
 });
 
 describe("joinRoom", () => {

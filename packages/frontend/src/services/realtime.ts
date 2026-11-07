@@ -178,6 +178,12 @@ export function subscribeToRoom(options: RoomSubscriptionOptions): () => void {
           if (event) onEvent(event);
           break;
         }
+        case "complete":
+          // The backend closed this subscription because this user left the room,
+          // perhaps from another device. Resync finds the room they are in now.
+          onResync?.();
+          dropAndRetry(ws);
+          break;
         case "error":
         case "connection_error":
           // Covers an expired token and a just-left room; the backoff keeps a

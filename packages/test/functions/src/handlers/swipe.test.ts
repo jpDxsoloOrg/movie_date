@@ -11,7 +11,10 @@ import { movieNamed, roomOf, user } from "../support/roomFixture";
 const publishRoomEvent = vi.hoisted(() => vi.fn());
 const getMovie = vi.hoisted(() => vi.fn());
 
-vi.mock("@movie-date/functions/src/lib/events.ts", () => ({ publishRoomEvent }));
+vi.mock("@movie-date/functions/src/lib/events.ts", () => ({
+  publishRoomEvent,
+  revokeRoomSubscriptions: async () => undefined,
+}));
 vi.mock("@movie-date/functions/src/lib/tmdb.ts", () => ({ getMovie }));
 
 let table: FakeDynamo;

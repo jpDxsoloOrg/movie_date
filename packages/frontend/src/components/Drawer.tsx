@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "../hooks/useFocusTrap";
-import { signOut } from "../services/auth";
+import { revokeSessions, signOut } from "../services/auth";
 import { Icon, type IconName } from "./Icon";
 import "./Drawer.css";
 
@@ -29,8 +29,9 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
   const trap = useFocusTrap<HTMLElement>(open, onClose);
   if (!open) return null;
 
-  const logOut = (): void => {
+  const logOut = async (): Promise<void> => {
     onClose();
+    await revokeSessions();
     signOut();
     // Before the auth guard sees the sign-out, or it saves this page as the return path.
     navigate("/login", { replace: true });
@@ -60,7 +61,7 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
         <div className="md-drawer__header">Movie Date</div>
         <ul className="md-drawer__list">
           <li>
-            <button type="button" className="md-drawer__item" onClick={logOut}>
+            <button type="button" className="md-drawer__item" onClick={() => void logOut()}>
               <Icon name="logout" />
               Log Out
             </button>

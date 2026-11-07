@@ -52,6 +52,12 @@ export class UpstreamError extends AppError {
   }
 }
 
+export class RateLimitedError extends AppError {
+  constructor(message = "Too many attempts. Please wait a bit and try again.") {
+    super("RATE_LIMITED", message);
+  }
+}
+
 export class InvalidRoomCodeError extends ValidationError {
   constructor() {
     super("Invalid room code");

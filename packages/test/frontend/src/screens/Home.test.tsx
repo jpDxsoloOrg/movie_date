@@ -361,14 +361,58 @@ describe("Home details sheet", () => {
     mocks.deck.mockResolvedValue(makePage([1, 2]));
   });
 
-  const tap = (card: HTMLElement): void => drag(card, [4]);
+  /** What a tap really sends: a click always follows the release. */
+  const tap = (card: HTMLElement): void => {
+    drag(card, [4]);
+    fireEvent.click(card);
+  };
+
+  it("waits for the click to open, so the tap's own click can't land on the sheet", async () => {
+    renderHome();
+    const card = await topCard("Movie 1");
+    drag(card, [4]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(card);
+    expect(await screen.findByRole("dialog", { name: "Movie 1 details" })).toBeInTheDocument();
+  });
+
+  it("isn't opened by the click at the end of a mouse drag", async () => {
+    renderHome();
+    const card = await topCard("Movie 1");
+    drag(card, [25]);
+    fireEvent.click(card);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    tap(card);
+    expect(await screen.findByRole("dialog", { name: "Movie 1 details" })).toBeInTheDocument();
+  });
+
+  it("leaves a press on the info button to the button, and opens only once", async () => {
+    renderHome();
+    const card = await topCard("Movie 1");
+    const info = within(card).getByRole("button", { name: "Details for Movie 1" });
+    const capture = vi.spyOn(card, "setPointerCapture");
+    fireEvent.pointerDown(info, { pointerId: 1, button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerUp(info, { pointerId: 1, clientX: 0, clientY: 0 });
+    expect(capture).not.toHaveBeenCalled();
+    fireEvent.click(info);
+    expect(await screen.findAllByRole("dialog")).toHaveLength(1);
+    expect(mocks.trailer).toHaveBeenCalledTimes(1);
+  });
+
+  it("autoplays the trailer, and says it may", async () => {
+    renderHome();
+    tap(await topCard("Movie 1"));
+    const player = await screen.findByTitle("Movie 1 trailer");
+    expect(player.getAttribute("allow")).toContain("autoplay");
+  });
 
   it("opens on a tap with the trailer and details, and closing removes the player", async () => {
     renderHome();
     tap(await topCard("Movie 1"));
     const sheet = within(await screen.findByRole("dialog", { name: "Movie 1 details" }));
     const player = await sheet.findByTitle("Movie 1 trailer");
-    expect(player).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/yt-123");
+    expect(player).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/yt-123?autoplay=1");
     expect(mocks.trailer).toHaveBeenCalledWith(1);
     expect(sheet.getByRole("heading", { name: "Movie 1" })).toBeInTheDocument();
     expect(sheet.getByText("Overview 1")).toBeInTheDocument();
@@ -429,7 +473,9 @@ describe("Home buttons and keyboard", () => {
 
   it("leaves the keys alone while a dialog is open", async () => {
     renderHome();
-    drag(await topCard("Movie 1"), [4]);
+    const card = await topCard("Movie 1");
+    drag(card, [4]);
+    fireEvent.click(card);
     await screen.findByRole("dialog");
     pressKey("ArrowRight");
     pressKey("Backspace");
@@ -796,7 +842,9 @@ describe("Home deck resets", () => {
     mocks.deck.mockResolvedValue(makePage([1, 2]));
     mocks.trailer.mockResolvedValue("yt-123");
     const emit = await renderLive(room);
-    drag(await topCard("Movie 1"), [4]);
+    const card = await topCard("Movie 1");
+    drag(card, [4]);
+    fireEvent.click(card);
     await screen.findByTitle("Movie 1 trailer");
 
     mocks.myRoom.mockResolvedValue({ ...room, filters: { ...room.filters, genreIds: [28] } });

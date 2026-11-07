@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type TransitionEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type TransitionEvent,
+} from "react";
 import { IconButton } from "../Button";
 import { Icon } from "../Icon";
 import type { DeckCard, Movie, SwipeDirection } from "../../services/api";
@@ -92,6 +100,9 @@ export function SwipeCard({
   const { movie, likedByRoommate } = card;
   const element = useRef<HTMLElement>(null);
   const gesture = useRef<Gesture | null>(null);
+  // Outlives the gesture: a mouse drag released short of a swipe still fires click,
+  // and by then `gesture` has been cleared.
+  const suppressClick = useRef(false);
   const [dragging, setDragging] = useState(false);
   const [overlay, setOverlay] = useState<SwipeDirection | null>(null);
   const isTop = depth === 0 && !exitDirection;
@@ -135,6 +146,9 @@ export function SwipeCard({
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>): void => {
     if (!isTop || gesture.current || event.button !== 0) return;
+    // Capturing here would retarget the click and the button's onClick would never run.
+    if (event.target instanceof Element && event.target.closest(".deck-card__info")) return;
+    suppressClick.current = false;
     event.currentTarget.setPointerCapture(event.pointerId);
     gesture.current = {
       pointerId: event.pointerId,
@@ -157,6 +171,7 @@ export function SwipeCard({
     if (!active.moved) {
       if (Math.hypot(offsetX, offsetY) < TAP_SLOP_PX) return;
       active.moved = true;
+      suppressClick.current = true;
       setDragging(true);
     }
 
@@ -179,12 +194,24 @@ export function SwipeCard({
     if (!active || event.pointerId !== active.pointerId) return;
     if (!active.moved) {
       resetDrag();
-      onOpenDetails(movie);
       return;
     }
     const direction = releaseDirection(active, event.timeStamp);
     if (direction) onSwipe(direction);
     else resetDrag();
+  };
+
+  /**
+   * Details open on click, not pointerup: a touch's click comes after pointerup and
+   * is hit-tested then, so a sheet opened any earlier takes the click and closes.
+   */
+  const handleClick = (): void => {
+    if (isTop && !suppressClick.current) onOpenDetails(movie);
+  };
+
+  const handleInfoClick = (event: MouseEvent<HTMLButtonElement>): void => {
+    event.stopPropagation();
+    onOpenDetails(movie);
   };
 
   const handlePointerCancel = (event: PointerEvent<HTMLElement>): void => {
@@ -221,6 +248,7 @@ export function SwipeCard({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
+      onClick={handleClick}
       onTransitionEnd={handleTransitionEnd}
     >
       <Poster movie={movie} />
@@ -235,7 +263,7 @@ export function SwipeCard({
         <IconButton
           className="deck-card__info"
           label={`Details for ${movie.title}`}
-          onClick={() => onOpenDetails(movie)}
+          onClick={handleInfoClick}
         >
           <Icon name="info" />
         </IconButton>

@@ -27,8 +27,8 @@ describe("thin catalogue handlers", () => {
 
   it("watchOptions passes the id through", async () => {
     vi.mocked(watch.getWatchOptions).mockResolvedValue([]);
-    expect(await watchOptions({ movieId: 949 })).toEqual([]);
-    expect(watch.getWatchOptions).toHaveBeenCalledWith(949);
+    expect(await watchOptions({ movieId: 949 }, { userId: "user-1" })).toEqual([]);
+    expect(watch.getWatchOptions).toHaveBeenCalledWith(949, "user-1");
   });
 
   it("genres returns the list", async () => {

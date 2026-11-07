@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { clearFilterDraft } from "../components/filters/filterDraft";
 import { ErrorState } from "../components/StateMessage";
 import { SkeletonPage } from "../components/Skeleton";
 import { useToast } from "../hooks/useToast";
@@ -40,6 +41,7 @@ export interface MatchRouteState {
 export const RoomContext = createContext<RoomContextValue | null>(null);
 
 const MATCH_PATH = /^\/match\/([^/]+)/;
+const FILTERS_PATH = "/filters";
 
 /** A threshold or member change leaves the deck valid; these don't. */
 function deckKey(room: Room): string {
@@ -191,6 +193,12 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
       onResync: () => void resync(),
     });
   }, [roomId, handleEvent, resync]);
+
+  // A draft only means anything between Filters and ActorSearch. Left anywhere else
+  // (a match pulling someone out), it mustn't reappear on the next visit to Filters.
+  useEffect(() => {
+    if (!pathname.startsWith(FILTERS_PATH)) clearFilterDraft();
+  }, [pathname]);
 
   const wasOnMatchScreen = useRef(false);
   useEffect(() => {

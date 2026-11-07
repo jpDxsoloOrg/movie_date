@@ -17,7 +17,10 @@ import { movieNamed, roomOf, user } from "../support/roomFixture";
 const publishRoomEvent = vi.hoisted(() => vi.fn());
 const getMovie = vi.hoisted(() => vi.fn());
 
-vi.mock("@movie-date/functions/src/lib/events.ts", () => ({ publishRoomEvent }));
+vi.mock("@movie-date/functions/src/lib/events.ts", () => ({
+  publishRoomEvent,
+  revokeRoomSubscriptions: async () => undefined,
+}));
 vi.mock("@movie-date/functions/src/lib/tmdb.ts", () => ({ getMovie }));
 
 let table: FakeDynamo;
@@ -54,6 +57,43 @@ describe("updateFilters", () => {
     expect(eventsOfType("ROOM_UPDATED")).toEqual([
       { roomId: room.id, type: "ROOM_UPDATED", actorId: "sub-bob" },
     ]);
+  });
+
+  it.each([
+    ["too many genres", { genreIds: Array.from({ length: 21 }, (_, index) => index + 1) }],
+    ["a negative genre", { genreIds: [-1] }],
+    ["a fractional genre", { genreIds: [1.5] }],
+    ["too many actors", { cast: Array.from({ length: 21 }, (_, index) => ({ id: index + 1, name: "A" })) }],
+    ["a negative actor id", { cast: [{ id: -1, name: "A" }] }],
+    ["an overlong actor name", { cast: [{ id: 1, name: "x".repeat(201) }] }],
+    ["repeated services", { services: Array.from({ length: 100 }, () => "netflix") }],
+  ])("refuses %s, leaving the room's filters alone", async (_label, patch) => {
+    const room = await roomOf("ann");
+    await expect(updateFilters({ filters: { ...noFilters, ...patch } }, user("ann"))).rejects.toMatchObject({
+      code: "VALIDATION",
+    });
+    expect(table.row(`ROOM#${room.id}`, "META")?.filters).toEqual(room.filters);
+  });
+
+  it("keeps a TMDB profile image", async () => {
+    const profileUrl = "https://image.tmdb.org/t/p/w185/face.jpg";
+    const room = await updateFilters(
+      { filters: { ...noFilters, cast: [{ id: 1, name: "Someone", profileUrl }] } },
+      user("ann"),
+    );
+    expect(room.filters.cast).toEqual([{ id: 1, name: "Someone", profileUrl }]);
+  });
+
+  it.each([
+    ["script", "javascript:alert(1)"],
+    ["another host", "https://evil.example/pixel.gif?who=roommate"],
+    ["a lookalike host", "https://image.tmdb.org.evil.example/t/p/x.gif"],
+  ])("drops a %s profile image, which roommates' browsers would load", async (_label, profileUrl) => {
+    const room = await updateFilters(
+      { filters: { ...noFilters, cast: [{ id: 1, name: "Someone", profileUrl }] } },
+      user("ann"),
+    );
+    expect(room.filters.cast).toEqual([{ id: 1, name: "Someone", profileUrl: null }]);
   });
 
   it("can clear everything, nulls included", async () => {

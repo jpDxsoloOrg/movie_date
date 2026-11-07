@@ -29,7 +29,8 @@ export class AuthError extends Error {
 }
 
 const AUTH_ERRORS: Partial<Record<string, [AuthErrorCode, string]>> = {
-  // One message for both, so the login form doesn't reveal which emails exist.
+  // One message for both, so the login form doesn't reveal which emails exist. Only
+  // sign-up does, through EMAIL_TAKEN: Cognito can't hide that with email usernames.
   NotAuthorizedException: ["BAD_CREDENTIALS", "Incorrect email or password."],
   UserNotFoundException: ["BAD_CREDENTIALS", "Incorrect email or password."],
   UsernameExistsException: ["EMAIL_TAKEN", "An account with this email already exists."],
@@ -59,6 +60,9 @@ function toAuthError(error: unknown): AuthError {
   }
   return new AuthError("UNKNOWN", "Something went wrong. Please try again.");
 }
+
+/** Log Out waits on this, so a dead network can't hold it up for long. */
+const REVOKE_TIMEOUT_MS = 3_000;
 
 let pool: CognitoUserPool | undefined;
 let poolKey = "";
@@ -133,6 +137,35 @@ export async function signUp(email: string, password: string): Promise<void> {
   await signIn(username, password);
 }
 
+/**
+ * Revokes this user's refresh tokens on every device. Best effort: Log Out must work
+ * offline, so a failure or a stall leaves it to signOut() to clear this device.
+ * Run it first, because revoking needs the tokens signOut() throws away.
+ */
+export async function revokeSessions(): Promise<void> {
+  const user = userPool().getCurrentUser();
+  if (!user) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      readSession(user).then(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            user.globalSignOut({ onSuccess: () => resolve(), onFailure: reject });
+          }),
+      ),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, REVOKE_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    // The session still ends here, and the tokens simply run out on their own.
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Clears this device. Pair with revokeSessions() when the person chose to leave. */
 export function signOut(): void {
   userPool().getCurrentUser()?.signOut();
   notify(false);
@@ -145,7 +178,9 @@ export async function forgotPassword(email: string): Promise<void> {
       user.forgotPassword({ onSuccess: () => resolve(), onFailure: reject });
     });
   } catch (error) {
-    // Reads as success, so this form can't be used to test which emails have accounts.
+    // The app client hides this from raw API callers too. This is the fallback, so
+    // the form still reads as success if that setting is ever off. Neither covers
+    // sign-up, which has to say when an email is taken.
     if (cognitoErrorName(error) === "UserNotFoundException") return;
     throw toAuthError(error);
   }

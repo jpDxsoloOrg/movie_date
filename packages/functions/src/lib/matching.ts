@@ -10,7 +10,7 @@ import {
   type TransactItems,
 } from "./db.js";
 import { ConflictError } from "./errors.js";
-import { publishRoomEvent } from "./events.js";
+import { publishRoomEvent, revokeRoomSubscriptions } from "./events.js";
 import * as keys from "./keys.js";
 import {
   backoff,
@@ -258,6 +258,9 @@ export async function settleMove(
   toRoomId: string,
 ): Promise<void> {
   await logFailure("Departed member cleanup", removeRoundSwipes(fromRoomId, userId));
+  // Ahead of the announcement. AppSync closes it asynchronously, so a leaver's socket
+  // can still hear their own departure, but nothing after it.
+  await revokeRoomSubscriptions(fromRoomId, userId);
   await Promise.all(
     [fromRoomId, toRoomId].map((roomId) =>
       publishRoomEvent({ roomId, type: "MEMBERS_CHANGED", actorId: userId }),

@@ -1,4 +1,9 @@
-import { publishRoomEvent, PUBLISH_MUTATION } from "@movie-date/functions/lib/events";
+import {
+  publishRoomEvent,
+  PUBLISH_MUTATION,
+  revokeRoomSubscriptions,
+  REVOKE_MUTATION,
+} from "@movie-date/functions/lib/events";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,6 +30,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+});
+
+describe("revokeRoomSubscriptions", () => {
+  it("sends the signed mutation with the room and user", async () => {
+    respondWith({ data: { revokeRoomSubscriptions: true } });
+    await revokeRoomSubscriptions("room-1", "sub-1");
+    const [, init] = fetchStub.mock.calls[0] as [URL, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      query: REVOKE_MUTATION,
+      variables: { roomId: "room-1", userId: "sub-1" },
+    });
+    expect(new Headers(init.headers).get("authorization")).toContain("AWS4-HMAC-SHA256");
+  });
+
+  it("logs a failure rather than failing a move that has already happened", async () => {
+    respondWith({ errors: [{ message: "nope" }] });
+    await expect(revokeRoomSubscriptions("room-1", "sub-1")).resolves.toBeUndefined();
+    expect(console.error).toHaveBeenCalled();
+  });
 });
 
 describe("publishRoomEvent", () => {

@@ -19,6 +19,7 @@ import { startNewRound } from "./handlers/startNewRound.js";
 import { updateProfile } from "./handlers/updateProfile.js";
 import { createAvatarUpload } from "./handlers/createAvatarUpload.js";
 import { publishRoomEvent } from "./handlers/publishRoomEvent.js";
+import { revokeRoomSubscriptions } from "./handlers/revokeRoomSubscriptions.js";
 import { onRoomEvent } from "./handlers/onRoomEvent.js";
 import type { FieldArguments, FieldName } from "@movie-date/core";
 import type { AppSyncResolverEvent } from "aws-lambda";
@@ -56,14 +57,15 @@ const handlers: HandlerTable = {
   updateProfile,
   createAvatarUpload,
   publishRoomEvent,
+  revokeRoomSubscriptions,
   onRoomEvent,
 };
 
-/** The only field the backend calls itself. Everything else belongs to a signed-in user. */
-const IAM_FIELD: FieldName = "publishRoomEvent";
+/** The fields the backend calls itself. Everything else belongs to a signed-in user. */
+const IAM_FIELDS: readonly string[] = ["publishRoomEvent", "revokeRoomSubscriptions"] satisfies FieldName[];
 
 function contextFor(field: string, event: AppSyncResolverEvent<unknown>): ResolverContext {
-  if (field !== IAM_FIELD) return userContext(event.identity);
+  if (!IAM_FIELDS.includes(field)) return userContext(event.identity);
   if (!isIamIdentity(event.identity)) throw new ForbiddenError();
   return { userId: SYSTEM_USER_ID };
 }

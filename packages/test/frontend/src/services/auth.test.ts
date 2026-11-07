@@ -44,6 +44,7 @@ import {
   getIdToken,
   isSignedIn,
   onAuthChange,
+  revokeSessions,
   signIn,
   signOut,
   signUp,
@@ -242,6 +243,36 @@ describe("session", () => {
     await expect(getIdToken()).rejects.toBeInstanceOf(AuthError);
     await expect(isSignedIn()).resolves.toBe(true);
     expect(user.signOut).not.toHaveBeenCalled();
+  });
+
+  it("revokeSessions signs out everywhere with the live session", async () => {
+    const globalSignOut = vi.fn((callbacks: FakeCallbacks) => callbacks.onSuccess());
+    const user = storedUser({ globalSignOut });
+    cognito.getCurrentUser.mockReturnValue(user);
+
+    await revokeSessions();
+
+    expect(user.getSession).toHaveBeenCalled();
+    expect(globalSignOut).toHaveBeenCalledOnce();
+  });
+
+  it("revokeSessions never throws, so Log Out works offline", async () => {
+    const globalSignOut = vi.fn((callbacks: FakeCallbacks) => callbacks.onFailure(new TypeError("offline")));
+    cognito.getCurrentUser.mockReturnValue(storedUser({ globalSignOut }));
+    await expect(revokeSessions()).resolves.toBeUndefined();
+  });
+
+  it("revokeSessions gives up on a stalled network", async () => {
+    vi.useFakeTimers();
+    cognito.getCurrentUser.mockReturnValue(storedUser({ globalSignOut: vi.fn() }));
+    const finished = revokeSessions();
+    await vi.advanceTimersByTimeAsync(3_000);
+    await expect(finished).resolves.toBeUndefined();
+    vi.useRealTimers();
+  });
+
+  it("revokeSessions has nothing to do when signed out", async () => {
+    await expect(revokeSessions()).resolves.toBeUndefined();
   });
 
   it("signOut clears the session and notifies", () => {

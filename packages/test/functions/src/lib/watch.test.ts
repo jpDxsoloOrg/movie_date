@@ -1,7 +1,7 @@
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
-import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { getClient } from "@movie-date/functions/lib/db";
-import { UpstreamError } from "@movie-date/functions/lib/errors";
+import { NotFoundError, UpstreamError } from "@movie-date/functions/lib/errors";
 import { getWatchOptions } from "@movie-date/functions/lib/watch";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,6 +41,7 @@ beforeEach(() => {
   ssm.reset();
   dynamo.on(GetCommand).resolves({});
   dynamo.on(PutCommand).resolves({});
+  dynamo.on(UpdateCommand).resolves({});
   ssm.on(GetParameterCommand).resolves({ Parameter: { Value: "a-key" } });
   vi.stubEnv("TMDB_KEY_PARAM", "/test/tmdb");
   vi.stubEnv("RAPIDAPI_KEY_PARAM", "/test/rapid");
@@ -57,7 +58,7 @@ afterEach(() => {
 describe("getWatchOptions from RapidAPI", () => {
   it("asks for the US listing with the key in a header, not the URL", async () => {
     const fetchStub = stubFetch(() => jsonResponse({ streamingOptions: {} }));
-    await getWatchOptions(949);
+    await getWatchOptions(949, "user-1");
     const [input, init] = fetchStub.mock.calls[0] ?? [];
     const url = new URL(input as URL);
     expect(url.pathname).toBe("/shows/movie/949");
@@ -82,7 +83,7 @@ describe("getWatchOptions from RapidAPI", () => {
         },
       }),
     );
-    expect(await getWatchOptions(949)).toEqual([
+    expect(await getWatchOptions(949, "user-1")).toEqual([
       {
         serviceId: "prime",
         serviceName: "Prime Video",
@@ -109,13 +110,13 @@ describe("getWatchOptions from RapidAPI", () => {
 
   it("treats a listing with no US options as nowhere to watch", async () => {
     const fetchStub = stubFetch(() => jsonResponse({ streamingOptions: {} }));
-    expect(await getWatchOptions(949)).toEqual([]);
+    expect(await getWatchOptions(949, "user-1")).toEqual([]);
     expect(fetchStub).toHaveBeenCalledTimes(1);
   });
 
   it("caches for 24 hours", async () => {
     stubFetch(() => jsonResponse({ streamingOptions: {} }));
-    await getWatchOptions(949);
+    await getWatchOptions(949, "user-1");
     const item = dynamo.commandCalls(PutCommand)[0]?.args[0].input.Item;
     expect(item?.pk).toBe("CACHE#watch#949");
     expect(item?.expiresAt - Date.now() / 1000).toBeCloseTo(86_400, -1);
@@ -149,22 +150,89 @@ describe("getWatchOptions falling back to TMDB", () => {
 
   it("when RapidAPI fails", async () => {
     stubFetch((url) => (isRapidApi(url) ? jsonResponse({}, 429) : jsonResponse(tmdbProviders)));
-    expect(await getWatchOptions(949)).toEqual(expected);
+    expect(await getWatchOptions(949, "user-1")).toEqual(expected);
   });
 
   it("when RapidAPI doesn't know the title", async () => {
     stubFetch((url) => (isRapidApi(url) ? jsonResponse({}, 404) : jsonResponse(tmdbProviders)));
-    expect(await getWatchOptions(949)).toEqual(expected);
+    expect(await getWatchOptions(949, "user-1")).toEqual(expected);
   });
 
   it("is empty when TMDB has no US listing", async () => {
     stubFetch((url) => (isRapidApi(url) ? jsonResponse({}, 500) : jsonResponse({ results: {} })));
-    expect(await getWatchOptions(949)).toEqual([]);
+    expect(await getWatchOptions(949, "user-1")).toEqual([]);
   });
 
   it("fails, uncached, when both sources are down", async () => {
     stubFetch(() => jsonResponse({}, 500));
-    await expect(getWatchOptions(949)).rejects.toBeInstanceOf(UpstreamError);
+    await expect(getWatchOptions(949, "user-1")).rejects.toBeInstanceOf(UpstreamError);
     expect(dynamo.commandCalls(PutCommand)).toHaveLength(0);
+  });
+});
+
+describe("getWatchOptions spending limits", () => {
+  const overLimit = Object.assign(new Error("over"), { name: "ConditionalCheckFailedException" });
+  const limitKeys = (): unknown[] =>
+    dynamo.commandCalls(UpdateCommand).map((call) => call.args[0].input.Key);
+
+  function tmdbOnly() {
+    return stubFetch((url) =>
+      isRapidApi(url) ? jsonResponse({ streamingOptions: {} }) : jsonResponse(tmdbProviders),
+    );
+  }
+
+  it.each([[-1], [0], [1.5]])("refuses id %s before spending anything", async (movieId) => {
+    const fetchStub = tmdbOnly();
+    await expect(getWatchOptions(movieId, "user-1")).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(fetchStub).not.toHaveBeenCalled();
+    expect(dynamo.commandCalls(UpdateCommand)).toHaveLength(0);
+  });
+
+  it("charges the caller and the shared budget for a RapidAPI lookup", async () => {
+    tmdbOnly();
+    await getWatchOptions(949, "user-1");
+    expect(limitKeys()).toEqual([
+      { pk: "USER#user-1", sk: expect.stringMatching(/^LIMIT#rapidapi#\d{4}-\d{2}-\d{2}$/) },
+      { pk: "LIMIT#rapidapi", sk: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
+    ]);
+  });
+
+  it("charges nothing for a cached movie", async () => {
+    dynamo.on(GetCommand).resolves({
+      Item: { pk: "x", sk: "x", value: [], expiresAt: Math.floor(Date.now() / 1000) + 60 },
+    });
+    const fetchStub = tmdbOnly();
+    await getWatchOptions(949, "user-1");
+    expect(fetchStub).not.toHaveBeenCalled();
+    expect(dynamo.commandCalls(UpdateCommand)).toHaveLength(0);
+  });
+
+  it("sends someone over their limit to TMDB, without touching the shared budget", async () => {
+    dynamo.on(UpdateCommand).rejects(overLimit);
+    const fetchStub = tmdbOnly();
+    const options = await getWatchOptions(949, "user-1");
+    expect(options.map((option) => option.serviceId)).toContain("netflix");
+    expect(fetchStub.mock.calls.some(([url]) => isRapidApi(new URL(String(url))))).toBe(false);
+    expect(limitKeys()).toHaveLength(1);
+  });
+
+  it("sends everyone to TMDB once the shared budget is gone", async () => {
+    dynamo.on(UpdateCommand).resolvesOnce({}).rejects(overLimit);
+    const fetchStub = tmdbOnly();
+    await getWatchOptions(949, "user-1");
+    expect(fetchStub.mock.calls.some(([url]) => isRapidApi(new URL(String(url))))).toBe(false);
+  });
+
+  it("remembers a movie neither service knows, so asking again is free", async () => {
+    stubFetch(() => jsonResponse({}, 404));
+    await expect(getWatchOptions(2147483647, "user-1")).rejects.toBeInstanceOf(NotFoundError);
+    expect(dynamo.commandCalls(PutCommand)[0]?.args[0].input.Item).toMatchObject({ value: null });
+
+    dynamo.on(GetCommand).resolves({
+      Item: { pk: "x", sk: "x", value: null, expiresAt: Math.floor(Date.now() / 1000) + 60 },
+    });
+    const fetchStub = stubFetch(() => jsonResponse({}, 404));
+    await expect(getWatchOptions(2147483647, "user-1")).rejects.toBeInstanceOf(NotFoundError);
+    expect(fetchStub).not.toHaveBeenCalled();
   });
 });

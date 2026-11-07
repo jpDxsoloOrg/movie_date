@@ -1,7 +1,27 @@
 import { useEffect, useRef, type KeyboardEvent, type RefObject } from "react";
 
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"]):not([data-focus-sentinel])';
+
+/** Dialogs can overlap for a moment, as one closes and the next opens. */
+let openDialogs = 0;
+
+/**
+ * Tab is only ours to catch while focus is in this document: from inside a trailer
+ * iframe it runs straight past the trap. Inert stops it landing on the page behind.
+ * Portalled dialogs only: the Tutorial is a full screen inside #root, with no page
+ * behind it, and inert would take its own buttons with it.
+ */
+function holdBackgroundInert(dialog: HTMLElement | null): () => void {
+  const root = document.getElementById("root");
+  if (!root || !dialog || root.contains(dialog)) return () => undefined;
+  openDialogs += 1;
+  root.setAttribute("inert", "");
+  return () => {
+    openDialogs -= 1;
+    if (openDialogs === 0) root.removeAttribute("inert");
+  };
+}
 
 export interface FocusTrap<TElement extends HTMLElement> {
   ref: RefObject<TElement>;
@@ -22,8 +42,11 @@ export function useFocusTrap<TElement extends HTMLElement>(
   useEffect(() => {
     if (!open) return undefined;
     const opener = document.activeElement;
+    const releaseBackground = holdBackgroundInert(ref.current);
     ref.current?.focus();
     return () => {
+      // First, because an inert opener can't take focus back.
+      releaseBackground();
       if (opener instanceof HTMLElement) opener.focus();
     };
   }, [open]);

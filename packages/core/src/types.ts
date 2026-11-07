@@ -172,6 +172,7 @@ export interface FieldArguments {
   updateProfile: { displayName?: string | null; avatarKey?: string | null };
   createAvatarUpload: { contentType: string };
   publishRoomEvent: { input: RoomEventInput };
+  revokeRoomSubscriptions: { roomId: string; userId: string };
   onRoomEvent: { roomId: string };
 }
 

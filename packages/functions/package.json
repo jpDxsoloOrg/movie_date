@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.696.0",
     "@aws-sdk/client-dynamodb": "^3.696.0",
     "@aws-sdk/client-s3": "^3.696.0",
     "@aws-sdk/client-ssm": "^3.696.0",
@@ -27,6 +28,7 @@
     "./handlers/*": "./src/handlers/*.ts",
     "./resolver": "./src/resolver.ts",
     "./preSignUp": "./src/preSignUp.ts",
+    "./postConfirmation": "./src/postConfirmation.ts",
     "./src/*": "./src/*"
   }
 }

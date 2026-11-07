@@ -29,7 +29,7 @@ hardcoded in `lib/repositories/youtube_repository.dart` is NOT used.
 - New Cognito user pool `movie-date-production`, email as username, password minimum 6 with no character rules (matches the old validator), self sign-up on, SPA client with no secret, SRP + refresh.
 - PreSignUp Lambda trigger sets autoConfirm and autoVerifyEmail: sign-up logs straight in as it did before, and forgot-password still works.
 - Frontend uses `amazon-cognito-identity-js`. Screens: login, register, forgot password (code, new password).
-- AppSync default auth is Cognito user pools; IAM is the additional provider, for `publishRoomEvent` only. No API key.
+- AppSync default auth is Cognito user pools; IAM is the additional provider, for `publishRoomEvent` and `revokeRoomSubscriptions` only. No API key.
 - Every handler takes the user from `event.identity.sub`, never from arguments.
 - Don't trust client claims about room membership: the room is always looked up from the caller's profile.
 
@@ -70,8 +70,8 @@ Defaults match the Flutter app. The items under "Deliberate fixes" are intention
 - **Where to Watch**: RapidAPI `streaming-availability` `/shows/movie/{tmdbId}?country=us&output_language=en`, reading `streamingOptions.us`, one entry per service, with deep links. If the key is missing or the call fails, fall back to TMDB `movie/{id}/watch/providers` (US) and show the required JustWatch attribution. Cache 24h in DynamoDB.
 - **Trailers**: TMDB `movie/{id}/videos`: official YouTube Trailer first, then any Trailer, then Teaser. Embed from `youtube-nocookie.com`. Cache 7 days.
 - **Caching**: genres 7 days, movie details 7 days, watch options 24h.
-- **Avatars**: `createPresignedPost` to S3 with `content-length-range` up to 5 MB and fixed `Content-Type` in `image/jpeg|png|webp`, key `avatars/<sub>/<uuid>`. The browser centre-crops and resizes to 512px JPEG first. `updateProfile` only accepts a key under the caller's own prefix. Served publicly from the bucket URL.
-- **Subscription**: Lambda resolver on `Subscription.onRoomEvent` rejects non-members. Lambda publishes by SigV4-signing `publishRoomEvent` to the AppSync URL, selecting every `RoomEvent` field (subscribers only receive fields the mutation selected). Publish failures log but never fail the caller's swipe. Clients also refetch `pendingMatch` on reconnect and on tab focus.
+- **Avatars**: `createPresignedPost` to S3 with `content-length-range` up to 5 MB and fixed `Content-Type` in `image/jpeg|png|webp`, key `pending/<sub>/<uuid>`, limited to 20 a day per user. The browser centre-crops and resizes to 512px JPEG first. `updateProfile` only accepts a key under the caller's own prefix, checks the file's magic bytes, copies it to `avatars/<sub>/<uuid>` and deletes the photo it replaces. A lifecycle rule expires what is left in `pending/` after a day. Served publicly from the bucket URL.
+- **Subscription**: an APPSYNC_JS resolver on `Subscription.onRoomEvent` invokes the Lambda, which rejects non-members, and sets an invalidation filter on room and user. Leaving or moving calls `revokeRoomSubscriptions` (IAM, NONE data source), which closes that member's open subscriptions to the old room. Lambda publishes by SigV4-signing `publishRoomEvent` to the AppSync URL, selecting every `RoomEvent` field (subscribers only receive fields the mutation selected). Publish failures log but never fail the caller's swipe. Clients also refetch `pendingMatch` on reconnect and on tab focus.
 
 ## Deliberate fixes to old behaviour
 

@@ -32,6 +32,8 @@ export function AppRoutes(): JSX.Element {
           </Route>
           <Route element={<PageLayout bottomNav />}>
             <Route path="/filters" element={<Filters />} />
+          </Route>
+          <Route element={<PageLayout bare />}>
             <Route path="/filters/actors" element={<ActorSearch />} />
           </Route>
           <Route element={<PageLayout gradient />}>
