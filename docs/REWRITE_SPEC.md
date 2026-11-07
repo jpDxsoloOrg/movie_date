@@ -57,7 +57,7 @@ Use a GSI only if a handler truly needs one.
 Defaults match the Flutter app. The items under "Deliberate fixes" are intentional changes.
 
 - **First login**: `me` lazily creates the profile (displayName defaults to the email's local part) and a room. New room: 6-character code from an unambiguous uppercase alphabet using crypto randomness; threshold 2; no filters; round 1.
-- **Deck**: TMDB `discover/movie` with language `en`, `sort_by=popularity.desc`, `include_adult=false`; genres pipe-joined (OR), cast pipe-joined (OR), providers pipe-joined with `watch_region=US`, `primary_release_date.gte/lte`. Drop results whose `original_language` isn't `en`, as the old app did. Hydrate each with `movie/{id}` for runtime. Exclude anything the caller already swiped this round. If a page empties after exclusion, walk forward up to 5 TMDB pages. Liked-by-roommate movies not yet swiped by the caller go at the head of page 1, flagged `likedByRoommate`, ignoring filters (they already passed someone's filters).
+- **Deck**: TMDB `discover/movie` with language `en`, `sort_by=popularity.desc`, `include_adult=false`; genres pipe-joined (OR), cast pipe-joined (OR), providers pipe-joined with `watch_region=US`, `primary_release_date.gte/lte`. Drop results whose `original_language` isn't `en`, as the old app did. Hydrate each with `movie/{id}` for runtime. Exclude anything the caller already swiped this round. If a page empties after exclusion, walk forward up to 5 TMDB pages. Likes never change the deal (decision 83).
 - **Posters**: `https://image.tmdb.org/t/p/w780` poster, `w1280` backdrop.
 - **Provider catalogue** in `packages/core` keyed by service: any(none), tubi 73, prime 9, netflix 8, hulu 15, hbo 1899, apple 350, disney 337, paramount 531|1770|1853, peacock 386. Labels and icons from `lib/utils/constants.dart`; icons from `assets/icons`.
 - **Filters page**: Search defaults the start date to Jan 1 of the current year when none is picked, as the old app did. Clear Filters empties the form. Saving publishes `ROOM_UPDATED` so everyone's deck reloads.
@@ -95,7 +95,7 @@ Defaults match the Flutter app. The items under "Deliberate fixes" are intention
 - Invite link `/join/:code` with Web Share and a QR code. Signed-out visitors go through login and return. If already in another room, confirm first.
 - Installable PWA: manifest, icons from `assets/movieDate.png`, standalone display, app shell cached, API never cached, updates apply on next load. Safe-area insets respected.
 - Forgot password.
-- Liked-by-roommate cards surface first with a small badge, so matches happen sooner.
+- Liked-by-roommate cards were built and later removed: likes stay private until a match (decision 83).
 - Member list and toasts update live on `MEMBERS_CHANGED`.
 
 ## Look

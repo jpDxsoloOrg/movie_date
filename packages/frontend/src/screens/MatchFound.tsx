@@ -8,7 +8,7 @@ import { Skeleton } from "../components/Skeleton";
 import { EmptyState, ErrorState } from "../components/StateMessage";
 import type { MatchRouteState } from "../context/RoomProvider";
 import { useAsyncData } from "../hooks/useAsyncData";
-import { useRoom } from "../hooks/useRoom";
+import { useRoom, useRoomEvents } from "../hooks/useRoom";
 import { useToast } from "../hooks/useToast";
 import { useMode } from "../mode/ModeProvider";
 import { MODE_COPY } from "../mode/modeCopy";
@@ -28,6 +28,7 @@ export default function MatchFound(): JSX.Element {
   const { room, setRoom } = useRoom();
   const { mode: routeMediaType } = useMode();
   const [leaving, setLeaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const routedMatch = state?.match?.id === matchId ? state?.match : undefined;
   const { data, error, loading, reload } = useAsyncData(
@@ -39,6 +40,13 @@ export default function MatchFound(): JSX.Element {
   const mediaType = match?.mediaType ?? routeMediaType;
   const copy = MODE_COPY[mediaType];
   const home = homePath(mediaType);
+
+  // Someone else can clear this while it's open.
+  const [clearedHere, setClearedHere] = useState(false);
+  useRoomEvents((event) => {
+    if (event.type === "MATCH_CLEARED" && event.matchId === matchId) setClearedHere(true);
+  });
+  const cleared = clearedHere || match?.cleared === true;
 
   const headline = useRef<HTMLHeadingElement>(null);
   const focusHeadline = state?.focusHeadline === true && Boolean(match);
@@ -52,11 +60,25 @@ export default function MatchFound(): JSX.Element {
     try {
       // Router state outlives a room change, and the new room's round can be the
       // same number, so this match must not be able to reset that room.
-      if (match.roomId === room.id) setRoom(await api.startNewRound(match.round, match.mediaType));
+      // A cleared match keeps the round going, so leaving it mustn't restart everyone's deck.
+      if (match.roomId === room.id && !cleared) setRoom(await api.startNewRound(match.round, match.mediaType));
       navigate(home, { replace: true });
     } catch (caught) {
       toast.error(errorMessage(caught));
       setLeaving(false);
+    }
+  }
+
+  async function clear(): Promise<void> {
+    if (!match) return;
+    setClearing(true);
+    try {
+      await api.clearMatch(match.id, match.mediaType);
+      toast.success("Match cleared. It stays in your history.");
+      navigate(home, { replace: true });
+    } catch (caught) {
+      toast.error(errorMessage(caught));
+      setClearing(false);
     }
   }
 
@@ -103,6 +125,10 @@ export default function MatchFound(): JSX.Element {
     );
   }
 
+  // Only the current round's match is still being announced.
+  const currentRound = mediaType === "TV" ? room.tvRound : room.round;
+  const canClear = match.roomId === room.id && match.round === currentRound && !cleared;
+
   return (
     <div className="match-found md-page-wide">
       <Celebration />
@@ -119,9 +145,16 @@ export default function MatchFound(): JSX.Element {
           </Marquee>
         }
         footer={
-          <Button variant="secondary" block loading={leaving} onClick={() => void backToStart()}>
-            {copy.backToStart}
-          </Button>
+          <div className="match-found__actions">
+            <Button variant="secondary" block loading={leaving} disabled={clearing} onClick={() => void backToStart()}>
+              {copy.backToStart}
+            </Button>
+            {canClear && (
+              <Button variant="ghost" block loading={clearing} disabled={leaving} onClick={() => void clear()}>
+                Clear match
+              </Button>
+            )}
+          </div>
         }
       />
     </div>

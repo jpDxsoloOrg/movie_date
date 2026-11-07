@@ -1,7 +1,8 @@
 import type { PlexStatus } from "@movie-date/core";
 import { ValidationError } from "./errors.js";
 import { hasFileOnPlex, showPresence } from "./plexIndex.js";
-import { movieStatus } from "./plexRequest.js";
+import { movieStatus, showStatus } from "./plexRequest.js";
+import { getShowRecord } from "./tmdbTv.js";
 
 export const AVAILABLE: PlexStatus = { availability: "AVAILABLE", canRequest: false };
 export const REQUESTED: PlexStatus = { availability: "REQUESTED", canRequest: false };
@@ -28,13 +29,18 @@ export async function loadPlexStatus(movieId: number, plexUserId: string): Promi
 }
 
 /**
- * The index alone: Plex Request has no status op for shows yet, and `movieStatus`
- * would answer for the movie with this number. So a show can't read as REQUESTED,
- * nor say which seasons are missing, and requests stay off for shows (decision 42).
+ * The index answers for shows it has. Anything else needs a live look, by TVDB id,
+ * for a request or a show added since the index was built. A show with no TVDB id
+ * can't reach Sonarr, so it can't be requested.
  */
-export async function loadShowPlexStatus(showId: number): Promise<PlexStatus> {
+export async function loadShowPlexStatus(showId: number, plexUserId: string): Promise<PlexStatus> {
   const presence = await showPresence(showId);
   if (presence === "WATCHABLE") return AVAILABLE;
   if (presence === "WAITING") return { availability: "MONITORED", canRequest: false };
-  return REQUESTS_DOWN;
+  const { show, tvdbId } = await getShowRecord(showId);
+  if (tvdbId === null) return REQUESTS_DOWN;
+  const { hasActiveRequest, inLibrary } = await showStatus(tvdbId, plexUserId);
+  if (hasActiveRequest) return REQUESTED;
+  if (inLibrary) return { availability: "MONITORED", canRequest: false };
+  return { availability: "NOT_IN_LIBRARY", canRequest: true, seasonCount: show.seasonCount };
 }

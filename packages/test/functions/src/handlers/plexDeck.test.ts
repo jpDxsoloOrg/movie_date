@@ -194,15 +194,6 @@ describe("Plex alone", () => {
     expect(await deck({ page: 1 }, ANA)).toEqual({ cards: [], nextPage: null });
   });
 
-  it("still leads with what a roommate liked", async () => {
-    givenIndex([libraryMovie(1)]);
-    const roomId = await givenRoomFilters(filtersWith({}));
-    dynamo.seed({ pk: `ROOM#${roomId}`, sk: "TALLY#1#movie:77", likes: 1, movie: { ...movieNamed(77), posterUrl: "https://img/77.jpg" } });
-    const page = await deck({ page: 1 }, ANA);
-    expect(dealtIds(page)).toEqual([77, 1]);
-    expect(page.cards[0]?.likedByRoommate).toBe(true);
-  });
-
   it("deals the same to a member who hasn't linked", async () => {
     givenIndex([libraryMovie(1), libraryMovie(2)]);
     await givenRoomFilters(filtersWith({}));

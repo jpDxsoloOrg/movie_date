@@ -15,7 +15,8 @@ vi.mock("@movie-date/functions/src/lib/tmdb.ts", () => ({
   getMovie: async (id: number) => movieNamed(id),
 }));
 
-const MATCHED_AT = "2026-01-01T00:00:00.000Z";
+// After the room is made: pendingMatch skips what predates someone joining.
+const MATCHED_AT = "2099-01-01T00:00:00.000Z";
 const noFilters = { genreIds: [], cast: [], services: [] };
 
 let table: FakeDynamo;

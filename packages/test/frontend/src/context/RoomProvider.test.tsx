@@ -59,6 +59,7 @@ function makeMatch(id: string, mediaType: MediaType = "MOVIE"): Match {
     round: 1,
     matchedAt: "2026-01-01T00:00:00Z",
     mediaType,
+    cleared: false,
     show: null,
     movie: {
       id: 1,
@@ -484,6 +485,30 @@ describe("two modes in one room", () => {
       expect(path()).toBe("/");
       expect(banner()).toHaveTextContent("It's Official");
       expect(banner()).toHaveAttribute("data-theme", "shows");
+    });
+
+    it("takes the banner down when someone clears the match, and it stays down", async () => {
+      renderInMode("/");
+      await screen.findByTestId("room");
+      await emit({ type: "MATCH_FOUND", matchId: "s1", mediaType: "TV" });
+      expect(banner()).toBeInTheDocument();
+
+      await emit({ type: "MATCH_CLEARED", matchId: "s1", mediaType: "TV" });
+
+      expect(banner()).not.toBeInTheDocument();
+      await emit({ type: "MATCH_FOUND", matchId: "s1", mediaType: "TV" });
+      expect(banner()).not.toBeInTheDocument();
+      expect(path()).toBe("/");
+    });
+
+    it("leaves another match's banner up when one is cleared", async () => {
+      renderInMode("/");
+      await screen.findByTestId("room");
+      await emit({ type: "MATCH_FOUND", matchId: "s1", mediaType: "TV" });
+
+      await emit({ type: "MATCH_CLEARED", matchId: "s2", mediaType: "TV" });
+
+      expect(banner()).toBeInTheDocument();
     });
 
     it("shows a banner and leaves someone swiping shows where they are", async () => {

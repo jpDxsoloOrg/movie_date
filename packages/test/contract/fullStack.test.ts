@@ -403,7 +403,8 @@ describe("the client against the real backend", () => {
 
     as("bob");
     const bobDeck = await api.deck(1);
-    expect(bobDeck.cards[0]).toMatchObject({ likedByRoommate: true, movie: { id: SPARSE_MOVIE_ID } });
+    // Ann's like changes nothing about Bob's deck.
+    expect(allMovies(bobDeck)).toEqual([FULL_MOVIE_ID, SPARSE_MOVIE_ID]);
 
     const bobLike = await api.swipe(SPARSE_MOVIE_ID, "LIKE");
     const match = bobLike.match;
@@ -415,13 +416,14 @@ describe("the client against the real backend", () => {
       mediaType: "MOVIE",
       matchId: match?.id,
       round: 1,
-      actorId: "sub-bob",
+      actorId: null,
     });
 
     as("ann");
     expect(await api.pendingMatch()).toEqual(match);
     expect(await api.findMatch(match?.id ?? "")).toEqual(match);
     expect((await api.matches()).matches).toEqual([match]);
+    expect(await api.clearMatch("not-a-match")).toBe(false);
     expect(await api.undoSwipe(SPARSE_MOVIE_ID)).toEqual({
       movieId: SPARSE_MOVIE_ID,
       mediaType: "MOVIE",
@@ -479,8 +481,7 @@ describe("the client against the real backend", () => {
     expect((await api.deck(1, "TV")).cards).toEqual([]);
 
     as("bob");
-    expect((await api.deck(1, "TV")).cards[0]).toMatchObject({ likedByRoommate: true });
-    expect((await api.deck(1)).cards[0]).toMatchObject({ likedByRoommate: false });
+    expect((await api.deck(1, "TV")).cards[0]).toMatchObject({ movie: { id: SHOW_ID } });
 
     const match = (await api.swipe(SHOW_ID, "LIKE", "TV")).match;
     expect(match).toMatchObject({ mediaType: "TV", round: 1, show: { title: "Full Show" } });
@@ -491,7 +492,7 @@ describe("the client against the real backend", () => {
       mediaType: "TV",
       matchId: match?.id,
       round: 1,
-      actorId: "sub-bob",
+      actorId: null,
     });
 
     as("ann");

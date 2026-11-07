@@ -324,7 +324,7 @@ describe("leaveRoom", () => {
 
     expect(table.find(`ROOM#${room.id}`, "MATCH#")).toHaveLength(1);
     expect(eventsOfType("MATCH_FOUND")).toEqual([
-      expect.objectContaining({ roomId: room.id, movieId: 7, actorId: "sub-cat" }),
+      expect.objectContaining({ roomId: room.id, movieId: 7 }),
     ]);
   });
 

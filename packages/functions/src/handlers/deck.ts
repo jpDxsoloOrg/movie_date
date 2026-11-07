@@ -15,7 +15,7 @@ import { NotFoundError, ValidationError } from "../lib/errors.js";
 import type { ResolverContext } from "../lib/identity.js";
 import { mediaRefOfSk, prefixes, profile, roomMeta, roomPk } from "../lib/keys.js";
 import { filtersOf, inMode, roundOf } from "../lib/mediaMode.js";
-import type { RoomMetaItem } from "../lib/rooms.js";
+import type { MatchedItem, RoomMetaItem } from "../lib/rooms.js";
 import { matchesShowFilters } from "../lib/showFilters.js";
 import { hydrateMovies } from "../lib/tmdb.js";
 import { hydrateShows } from "../lib/tmdbTv.js";
@@ -45,19 +45,12 @@ interface ProfileRow extends Item {
   roomId?: string;
 }
 
-interface TallyRow extends Item {
-  likes?: number;
-  movie?: Movie;
-  show?: Show;
-}
-
 interface RoomDeckState {
   roomId: string;
   mediaType: MediaType;
   filters: Filters;
-  swipedIds: Set<number>;
-  /** Tally rows by title id, for titles the caller hasn't swiped. */
-  roommateLikes: Map<number, TallyRow>;
+  /** What the caller swiped, and matches the room cleared, which nobody can match on again. */
+  hiddenIds: Set<number>;
 }
 
 /** What a card shows. */
@@ -106,24 +99,20 @@ async function loadDeckState(userId: string, mediaType: MediaType): Promise<Room
 
   const pk = roomPk(caller.roomId);
   const round = roundOf(room, mediaType);
-  const [swipes, tallies] = await Promise.all([
+  const [swipes, sentinels] = await Promise.all([
     queryAll(pk, { skPrefix: prefixes.userRoundSwipes(round, userId), consistent: true }),
-    queryAll<TallyRow>(pk, { skPrefix: prefixes.roundTallies(round), consistent: true }),
+    queryAll<MatchedItem>(pk, { skPrefix: prefixes.roundMatched(round), consistent: true }),
   ]);
 
-  const swipedIds = new Set(swipes.filter(inMode(mediaType)).map((row) => mediaRefOfSk(row.sk).id));
-  // The caller hasn't swiped these, so every like on the tally is someone else's.
-  const roommateLikes = new Map<number, TallyRow>();
-  for (const row of tallies.filter(inMode(mediaType))) {
-    const { id } = mediaRefOfSk(row.sk);
-    if ((row.likes ?? 0) > 0 && !swipedIds.has(id)) roommateLikes.set(id, row);
-  }
+  const cleared = sentinels.filter((row) => row.clearedAt);
+  const hiddenIds = new Set(
+    [...swipes, ...cleared].filter(inMode(mediaType)).map((row) => mediaRefOfSk(row.sk).id),
+  );
   return {
     roomId: caller.roomId,
     mediaType,
     filters: filtersOf(room, mediaType),
-    swipedIds,
-    roommateLikes,
+    hiddenIds,
   };
 }
 
@@ -144,37 +133,8 @@ async function hydrateTitles(
   return (await hydrateMovies(ids)).map((movie) => ({ movie, show: null }));
 }
 
-function snapshotOf(row: TallyRow): Title | null {
-  if (row.show) return showTitle(row.show);
-  return row.movie ? { movie: row.movie, show: null } : null;
-}
-
-function toCard(mediaType: MediaType, title: Title, likedByRoommate: boolean): DeckCard {
-  return { mediaType, ...title, likedByRoommate };
-}
-
-/** Most-liked first, since those are the fewest swipes away from a match. */
-async function roommateCards(state: RoomDeckState, walk: Walk): Promise<DeckCard[]> {
-  const rows = [...state.roommateLikes.entries()].sort(
-    ([, first], [, second]) => (second.likes ?? 0) - (first.likes ?? 0),
-  );
-  const snapshots = new Map(
-    rows.flatMap(([id, row]) => {
-      const title = snapshotOf(row);
-      return title ? [[id, title] as const] : [];
-    }),
-  );
-  const missing = rows.map(([id]) => id).filter((id) => !snapshots.has(id));
-  const hydrated = await hydrateTitles(missing, state.mediaType, walk.stopAt);
-  const byId = new Map(hydrated.map((title) => [title.movie.id, title]));
-  return rows
-    .flatMap(([id]) => snapshots.get(id) ?? byId.get(id) ?? [])
-    .filter(hasPoster)
-    .map((title) => toCard(state.mediaType, title, true));
-}
-
-function roommateFirst(cards: DeckCard[]): DeckCard[] {
-  return cards.sort((first, second) => Number(second.likedByRoommate) - Number(first.likedByRoommate));
+function toCard(mediaType: MediaType, title: Title): DeckCard {
+  return { mediaType, ...title };
 }
 
 /**
@@ -186,27 +146,26 @@ async function discoverCards(
   state: RoomDeckState,
   source: DeckSource,
   startPage: number,
-  alreadyDealt: ReadonlySet<number>,
   walk: Walk,
 ): Promise<DeckPage> {
   const { filters, mediaType } = state;
-  const dealt = new Set(alreadyDealt);
+  const dealt = new Set<number>();
   const cards: DeckCard[] = [];
   for (let page = startPage; ; page += 1) {
     let totalPages: number;
     try {
       const sourcePage = await source(page);
       totalPages = sourcePage.totalPages;
-      const candidates = sourcePage.ids.filter((id) => !state.swipedIds.has(id) && !dealt.has(id));
+      const candidates = sourcePage.ids.filter((id) => !state.hiddenIds.has(id) && !dealt.has(id));
       const titles = await hydrateTitles([...new Set(candidates)], mediaType, walk.stopAt);
       for (const title of titles.filter(hasPoster)) {
         if (title.show && !matchesShowFilters(title.show, filters)) continue;
         dealt.add(title.movie.id);
-        cards.push(toCard(mediaType, title, state.roommateLikes.has(title.movie.id)));
+        cards.push(toCard(mediaType, title));
       }
     } catch (error) {
       if (cards.length === 0) throw error;
-      return { cards: roommateFirst(cards), nextPage: page };
+      return { cards, nextPage: page };
     }
 
     const nextPage = page < Math.min(totalPages, MAX_TMDB_PAGE) ? page + 1 : null;
@@ -216,19 +175,20 @@ async function discoverCards(
       page - startPage >= walk.maxForward ||
       Date.now() >= walk.walkUntil
     ) {
-      return { cards: roommateFirst(cards), nextPage };
+      return { cards, nextPage };
     }
   }
 }
 
+/**
+ * Likes play no part in the deal. Everyone with the same filters gets the same order,
+ * so a card's place can't give away what anyone else chose.
+ */
 async function dealPage(state: RoomDeckState, page: number): Promise<DeckPage> {
   const { mediaType } = state;
   const walk = walkFor(mediaType, state.filters);
-  const head = page === 1 ? await roommateCards(state, walk) : [];
-  const dealt = new Set(head.map((card) => card.movie.id));
   const source = await deckSource(state.roomId, state.filters, { mediaType, stopAt: walk.stopAt });
-  const { cards, nextPage } = await discoverCards(state, source, page, dealt, walk);
-  return { cards: [...head, ...cards], nextPage };
+  return discoverCards(state, source, page, walk);
 }
 
 export async function deck(

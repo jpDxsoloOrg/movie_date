@@ -44,10 +44,12 @@ function discoverPage(ids: number[], totalPages = 10): DiscoverPage {
 interface RoomFixture {
   filters?: Filters;
   swipedIds?: number[];
-  tallies?: { movieId: number; likes: number; movie?: Movie }[];
+  /** Present to prove the deck ignores them: it never queries these rows. */
+  tallies?: { movieId: number; likes: number }[];
+  matched?: { media: string; cleared: boolean }[];
 }
 
-function givenRoom({ filters, swipedIds = [], tallies = [] }: RoomFixture = {}): void {
+function givenRoom({ filters, swipedIds = [], tallies = [], matched = [] }: RoomFixture = {}): void {
   dynamo.on(GetCommand, { Key: { pk: "USER#me", sk: "PROFILE" } }).resolves({
     Item: { pk: "USER#me", sk: "PROFILE", roomId: ROOM_ID },
   });
@@ -61,10 +63,14 @@ function givenRoom({ filters, swipedIds = [], tallies = [] }: RoomFixture = {}):
     }
     if (prefix === `TALLY#${ROUND}#`) {
       return {
-        Items: tallies.map(({ movieId, likes, movie }) => ({
-          sk: `${prefix}movie:${movieId}`,
-          likes,
-          ...(movie ? { movie } : {}),
+        Items: tallies.map(({ movieId, likes }) => ({ sk: `${prefix}movie:${movieId}`, likes })),
+      };
+    }
+    if (prefix === `MATCHED#${ROUND}#`) {
+      return {
+        Items: matched.map(({ media, cleared }) => ({
+          sk: `${prefix}${media}`,
+          ...(cleared ? { clearedAt: "2026-01-01T00:00:00.000Z" } : {}),
         })),
       };
     }
@@ -230,71 +236,41 @@ describe("walking forward past an emptied page", () => {
   });
 });
 
-describe("liked by a roommate", () => {
-  it("goes first on page 1, most liked at the top, ignoring filters", async () => {
-    givenRoom({
-      tallies: [
-        { movieId: 50, likes: 1, movie: movieFixture(50) },
-        { movieId: 60, likes: 2, movie: movieFixture(60) },
-      ],
-    });
+describe("what the room has done", () => {
+  it("deals the same cards in the same order whatever anyone liked", async () => {
+    vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1, 2, 3]));
+    givenRoom();
+    const untouched = await deck({ page: 1 }, CALLER);
+    dynamo.reset();
+    givenRoom({ tallies: [{ movieId: 3, likes: 2 }, { movieId: 99, likes: 5 }] });
+    expect(await deck({ page: 1 }, CALLER)).toEqual(untouched);
+    expect(cardIds(untouched)).toEqual([1, 2, 3]);
+  });
+
+  it("doesn't read the tallies at all", async () => {
+    givenRoom();
     vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1]));
-    const result = await deck({ page: 1 }, CALLER);
-    expect(cardIds(result)).toEqual([60, 50, 1]);
-    expect(result.cards.map((card) => card.likedByRoommate)).toEqual([true, true, false]);
+    await deck({ page: 1 }, CALLER);
+    const prefixes = dynamo.commandCalls(QueryCommand).map((call) => call.args[0].input.ExpressionAttributeValues?.[":sk"]);
+    expect(prefixes.some((prefix) => String(prefix).startsWith("TALLY#"))).toBe(false);
   });
 
-  it("isn't dealt twice when discover returns it too", async () => {
-    givenRoom({ tallies: [{ movieId: 1, likes: 1, movie: movieFixture(1) }] });
-    vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1, 2]));
-    expect(cardIds(await deck({ page: 1 }, CALLER))).toEqual([1, 2]);
-  });
-
-  it("skips what the caller already swiped", async () => {
-    givenRoom({
-      swipedIds: [50],
-      tallies: [{ movieId: 50, likes: 1, movie: movieFixture(50) }],
-    });
+  it("puts nothing about likes on a card", async () => {
+    givenRoom({ tallies: [{ movieId: 1, likes: 1 }] });
     vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1]));
-    expect(cardIds(await deck({ page: 1 }, CALLER))).toEqual([1]);
+    const [card] = (await deck({ page: 1 }, CALLER)).cards;
+    expect(card).not.toHaveProperty("likedByRoommate");
   });
 
-  it("skips a tally that undo took back to zero", async () => {
-    givenRoom({ tallies: [{ movieId: 50, likes: 0, movie: movieFixture(50) }] });
-    vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1]));
-    expect(cardIds(await deck({ page: 1 }, CALLER))).toEqual([1]);
+  it("hides a cleared match but not one still standing", async () => {
+    givenRoom({ matched: [{ media: "movie:1", cleared: true }, { media: "movie:2", cleared: false }] });
+    vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1, 2, 3]));
+    expect(cardIds(await deck({ page: 1 }, CALLER))).toEqual([2, 3]);
   });
 
-  it("never deals one without a poster", async () => {
-    givenRoom({
-      tallies: [{ movieId: 50, likes: 1, movie: movieFixture(50, { posterUrl: null }) }],
-    });
+  it("doesn't hide a movie because the show with its number was cleared", async () => {
+    givenRoom({ matched: [{ media: "tv:1", cleared: true }] });
     vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1]));
     expect(cardIds(await deck({ page: 1 }, CALLER))).toEqual([1]);
-  });
-
-  it("hydrates a tally that has no snapshot", async () => {
-    givenRoom({ tallies: [{ movieId: 50, likes: 1 }] });
-    vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1]));
-    expect(cardIds(await deck({ page: 1 }, CALLER))).toEqual([50, 1]);
-  });
-
-  it("doesn't walk forward when only the head has cards", async () => {
-    givenRoom({
-      swipedIds: [1],
-      tallies: [{ movieId: 50, likes: 1, movie: movieFixture(50) }],
-    });
-    vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1]));
-    const result = await deck({ page: 1 }, CALLER);
-    expect(cardIds(result)).toEqual([50]);
-    expect(result.nextPage).not.toBeNull();
-  });
-
-  it("on later pages is flagged and sorted first, with no head added", async () => {
-    givenRoom({ tallies: [{ movieId: 2, likes: 1, movie: movieFixture(2) }, { movieId: 9, likes: 1 }] });
-    vi.mocked(discoverMovies).mockResolvedValue(discoverPage([1, 2]));
-    const result = await deck({ page: 2 }, CALLER);
-    expect(cardIds(result)).toEqual([2, 1]);
-    expect(result.cards[0]?.likedByRoommate).toBe(true);
   });
 });

@@ -84,3 +84,34 @@
     flex: 1 1 100%;
   }
 }
+
+.plex-status__seasons {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+
+.plex-status__seasons-legend {
+  padding: 0;
+  font-weight: 700;
+}
+
+.plex-status__season-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.plex-status__season {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target);
+}
+
+.plex-status__season input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--color-accent);
+}

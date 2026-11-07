@@ -201,6 +201,11 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
       api.pendingMatch("MOVIE"),
       api.pendingMatch("TV").catch(() => null),
     ]);
+    // A clear can land while the socket is down, and nothing else takes its banner away.
+    setOtherModeMatch((shown) => {
+      if (!shown) return shown;
+      return (shown.mediaType === "TV" ? show : movie) ? shown : null;
+    });
     for (const pending of [movie, show]) {
       if (pending) routeToMatch(pending.id, pending.mediaType, pending);
     }
@@ -240,6 +245,11 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
       try {
         if (event.type === "MATCH_FOUND") {
           if (event.matchId) routeToMatch(event.matchId, event.mediaType ?? "MOVIE");
+        } else if (event.type === "MATCH_CLEARED") {
+          if (!event.matchId) return;
+          const { matchId } = event;
+          routedMatchIds.current.add(matchId);
+          setOtherModeMatch((shown) => (shown?.matchId === matchId ? null : shown));
         } else if (event.type === "MEMBERS_CHANGED") {
           await announceMemberChanges();
         } else {

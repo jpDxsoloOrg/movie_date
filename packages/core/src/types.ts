@@ -16,6 +16,7 @@ export type PlexAvailability = "AVAILABLE" | "MONITORED" | "REQUESTED" | "NOT_IN
 
 export type RoomEventType =
   | "MATCH_FOUND"
+  | "MATCH_CLEARED"
   | "ROOM_UPDATED"
   | "MEMBERS_CHANGED"
   | "ROUND_RESET";
@@ -108,7 +109,6 @@ export interface DeckCard {
   /** The card face in both modes. For a show this is `showAsMovie(show)`. */
   movie: Movie;
   show: Show | null;
-  likedByRoommate: boolean;
 }
 
 export interface DeckPage {
@@ -129,6 +129,7 @@ export interface Match {
   mediaType: MediaType;
   movie: Movie;
   show: Show | null;
+  cleared: boolean;
 }
 
 export interface SwipeResult {
@@ -175,6 +176,7 @@ export interface PlexStatus {
   availability: PlexAvailability;
   canRequest: boolean;
   missingSeasons?: number[] | null;
+  seasonCount?: number | null;
 }
 
 export interface PlexLinkStart {
@@ -235,12 +237,13 @@ export interface FieldArguments {
   joinRoom: { code: string };
   leaveRoom: Record<string, never>;
   startNewRound: { expectedRound: number } & MediaTypeArgument;
+  clearMatch: { matchId: string } & MediaTypeArgument;
   updateProfile: { displayName?: string | null; avatarKey?: string | null };
   createAvatarUpload: { contentType: string };
   startPlexLink: Record<string, never>;
   confirmPlexLink: { code: string };
   unlinkPlex: Record<string, never>;
-  requestOnPlex: { movieId: number } & MediaTypeArgument;
+  requestOnPlex: { movieId: number; seasons?: number[] | null } & MediaTypeArgument;
   publishRoomEvent: { input: RoomEventInput };
   revokeRoomSubscriptions: { roomId: string; userId: string };
   onRoomEvent: { roomId: string };

@@ -24,6 +24,6 @@ export async function updateRoomSettings(
     conditionExpression: "attribute_exists(pk)",
   });
   await publishRoomEvent({ roomId, type: "ROOM_UPDATED", actorId: userId });
-  await settleRoom(roomId, userId);
+  await settleRoom(roomId);
   return loadRoom(roomId, userId);
 }

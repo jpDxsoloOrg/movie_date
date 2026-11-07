@@ -516,7 +516,7 @@ describe("the deck", () => {
     vi.mocked(discoverShows).mockResolvedValue(page([1]));
     const result = await deck({ page: 1, ...TV }, ANN);
     expect(result.cards).toEqual([
-      { mediaType: "TV", movie: showAsMovie(showNamed(1)), show: showNamed(1), likedByRoommate: false },
+      { mediaType: "TV", movie: showAsMovie(showNamed(1)), show: showNamed(1) },
     ]);
     expect(vi.mocked(discoverShows).mock.calls[0]?.[0].genreIds).toEqual([18]);
   });
@@ -528,25 +528,12 @@ describe("the deck", () => {
     expect(dealtIds(await deck({ page: 1, ...TV }, ANN))).toEqual([SHARED_ID]);
   });
 
-  it("hides shows already swiped, and leads with a roommate's, from its snapshot", async () => {
+  it("hides shows already swiped, and a roommate's like moves nothing", async () => {
     await roomOf("ann", "bob");
     await swipe({ movieId: 3, direction: "PASS", ...TV }, ANN);
     await swipe({ movieId: 9, direction: "LIKE", ...TV }, BOB);
     vi.mocked(discoverShows).mockResolvedValue(page([1, 3, 9]));
-    vi.mocked(hydrateShows).mockClear();
-    const result = await deck({ page: 1, ...TV }, ANN);
-    expect(result.cards.map((card) => [card.movie.id, card.likedByRoommate])).toEqual([
-      [9, true],
-      [1, false],
-    ]);
-    expect(result.cards[0]?.show).toEqual(showNamed(9));
-  });
-
-  it("doesn't call a movie liked by a roommate a liked show", async () => {
-    await roomOf("ann", "bob");
-    await swipe({ movieId: SHARED_ID, direction: "LIKE" }, BOB);
-    vi.mocked(discoverShows).mockResolvedValue(page([SHARED_ID]));
-    expect((await deck({ page: 1, ...TV }, ANN)).cards[0]?.likedByRoommate).toBe(false);
+    expect(dealtIds(await deck({ page: 1, ...TV }, ANN))).toEqual([1, 9]);
   });
 
   it("drops shows with no poster", async () => {
@@ -783,14 +770,10 @@ describe("the Plex filter", () => {
     expect(dealtIds(await deck({ page: 1, ...TV }, ANN))).toEqual([7]);
   });
 
-  it("reports a show's status from the index, never offering a request", async () => {
+  it("reports a show the index has without offering a request", async () => {
     await linkAnn();
     givenShowIndex([libraryShow(1)]);
     expect(await plexStatus({ movieId: 1, ...TV }, ANN)).toEqual({ availability: "AVAILABLE", canRequest: false });
-    expect(await plexStatus({ movieId: 2, ...TV }, ANN)).toEqual({
-      availability: "NOT_IN_LIBRARY",
-      canRequest: false,
-    });
   });
 
   it("calls a library show waiting on a file monitored once hasFile works", async () => {
@@ -803,11 +786,6 @@ describe("the Plex filter", () => {
     await roomOf("ann");
     givenShowIndex([libraryShow(1)]);
     expect(await plexStatus({ movieId: 1, ...TV }, ANN)).toBeNull();
-  });
-
-  it("refuses a request for a show", async () => {
-    await linkAnn();
-    await expect(requestOnPlex({ movieId: 1, ...TV }, ANN)).rejects.toThrow("Shows can't be requested");
   });
 
   it("puts Plex first in Where to Watch for a show on it", async () => {

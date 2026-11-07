@@ -15,8 +15,8 @@
  * there, so the script rewrites the stored hash for a known code. That needs AWS access,
  * not an app backdoor.
  * The request exists for seconds and is deleted, along with the user, whatever happens.
- * Only movies are ever requested. requestOnPlex refuses mediaType TV, but a show's id sent
- * without it would request the movie with that number: no step may call it with a TV id.
+ * Only movies are ever requested here, so no run adds a real series to Sonarr. A show's id
+ * sent without mediaType would request the movie with that number: no step may send one.
  *
  *   AWS_PROFILE=league-szn PLAYWRIGHT_MODULE=/path/to/node_modules/playwright \
  *     node scripts/e2e-live.mjs
@@ -1021,7 +1021,7 @@ const PENDING_QUERY = `query Pending($mediaType: MediaType) {
   pendingMatch(mediaType: $mediaType) { id mediaType round movie { id title } show { id title } }
 }`;
 const TV_STATUS_QUERY = `query Status($id: Int!) {
-  plexStatus(movieId: $id, mediaType: TV) { availability canRequest missingSeasons }
+  plexStatus(movieId: $id, mediaType: TV) { availability canRequest missingSeasons seasonCount }
 }`;
 const PREVIEW_QUERY = `query Preview($filters: FiltersInput!) {
   filterPreview(filters: $filters, mediaType: TV) { totalResults }
@@ -1122,7 +1122,6 @@ async function assertShowMatchScreen(actor, title) {
   );
   await page.getByRole("button", { name: "Keep Looking" }).waitFor();
   assert((await page.getByRole("button", { name: "Back to Start" }).count()) === 0, `${actor.name}: Back to Start on a show`);
-  assert((await page.getByRole("button", { name: "Request on Plex" }).count()) === 0, `${actor.name}: Request on Plex on a show`);
   return facts;
 }
 
@@ -1525,7 +1524,7 @@ async function main() {
       note(`B moved to ${newCode}; A's like on "${film}" did not match on B's departed like`);
     });
 
-    await step("invite link join, roommate's like surfaces first", { requires: ["leave room removes the like, updates the roommate live"] }, async (note) => {
+    await step("invite link join, likes stay hidden", { requires: ["leave room removes the like, updates the roommate live"] }, async (note) => {
       const since = Date.now();
       await B.page.goto(`${BASE_URL}/join/${code}`);
       await B.page.getByRole("heading", { name: `Join room ${code}?` }).waitFor();
@@ -1535,7 +1534,8 @@ async function main() {
       await B.page.locator(".deck-ticket-strip__code", { hasText: code }).waitFor();
       await A.waitEvent("MEMBERS_CHANGED", since);
       await toast;
-      await topCard(B).locator(".deck-card__badge", { hasText: "A roommate liked this" }).waitFor();
+      await topCard(B).waitFor();
+      assert(!/liked this/i.test(await topCard(B).innerText()), "B's card gives away A's like");
       await B.waitLive(since);
 
       await A.mark();
@@ -1548,9 +1548,13 @@ async function main() {
       await A.assertNoReload("second match");
       const heading = await assertMatchScreen(A);
       noteWatch(await readWhereToWatch(A, A.page), note, "A");
+      const cleared = A.waitOp("ClearMatch");
+      await A.page.getByRole("button", { name: "Clear match" }).click();
+      await cleared;
+      await onPath(A, "/");
+      assert((await pendingOf(A, "MOVIE")) === null, "a cleared match is still pending");
       await backToStart(B);
-      await backToStart(A);
-      note(`second match "${heading}" reached A over the websocket`);
+      note(`second match "${heading}" reached A over the websocket, and A cleared it`);
     });
 
     await step("avatar uploads through S3 and displays", { requires: ["register A"] }, async (note) => {
@@ -2758,7 +2762,7 @@ async function main() {
       note("gone from the table and the status index; the title is requestable again");
     });
 
-    // Nothing below may press or call a request: requestOnPlex would take the show's number for a movie.
+    // Nothing below may send a request: a run must never add a real series to Sonarr.
     await step("Plex: the show filter yields indexed shows, marked On Plex, with no request control", { requires: plexLinked }, async (note) => {
       await switchMode(P, "Shows");
       await switchMode(Q, "Shows");
@@ -2814,7 +2818,7 @@ async function main() {
       await keepLooking(Q);
     });
 
-    await step("Plex: a show outside the library has no request button", { requires: plexShows }, async (note) => {
+    await step("Plex: a show outside the library offers a request, cancelled unsent", { requires: plexShows }, async (note) => {
       await openFilters(P, "/shows/filters");
       await plexTile(P.page.getByRole("group", { name: "Streaming Services" })).click();
       const since = await applyFilters(P, "/shows");
@@ -2825,17 +2829,27 @@ async function main() {
       for (let attempt = 0; attempt < 25; attempt += 1) {
         const opened = await openPlexStatus(P);
         seen.push(opened.badge);
-        assert(opened.status.canRequest === false, `canRequest on "${opened.title}": ${JSON.stringify(opened.status)}`);
-        assert((await P.page.getByRole("button", { name: "Request on Plex" }).count()) === 0, `Request on Plex offered on "${opened.title}"`);
         const missingFromPlex = opened.status.availability === "NOT_IN_LIBRARY";
-        const words = missingFromPlex ? await opened.sheet.locator(".plex-status").textContent() : "";
-        await opened.sheet.getByRole("button", { name: "Close" }).click();
-        await opened.sheet.waitFor({ state: "hidden" });
         if (missingFromPlex) {
+          assert(opened.status.canRequest === true, `no request on "${opened.title}": ${JSON.stringify(opened.status)}`);
+          const words = await opened.sheet.locator(".plex-status").textContent();
           assert(words.includes("It isn't in the library yet"), `panel says: ${words}`);
-          note(`"${opened.title}" after ${attempt} passes: ${words}`);
+          await opened.sheet.getByRole("button", { name: "Request on Plex" }).click();
+          const confirm = P.page.getByRole("dialog", { name: `Request ${opened.title}?` });
+          await confirm.waitFor();
+          const pickers = await confirm.getByRole("checkbox").count();
+          assert(opened.status.seasonCount > 1 ? pickers === opened.status.seasonCount + 1 : pickers === 0, `${pickers} checkboxes for ${opened.status.seasonCount} seasons`);
+          await screenshot(P, "plex-show-request-confirm");
+          await confirm.getByRole("button", { name: "Cancel" }).click();
+          await confirm.waitFor({ state: "hidden" });
+          await opened.sheet.getByRole("button", { name: "Close" }).click();
+          await opened.sheet.waitFor({ state: "hidden" });
+          note(`"${opened.title}" after ${attempt} passes: ${words}; ${pickers} checkboxes, cancelled`);
           return;
         }
+        assert(opened.status.canRequest === false, `canRequest on "${opened.title}": ${JSON.stringify(opened.status)}`);
+        await opened.sheet.getByRole("button", { name: "Close" }).click();
+        await opened.sheet.waitFor({ state: "hidden" });
         await pressSwipe(P, "Just Friends");
       }
       throw new Error(`no show outside the library in 25 cards; badges: ${seen.join(", ")}`);

@@ -11,9 +11,10 @@ export async function plexStatus(
   checkedMovieId(movieId);
   const { plexUserId } = await getOrCreateProfile(context);
   if (!plexUserId) return null;
-  if (resolveMediaType(mediaType) === "TV") return loadShowPlexStatus(movieId);
   try {
-    return await loadPlexStatus(movieId, plexUserId);
+    return resolveMediaType(mediaType) === "TV"
+      ? await loadShowPlexStatus(movieId, plexUserId)
+      : await loadPlexStatus(movieId, plexUserId);
   } catch (error) {
     if (error instanceof PlexRequestUnavailableError) return REQUESTS_DOWN;
     throw error;

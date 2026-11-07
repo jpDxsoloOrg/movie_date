@@ -101,7 +101,7 @@ export function SwipeCard({
   onOpenDetails,
   onExited,
 }: SwipeCardProps): JSX.Element {
-  const { movie, show, likedByRoommate } = card;
+  const { movie, show } = card;
   const { copy } = useMode();
   const element = useRef<HTMLElement>(null);
   const gesture = useRef<Gesture | null>(null);
@@ -267,12 +267,6 @@ export function SwipeCard({
     >
       <Poster movie={movie} icon={copy.icon} />
       <div className="deck-card__scrim" />
-      {likedByRoommate && (
-        <span className="deck-card__badge">
-          <Icon name="heart" />
-          A roommate liked this
-        </span>
-      )}
       {isTop && onOpenDetails && (
         <IconButton
           className="deck-card__info"

@@ -76,7 +76,7 @@ function asMovie(show: Show): DeckCard["movie"] {
 
 function makeCard(id: number): DeckCard {
   const show = makeShow(id);
-  return { likedByRoommate: false, mediaType: "TV", show, movie: asMovie(show) };
+  return { mediaType: "TV", show, movie: asMovie(show) };
 }
 
 function makeMatch(id: number): Match {
@@ -87,6 +87,7 @@ function makeMatch(id: number): Match {
     round: 3,
     matchedAt: "2026-01-15T12:00:00Z",
     mediaType: "TV",
+    cleared: false,
     show,
     movie: asMovie(show),
   };
@@ -236,8 +237,8 @@ describe("the words and pictures in Going Steady", () => {
 });
 
 describe("Plex on a show", () => {
-  async function openDetails(status: PlexStatus): Promise<void> {
-    mocks.deck.mockResolvedValue({ cards: [makeCard(1)], nextPage: null });
+  async function openDetails(status: PlexStatus, card = makeCard(1)): Promise<void> {
+    mocks.deck.mockResolvedValue({ cards: [card], nextPage: null });
     mocks.plexStatus.mockResolvedValue(status);
     const user = userEvent.setup();
     renderIn({ path: "/shows", room: makeRoom({ id: `room-plex-${status.availability}` }), plexLinked: true, children: <Home /> });
@@ -268,16 +269,64 @@ describe("Plex on a show", () => {
     expect(screen.queryByText(/Ready to watch/)).not.toBeInTheDocument();
   });
 
-  it("never offers a request, even if the API says it can", async () => {
+  it("says a show that isn't there isn't there, and offers it", async () => {
     await openDetails({ availability: "NOT_IN_LIBRARY", canRequest: true, missingSeasons: null });
-    expect(await screen.findByText("Not on Plex")).toBeInTheDocument();
+    expect(await screen.findByText("It isn't in the library yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request on Plex" })).toBeInTheDocument();
+  });
+
+  it("says requests are down when a missing show can't be requested", async () => {
+    await openDetails({ availability: "NOT_IN_LIBRARY", canRequest: false, missingSeasons: null });
+    expect(await screen.findByText("Plex requests are unavailable right now.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
   });
 
-  it("doesn't call a show that simply isn't there an outage", async () => {
-    await openDetails({ availability: "NOT_IN_LIBRARY", canRequest: false, missingSeasons: null });
-    expect(await screen.findByText("It isn't in the library yet.")).toBeInTheDocument();
-    expect(screen.queryByText("Plex requests are unavailable right now.")).not.toBeInTheDocument();
+  describe("the season picker", () => {
+    const REQUESTABLE: PlexStatus = { availability: "NOT_IN_LIBRARY", canRequest: true, missingSeasons: null, seasonCount: 4 };
+    const REQUESTED: PlexStatus = { availability: "REQUESTED", canRequest: false, missingSeasons: null };
+
+    async function openPicker(status = REQUESTABLE): Promise<ReturnType<typeof userEvent.setup>> {
+      await openDetails(status, makeCard(1));
+      mocks.requestOnPlex.mockResolvedValue(REQUESTED);
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("button", { name: "Request on Plex" }));
+      return user;
+    }
+
+    const season = (number: number) => screen.getByRole("checkbox", { name: `Season ${number}` });
+    const sendButton = () => screen.getByRole("button", { name: "Request" });
+
+    it("starts with every season chosen, which sends no list", async () => {
+      const user = await openPicker();
+      expect(screen.getByRole("checkbox", { name: "All seasons" })).toBeChecked();
+      for (const number of [1, 2, 3, 4]) expect(season(number)).toBeChecked();
+      await user.click(sendButton());
+      await waitFor(() => expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "TV", undefined));
+    });
+
+    it("sends a subset in order", async () => {
+      const user = await openPicker();
+      await user.click(screen.getByRole("checkbox", { name: "All seasons" }));
+      await user.click(season(3));
+      await user.click(season(1));
+      await user.click(sendButton());
+      await waitFor(() => expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "TV", [1, 3]));
+    });
+
+    it("won't send with nothing chosen", async () => {
+      const user = await openPicker();
+      await user.click(screen.getByRole("checkbox", { name: "All seasons" }));
+      expect(sendButton()).toBeDisabled();
+      await user.click(season(2));
+      expect(sendButton()).toBeEnabled();
+    });
+
+    it("has nothing to pick on a one-season show", async () => {
+      const user = await openPicker({ ...REQUESTABLE, seasonCount: 1 });
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      await user.click(sendButton());
+      await waitFor(() => expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "TV", undefined));
+    });
   });
 });
 

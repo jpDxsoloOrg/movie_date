@@ -37,11 +37,8 @@ function missingSeasonsNote(seasons: readonly number[]): string {
 
 function statusNote(status: PlexStatus, mediaType: MediaType): string {
   if (isPartial(status)) return missingSeasonsNote(status.missingSeasons ?? []);
-  // A show can never be requested in this build, so for shows this says nothing about an outage.
-  // For a movie, the backend reports an outage as a missing title that can't be requested.
-  if (mediaType === "MOVIE" && status.availability === "NOT_IN_LIBRARY" && !status.canRequest) {
-    return REQUESTS_DOWN_NOTE;
-  }
+  // The backend reports an outage as a missing title that can't be requested.
+  if (status.availability === "NOT_IN_LIBRARY" && !status.canRequest) return REQUESTS_DOWN_NOTE;
   if (mediaType === "TV" && status.availability === "AVAILABLE") return SHOW_AVAILABLE_NOTE;
   return STATUS_COPY[status.availability].note;
 }
@@ -62,6 +59,48 @@ interface PanelProps {
   onGradient: boolean;
 }
 
+/** One season leaves nothing to pick, and a show with no count asks for all of it. */
+function seasonNumbers(seasonCount: number | null | undefined): number[] {
+  const count = seasonCount ?? 0;
+  return count > 1 ? Array.from({ length: count }, (_, index) => index + 1) : [];
+}
+
+interface SeasonPickerProps {
+  seasons: readonly number[];
+  chosen: ReadonlySet<number>;
+  onChange: (chosen: Set<number>) => void;
+}
+
+function SeasonPicker({ seasons, chosen, onChange }: SeasonPickerProps): JSX.Element {
+  function toggle(season: number): void {
+    const next = new Set(chosen);
+    if (!next.delete(season)) next.add(season);
+    onChange(next);
+  }
+
+  return (
+    <fieldset className="plex-status__seasons">
+      <legend className="plex-status__seasons-legend">Seasons</legend>
+      <label className="plex-status__season plex-status__season--all">
+        <input
+          type="checkbox"
+          checked={chosen.size === seasons.length}
+          onChange={(event) => onChange(new Set(event.target.checked ? seasons : []))}
+        />
+        All seasons
+      </label>
+      <div className="plex-status__season-list">
+        {seasons.map((season) => (
+          <label key={season} className="plex-status__season">
+            <input type="checkbox" checked={chosen.has(season)} onChange={() => toggle(season)} />
+            Season {season}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function LinkedPanel({ movieId, movieTitle, mediaType, onGradient }: PanelProps): JSX.Element | null {
   const toast = useToast();
   const { data: status, error, reload, setData } = useAsyncData(
@@ -72,25 +111,33 @@ function LinkedPanel({ movieId, movieTitle, mediaType, onGradient }: PanelProps)
   const [sending, setSending] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
   const requested = useRef(false);
-  // requestOnPlex is movies only for now: a show id would be taken for the movie
-  // with the same number (decision 42).
-  const canRequest = mediaType === "MOVIE" && (status?.canRequest ?? false);
+  const canRequest = status?.canRequest ?? false;
+  const seasons = seasonNumbers(status?.seasonCount);
+  const [chosenSeasons, setChosenSeasons] = useState<ReadonlySet<number>>(new Set());
 
   // The button that opened the dialog is gone by now, and focus would drop out of the sheet.
   useEffect(() => {
-    if (requested.current && !canRequest) summary.current?.focus();
+    if (canRequest || !requested.current) return;
     requested.current = false;
+    summary.current?.focus();
   }, [canRequest]);
 
   async function sendRequest(): Promise<void> {
     setSending(true);
     try {
-      const next = await api.requestOnPlex(movieId, mediaType);
+      const partial = chosenSeasons.size < seasons.length;
+      const next = await api.requestOnPlex(
+        movieId,
+        mediaType,
+        partial ? [...chosenSeasons].sort((first, second) => first - second) : undefined,
+      );
       requested.current = true;
       setData(next);
       setConfirming(false);
       if (next.availability === "REQUESTED") toast.success(`Requested ${movieTitle} on Plex`);
     } catch (caught) {
+      // The reload can take the button away too.
+      requested.current = true;
       setConfirming(false);
       toast.error(errorMessage(caught));
       void reload();
@@ -129,25 +176,41 @@ function LinkedPanel({ movieId, movieTitle, mediaType, onGradient }: PanelProps)
         <span className="plex-status__note">{statusNote(status, mediaType)}</span>
       </div>
       {canRequest && (
-        <Button className="plex-status__request" onClick={() => setConfirming(true)}>
+        <Button
+          className="plex-status__request"
+          onClick={() => {
+            setChosenSeasons(new Set(seasons));
+            setConfirming(true);
+          }}
+        >
           Request on Plex
         </Button>
       )}
       <Modal
         open={confirming}
-        onClose={() => setConfirming(false)}
+        onClose={() => {
+          // Closing mid-send would look like cancelling a request that's going through.
+          if (!sending) setConfirming(false);
+        }}
         title={`Request ${movieTitle}?`}
         actions={
           <>
             <Button variant="ghost" disabled={sending} onClick={() => setConfirming(false)}>
               Cancel
             </Button>
-            <Button loading={sending} onClick={() => void sendRequest()}>
+            <Button
+              loading={sending}
+              disabled={seasons.length > 0 && chosenSeasons.size === 0}
+              onClick={() => void sendRequest()}
+            >
               Request
             </Button>
           </>
         }
       >
+        {seasons.length > 0 && (
+          <SeasonPicker seasons={seasons} chosen={chosenSeasons} onChange={setChosenSeasons} />
+        )}
         <p className="plex-status__confirm">
           This goes to Plex Request from your linked account. If your account is trusted, the download starts straight
           away.

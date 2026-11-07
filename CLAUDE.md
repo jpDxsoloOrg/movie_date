@@ -93,7 +93,7 @@ never inline.
 | `ROOM#<id>` | `SWIPE#<round>#<sub>#<media>` | Direction and title snapshot |
 | `ROOM#<id>` | `TALLY#<round>#<media>` | Atomic `likes` and title snapshot |
 | `ROOM#<id>` | `MATCH#<matchedAt>#<media>` | A match, newest first on a reverse query |
-| `ROOM#<id>` | `MATCHED#<round>#<media>` | Sentinel that makes a match exactly-once |
+| `ROOM#<id>` | `MATCHED#<round>#<media>` | Sentinel that makes a match exactly-once. `clearedAt` stops it being announced |
 | `CODE#<code>` | `ROOM` | Room code lookup |
 | `CACHE#<kind>#<key>` | `CACHE` | TMDB and streaming cache |
 | `LIMIT#<name>` | `<window>` | Global limits |
@@ -104,6 +104,12 @@ Rows written before shows existed have a bare id, and `parseMediaKey` reads thos
 Never pick a mode from a `movie:` prefix: use `mediaRefOfSk`. `round` and `tvRound` are
 separate counters that overlap, so filter a round's rows with `inMode`.
 Decision 7 in `docs/DECISIONS_FOR_REVIEW.md` covers what the bare rows still affect.
+
+## Keeping likes private
+
+Nobody learns what anyone else liked until there's a match. Likes must never reach a client
+or change a deck's contents or order: see decision 83. `pendingMatch` skips cleared matches
+and matches made before the caller joined (decisions 84 and 85).
 
 ## Two modes
 
@@ -139,7 +145,7 @@ Plex Request is a separate app (`~/source/plex_request`) with live users. Movie 
 its private Lambda, `plex-request-api-devtest-integration`, directly with `lambda:InvokeFunction`.
 That name is pinned in `sst.config.ts`, and that IAM grant is the only access control.
 
-- The ops are `findUser`, `libraryMovies`, `libraryShows`, `movieStatus` and `createRequest`,
+- The ops are `findUser`, `libraryMovies`, `libraryShows`, `movieStatus`, `showStatus` and `createRequest`,
   all in `packages/functions/src/lib/plexRequest.ts`. `createRequest` makes a single attempt,
   because a retry could start a second download for a trusted user.
 - People link their account with a code emailed through SES. The code is the only proof of
@@ -147,10 +153,9 @@ That name is pinned in `sst.config.ts`, and that IAM grant is the only access co
 - `plexIndexJob` reads the library every 6 hours and writes the index to the private bucket.
   Run it by hand with `aws lambda invoke` on the `plexIndexFunction` output.
 - Movies keep TMDB ids. Plex Request keeps shows by TVDB id, and the job converts them.
-- Plex status and the Plex filter work in both modes. Request on Plex is movies only:
-  `requestOnPlex` refuses TV, and `canRequest` stays false for shows. A show's id sent without
+- Plex status, the Plex filter and Request on Plex work in both modes. A show request sends its
+  TVDB id, never `tmdbId`, and optional `seasons`. A show's id sent to `requestOnPlex` without
   `mediaType` would request the movie with that number, so never send one, in a script or a test.
-  Decision 42 has what turning it on needs.
 
 ### Deploying Plex Request
 

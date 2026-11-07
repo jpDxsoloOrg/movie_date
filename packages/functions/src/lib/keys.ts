@@ -43,6 +43,11 @@ export function match(roomId: string, matchedAt: string, media: MediaKey): Table
   return { pk: roomPk(roomId), sk: `MATCH#${matchedAt}#${media}` };
 }
 
+/** The timestamp a match row's sort key leads with. It can't hold a `#`. */
+export function matchedAtOfSk(sk: string): string {
+  return sk.split("#")[1] ?? "";
+}
+
 /** Sentinel whose conditional put decides the single winner of a match. */
 export function matched(roomId: string, round: number, media: MediaKey): TableKey {
   return { pk: roomPk(roomId), sk: `MATCHED#${round}#${media}` };

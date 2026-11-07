@@ -45,6 +45,7 @@ function makeMatch(id: number, title: string): Match {
     round: 2,
     matchedAt: "2026-01-15T12:00:00Z",
     mediaType: "MOVIE",
+    cleared: false,
     movie: makeMovie(id, title),
     show: null,
   };
@@ -224,7 +225,7 @@ describe("Plex on a past match", () => {
 
     const sheet = screen.getByRole("dialog", { name: "Heat details" });
     expect(await within(sheet).findByText("Requested on Plex")).toBeInTheDocument();
-    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "MOVIE");
+    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "MOVIE", undefined);
   });
 
   it("closes only the confirmation on Escape", async () => {

@@ -171,6 +171,7 @@ export const PlexStatusFields = graphql(`
     availability
     canRequest
     missingSeasons
+    seasonCount
   }
 `);
 
@@ -269,6 +270,7 @@ export const MatchFields = graphql(`
     round
     matchedAt
     mediaType
+    cleared
     movie {
       ...MovieFields
     }
@@ -316,7 +318,6 @@ const DeckQuery = graphql(`
     deck(page: $page, mediaType: $mediaType) {
       nextPage
       cards {
-        likedByRoommate
         mediaType
         movie {
           ...MovieFields
@@ -527,10 +528,16 @@ const UnlinkPlexMutation = graphql(`
 `);
 
 const RequestOnPlexMutation = graphql(`
-  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType) {
-    requestOnPlex(movieId: $movieId, mediaType: $mediaType) {
+  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {
+    requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {
       ...PlexStatusFields
     }
+  }
+`);
+
+const ClearMatchMutation = graphql(`
+  mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {
+    clearMatch(matchId: $matchId, mediaType: $mediaType)
   }
 `);
 
@@ -609,8 +616,11 @@ export const api = {
   startPlexLink: async () => (await execute(StartPlexLinkMutation)).startPlexLink,
   confirmPlexLink: async (code: string) => (await execute(ConfirmPlexLinkMutation, { code })).confirmPlexLink,
   unlinkPlex: async () => (await execute(UnlinkPlexMutation)).unlinkPlex,
-  requestOnPlex: async (movieId: number, mediaType: MediaType = "MOVIE") =>
-    (await execute(RequestOnPlexMutation, { movieId, mediaType })).requestOnPlex,
+  /** Leave seasons out for every season. */
+  requestOnPlex: async (movieId: number, mediaType: MediaType = "MOVIE", seasons?: number[]) =>
+    (await execute(RequestOnPlexMutation, { movieId, mediaType, seasons })).requestOnPlex,
+  clearMatch: async (matchId: string, mediaType: MediaType = "MOVIE") =>
+    (await execute(ClearMatchMutation, { matchId, mediaType })).clearMatch,
 
   /**
    * Posts an already cropped image to S3 and returns the key for updateProfile.

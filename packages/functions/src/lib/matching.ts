@@ -51,7 +51,6 @@ interface MatchClaim {
   movie: Movie;
   show?: Show | undefined;
   threshold: number;
-  actorId: string;
   matchedAt: string;
 }
 
@@ -111,7 +110,7 @@ function matchWrites(claim: MatchClaim, matchId: string): TransactItems {
 }
 
 async function claimMatch(claim: MatchClaim): Promise<Match | null> {
-  const { roomId, round, movieId, mediaType, actorId, matchedAt } = claim;
+  const { roomId, round, movieId, mediaType, matchedAt } = claim;
   for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     const matchId = randomUUID();
     try {
@@ -124,7 +123,7 @@ async function claimMatch(claim: MatchClaim): Promise<Match | null> {
           keys.matched(roomId, round, mediaKey(mediaType, movieId)),
           { consistent: true },
         );
-        return winner ? loadMatch(roomId, winner) : null;
+        return winner && !winner.clearedAt ? loadMatch(roomId, winner) : null;
       }
       if (failedCondition(tallyCode) || failedCondition(roundCode)) return null;
       await backoff(attempt);
@@ -137,7 +136,6 @@ async function claimMatch(claim: MatchClaim): Promise<Match | null> {
       mediaType,
       matchId,
       round,
-      actorId,
     });
     return {
       id: matchId,
@@ -147,6 +145,7 @@ async function claimMatch(claim: MatchClaim): Promise<Match | null> {
       mediaType,
       movie: claim.movie,
       show: claim.show ?? null,
+      cleared: false,
     };
   }
   throw new ConflictError();
@@ -157,14 +156,14 @@ async function claimMatch(claim: MatchClaim): Promise<Match | null> {
  * committed: a threshold change writes first and scans tallies second, so one of
  * the two sides is guaranteed to see the other and no match can fall between
  * them. Returns the movie's match whoever made it, so a repeat of a swipe whose
- * response was lost, or the loser of a race, still gets it.
+ * response was lost, or the loser of a race, still gets it. No event says whose like
+ * finished it: a match tells the room a title has enough likes, not who gave them.
  */
 export async function evaluateMovie(
   roomId: string,
   round: number,
   movieId: number,
   mediaType: MediaType,
-  actorId: string,
 ): Promise<Match | null> {
   const media = mediaKey(mediaType, movieId);
   const [sentinel, tally, meta, memberRows] = await Promise.all([
@@ -173,10 +172,18 @@ export async function evaluateMovie(
     requireRoomMeta(roomId),
     loadMemberRows(roomId),
   ]);
-  if (sentinel) return loadMatch(roomId, sentinel);
+  // A cleared match is over: liking it again, as someone new can, doesn't announce it.
+  if (sentinel) return sentinel.clearedAt ? null : loadMatch(roomId, sentinel);
   if (!tally || roundOf(meta, mediaType) !== round) return null;
   const threshold = effectiveThreshold(meta, memberRows.length);
   if (!isMatch(tally.likes, threshold)) return null;
+  // A bare-id row (decision 7) has a different key from the one read above.
+  const sentinels = await queryAll<MatchedItem>(keys.roomPk(roomId), {
+    skPrefix: keys.prefixes.roundMatched(round),
+    consistent: true,
+  });
+  const earlier = sentinels.filter(inMode(mediaType)).find((row) => row.movieId === movieId);
+  if (earlier) return earlier.clearedAt ? null : loadMatch(roomId, earlier);
   return claimMatch({
     roomId,
     round,
@@ -185,12 +192,11 @@ export async function evaluateMovie(
     movie: tally.movie,
     show: tally.show,
     threshold,
-    actorId,
     matchedAt: new Date().toISOString(),
   });
 }
 
-async function reevaluateMode(roomId: string, mediaType: MediaType, actorId: string): Promise<void> {
+async function reevaluateMode(roomId: string, mediaType: MediaType): Promise<void> {
   const meta = await requireRoomMeta(roomId);
   const round = roundOf(meta, mediaType);
   const pk = keys.roomPk(roomId);
@@ -221,7 +227,6 @@ async function reevaluateMode(roomId: string, mediaType: MediaType, actorId: str
         movie: tally.movie,
         show: tally.show,
         threshold,
-        actorId,
         matchedAt: new Date(startedAt + position).toISOString(),
       });
     }
@@ -229,8 +234,8 @@ async function reevaluateMode(roomId: string, mediaType: MediaType, actorId: str
 }
 
 /** After a lowered threshold or a member change, which can tip many tallies at once. */
-export async function reevaluateRoom(roomId: string, actorId: string): Promise<void> {
-  for (const mediaType of MEDIA_TYPES) await reevaluateMode(roomId, mediaType, actorId);
+export async function reevaluateRoom(roomId: string): Promise<void> {
+  for (const mediaType of MEDIA_TYPES) await reevaluateMode(roomId, mediaType);
 }
 
 /** Each entry is at most two transaction items; DynamoDB allows 100 per transaction. */
@@ -301,8 +306,8 @@ async function logFailure(description: string, work: Promise<void>): Promise<voi
 }
 
 /** Follow-up to a committed settings change; see `settleMove` for why it can't fail the caller. */
-export async function settleRoom(roomId: string, actorId: string): Promise<void> {
-  await logFailure("Room re-evaluation", reevaluateRoom(roomId, actorId));
+export async function settleRoom(roomId: string): Promise<void> {
+  await logFailure("Room re-evaluation", reevaluateRoom(roomId));
 }
 
 /**
@@ -324,6 +329,6 @@ export async function settleMove(
       publishRoomEvent({ roomId, type: "MEMBERS_CHANGED", actorId: userId }),
     ),
   );
-  await settleRoom(fromRoomId, userId);
-  await settleRoom(toRoomId, userId);
+  await settleRoom(fromRoomId);
+  await settleRoom(toRoomId);
 }

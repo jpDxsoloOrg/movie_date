@@ -29,7 +29,9 @@ import {
 /**
  * The delete is conditional so two undos can't both decrement, and the sentinel
  * check rides in the same transaction so an undo can't take back a like a match
- * was just built on. The order of these writes is relied on below.
+ * was just built on. Only a like is checked: a refused pass would tell someone
+ * about a match they weren't part of, and so would a refusal on a cleared one.
+ * The order of these writes is relied on below.
  */
 function undoWrites(
   roomId: string,
@@ -46,15 +48,15 @@ function undoWrites(
         ConditionExpression: "attribute_exists(pk)",
       },
     },
-    {
+  ];
+  if (row.direction === "LIKE") {
+    writes.push({
       ConditionCheck: {
         TableName: tableName(),
         Key: keys.matched(roomId, round, media),
-        ConditionExpression: "attribute_not_exists(pk)",
+        ConditionExpression: "attribute_not_exists(pk) OR attribute_exists(clearedAt)",
       },
-    },
-  ];
-  if (row.direction === "LIKE") {
+    });
     writes.push({
       Update: {
         TableName: tableName(),

@@ -19,6 +19,7 @@ import { startNewRound } from "./handlers/startNewRound.js";
 import { updateProfile } from "./handlers/updateProfile.js";
 import { createAvatarUpload } from "./handlers/createAvatarUpload.js";
 import { filterPreview } from "./handlers/filterPreview.js";
+import { clearMatch } from "./handlers/clearMatch.js";
 import { plexStatus } from "./handlers/plexStatus.js";
 import { startPlexLink } from "./handlers/startPlexLink.js";
 import { confirmPlexLink } from "./handlers/confirmPlexLink.js";
@@ -68,6 +69,7 @@ const handlers: HandlerTable = {
   confirmPlexLink,
   unlinkPlex,
   requestOnPlex,
+  clearMatch,
   publishRoomEvent,
   revokeRoomSubscriptions,
   onRoomEvent,

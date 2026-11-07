@@ -70,7 +70,6 @@ describe("swipe", () => {
       mediaType: "MOVIE",
       matchId: second.match?.id,
       round: 1,
-      actorId: "sub-bob",
     });
     expect(table.find(`ROOM#${room.id}`, "MATCH#")).toHaveLength(1);
     expect(table.row(`ROOM#${room.id}`, "MATCHED#1#movie:7")?.matchId).toBe(second.match?.id);

@@ -100,8 +100,7 @@ export function useDeck(): Deck {
 
   const deal = useCallback(
     (page: DeckPage) => {
-      // The server can't exclude a swipe still in flight, and a roommate's like
-      // from the head of page 1 can turn up again on a later page.
+      // The server can't exclude a swipe still in flight.
       const dealt = new Set([
         ...queue.current.map(movieIdOf),
         ...session.records.map((record) => movieIdOf(record.entry)),

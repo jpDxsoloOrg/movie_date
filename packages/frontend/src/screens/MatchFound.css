@@ -129,3 +129,14 @@
     background-position-x: 1rem;
   }
 }
+
+.match-found__actions {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* The footer has no panel, so this needs its own plate on the gradient. */
+.match-found__actions .md-button--ghost {
+  background: var(--color-scrim);
+  color: var(--color-on-gradient);
+}

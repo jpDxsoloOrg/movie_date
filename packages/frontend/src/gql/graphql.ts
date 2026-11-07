@@ -34,8 +34,6 @@ export type CommitmentLevel =
   | 'SHORT_AND_SWEET';
 
 export type DeckCard = {
-  /** True if another room member already liked it this round; these sort first. */
-  likedByRoommate: Scalars['Boolean']['output'];
   mediaType: MediaType;
   /**
    * The card face, set in both modes. For a show this is showAsMovie(show) from
@@ -112,6 +110,8 @@ export type HistoryPage = {
 };
 
 export type Match = {
+  /** Someone cleared it: it stays in history but nobody is told about it again. */
+  cleared: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   matchedAt: Scalars['AWSDateTime']['output'];
   mediaType: MediaType;
@@ -155,6 +155,8 @@ export type Movie = {
 };
 
 export type Mutation = {
+  /** Stops one match of the mode's current round being announced, leaving the deck and round as they are. False if it isn't in the current round. */
+  clearMatch: Scalars['Boolean']['output'];
   confirmPlexLink: Profile;
   createAvatarUpload: AvatarUpload;
   /** Case-insensitive. Leaves the caller's current room first. */
@@ -163,7 +165,7 @@ export type Mutation = {
   leaveRoom: Room;
   /** Backend only. Pass-through that fans out to onRoomEvent subscribers. */
   publishRoomEvent: RoomEvent;
-  /** Movies only for now. Acts only as the caller's linked account. A duplicate comes back as REQUESTED. */
+  /** Acts only as the caller's linked account. A duplicate comes back as REQUESTED. seasons is for shows, and null means all of them. */
   requestOnPlex: PlexStatus;
   /** Backend only. Closes a departed member's open onRoomEvent subscriptions to that room. */
   revokeRoomSubscriptions?: Maybe<Scalars['Boolean']['output']>;
@@ -177,6 +179,12 @@ export type Mutation = {
   updateFilters: Room;
   updateProfile: Profile;
   updateRoomSettings: Room;
+};
+
+
+export type MutationClearMatchArgs = {
+  matchId: Scalars['ID']['input'];
+  mediaType?: InputMaybe<MediaType>;
 };
 
 
@@ -203,6 +211,7 @@ export type MutationPublishRoomEventArgs = {
 export type MutationRequestOnPlexArgs = {
   mediaType?: InputMaybe<MediaType>;
   movieId: Scalars['Int']['input'];
+  seasons?: InputMaybe<Array<Scalars['Int']['input']>>;
 };
 
 
@@ -281,6 +290,8 @@ export type PlexStatus = {
   canRequest: Scalars['Boolean']['output'];
   /** Shows only: season numbers with no file. AVAILABLE with any listed is the partial state. */
   missingSeasons?: Maybe<Array<Scalars['Int']['output']>>;
+  /** Shows only, when canRequest: how many seasons the show has today, for the season picker. */
+  seasonCount?: Maybe<Scalars['Int']['output']>;
 };
 
 export type Profile = {
@@ -304,7 +315,7 @@ export type Query = {
   movie: Movie;
   /** The caller's current room. */
   myRoom: Room;
-  /** A match the mode's current round already has, for clients that were offline when it happened. */
+  /** The current round's earliest uncleared match made since the caller joined, for clients that were offline when it happened. */
   pendingMatch?: Maybe<Match>;
   /** Null when the caller hasn't linked Plex Request. */
   plexStatus?: Maybe<PlexStatus>;
@@ -420,6 +431,8 @@ export type RoomEventInput = {
 };
 
 export type RoomEventType =
+  /** Someone cleared a match. matchId and mediaType are set. Nobody is routed to it again. */
+  | 'MATCH_CLEARED'
   /** A swipe completed a match. movieId, matchId and mediaType are set. */
   | 'MATCH_FOUND'
   /** Someone joined or left. Clients reload the member list. */
@@ -497,7 +510,7 @@ export type WatchOption = {
 
 export type ProfileFieldsFragment = { id: string, email: string, displayName: string, avatarUrl?: string | null, plexLinked: boolean };
 
-export type PlexStatusFieldsFragment = { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null };
+export type PlexStatusFieldsFragment = { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null, seasonCount?: number | null };
 
 export type PersonFieldsFragment = { id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null };
 
@@ -511,7 +524,7 @@ export type MovieFieldsFragment = { id: number, title: string, overview: string,
 
 export type ShowFieldsFragment = { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> };
 
-export type MatchFieldsFragment = { id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null };
+export type MatchFieldsFragment = { id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, cleared: boolean, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null };
 
 export type HistoryEntryFieldsFragment = { direction: SwipeDirection, round: number, swipedAt: string, mediaType: MediaType, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null };
 
@@ -531,7 +544,7 @@ export type DeckQueryVariables = Exact<{
 }>;
 
 
-export type DeckQuery = { deck: { nextPage?: number | null, cards: Array<{ likedByRoommate: boolean, mediaType: MediaType, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null }> } };
+export type DeckQuery = { deck: { nextPage?: number | null, cards: Array<{ mediaType: MediaType, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null }> } };
 
 export type FilterPreviewQueryVariables = Exact<{
   filters: FiltersInput;
@@ -570,7 +583,7 @@ export type PlexStatusQueryVariables = Exact<{
 }>;
 
 
-export type PlexStatusQuery = { plexStatus?: { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null } | null };
+export type PlexStatusQuery = { plexStatus?: { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null, seasonCount?: number | null } | null };
 
 export type GenresQueryVariables = Exact<{
   mediaType?: InputMaybe<MediaType>;
@@ -593,7 +606,7 @@ export type MatchesQueryVariables = Exact<{
 }>;
 
 
-export type MatchesQuery = { matches: { nextToken?: string | null, matches: Array<{ id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null }> } };
+export type MatchesQuery = { matches: { nextToken?: string | null, matches: Array<{ id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, cleared: boolean, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null }> } };
 
 export type SwipeHistoryQueryVariables = Exact<{
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -609,7 +622,7 @@ export type PendingMatchQueryVariables = Exact<{
 }>;
 
 
-export type PendingMatchQuery = { pendingMatch?: { id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null } | null };
+export type PendingMatchQuery = { pendingMatch?: { id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, cleared: boolean, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null } | null };
 
 export type SwipeMutationVariables = Exact<{
   movieId: Scalars['Int']['input'];
@@ -618,7 +631,7 @@ export type SwipeMutationVariables = Exact<{
 }>;
 
 
-export type SwipeMutation = { swipe: { movieId: number, mediaType: MediaType, direction: SwipeDirection, match?: { id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null } | null } };
+export type SwipeMutation = { swipe: { movieId: number, mediaType: MediaType, direction: SwipeDirection, match?: { id: string, roomId: string, round: number, matchedAt: string, mediaType: MediaType, cleared: boolean, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> }, show?: { id: number, title: string, overview: string, firstAirYear?: number | null, lastAirYear?: number | null, status?: string | null, seasonCount?: number | null, episodeCount?: number | null, networks: Array<string>, episodeRuntime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } | null } | null } };
 
 export type UndoSwipeMutationVariables = Exact<{
   movieId: Scalars['Int']['input'];
@@ -699,10 +712,19 @@ export type UnlinkPlexMutation = { unlinkPlex: { id: string, email: string, disp
 export type RequestOnPlexMutationVariables = Exact<{
   movieId: Scalars['Int']['input'];
   mediaType?: InputMaybe<MediaType>;
+  seasons?: InputMaybe<Array<Scalars['Int']['input']> | Scalars['Int']['input']>;
 }>;
 
 
-export type RequestOnPlexMutation = { requestOnPlex: { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null } };
+export type RequestOnPlexMutation = { requestOnPlex: { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null, seasonCount?: number | null } };
+
+export type ClearMatchMutationVariables = Exact<{
+  matchId: Scalars['ID']['input'];
+  mediaType?: InputMaybe<MediaType>;
+}>;
+
+
+export type ClearMatchMutation = { clearMatch: boolean };
 
 export type OnRoomEventSubscriptionVariables = Exact<{
   roomId: Scalars['ID']['input'];
@@ -743,6 +765,7 @@ export const PlexStatusFieldsFragmentDoc = new TypedDocumentString(`
   availability
   canRequest
   missingSeasons
+  seasonCount
 }
     `, {"fragmentName":"PlexStatusFields"}) as unknown as TypedDocumentString<PlexStatusFieldsFragment, unknown>;
 export const PersonFieldsFragmentDoc = new TypedDocumentString(`
@@ -863,6 +886,7 @@ export const MatchFieldsFragmentDoc = new TypedDocumentString(`
   round
   matchedAt
   mediaType
+  cleared
   movie {
     ...MovieFields
   }
@@ -1004,7 +1028,6 @@ export const DeckDocument = new TypedDocumentString(`
   deck(page: $page, mediaType: $mediaType) {
     nextPage
     cards {
-      likedByRoommate
       mediaType
       movie {
         ...MovieFields
@@ -1093,6 +1116,7 @@ export const PlexStatusDocument = new TypedDocumentString(`
   availability
   canRequest
   missingSeasons
+  seasonCount
 }`) as unknown as TypedDocumentString<PlexStatusQuery, PlexStatusQueryVariables>;
 export const GenresDocument = new TypedDocumentString(`
     query Genres($mediaType: MediaType) {
@@ -1156,6 +1180,7 @@ fragment MatchFields on Match {
   round
   matchedAt
   mediaType
+  cleared
   movie {
     ...MovieFields
   }
@@ -1250,6 +1275,7 @@ fragment MatchFields on Match {
   round
   matchedAt
   mediaType
+  cleared
   movie {
     ...MovieFields
   }
@@ -1301,6 +1327,7 @@ fragment MatchFields on Match {
   round
   matchedAt
   mediaType
+  cleared
   movie {
     ...MovieFields
   }
@@ -1621,8 +1648,8 @@ export const UnlinkPlexDocument = new TypedDocumentString(`
   plexLinked
 }`) as unknown as TypedDocumentString<UnlinkPlexMutation, UnlinkPlexMutationVariables>;
 export const RequestOnPlexDocument = new TypedDocumentString(`
-    mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType) {
-  requestOnPlex(movieId: $movieId, mediaType: $mediaType) {
+    mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {
+  requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {
     ...PlexStatusFields
   }
 }
@@ -1630,7 +1657,13 @@ export const RequestOnPlexDocument = new TypedDocumentString(`
   availability
   canRequest
   missingSeasons
+  seasonCount
 }`) as unknown as TypedDocumentString<RequestOnPlexMutation, RequestOnPlexMutationVariables>;
+export const ClearMatchDocument = new TypedDocumentString(`
+    mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {
+  clearMatch(matchId: $matchId, mediaType: $mediaType)
+}
+    `) as unknown as TypedDocumentString<ClearMatchMutation, ClearMatchMutationVariables>;
 export const OnRoomEventDocument = new TypedDocumentString(`
     subscription OnRoomEvent($roomId: ID!) {
   onRoomEvent(roomId: $roomId) {

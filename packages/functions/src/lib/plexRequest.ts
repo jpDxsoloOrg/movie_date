@@ -3,8 +3,11 @@ import { UpstreamError } from "./errors.js";
 import { asRecord, asRecords, asText } from "./tmdb.js";
 
 const LOOKUP_TIMEOUT_MS = 8_000;
-/** Approval calls Radarr before answering, and AppSync gives up at 30 seconds. */
-const CREATE_TIMEOUT_MS = 22_000;
+/**
+ * Approval calls Radarr or Sonarr before answering, and AppSync gives up at 30 seconds.
+ * The status lookup and TMDB can spend up to 13 of those first.
+ */
+const CREATE_TIMEOUT_MS = 16_000;
 /** Only the index job asks for this, and it has minutes to spare. */
 const LIBRARY_TIMEOUT_MS = 60_000;
 
@@ -19,6 +22,11 @@ export class PlexRequestUnavailableError extends UpstreamError {
     super("Plex Request is unavailable right now.");
     this.reason = reason;
   }
+}
+
+/** Giving up doesn't stop Plex Request, so a request that timed out may still have gone through. */
+export function outcomeUnknown(error: PlexRequestUnavailableError): boolean {
+  return error.reason === "TimeoutError" || error.reason === "AbortError";
 }
 
 export interface PlexAccount {
@@ -43,21 +51,35 @@ export interface MovieState {
   hasActiveRequest: boolean;
 }
 
-export interface RequestDraft {
+interface DraftDetails {
   userId: string;
   email: string;
-  tmdbId: number;
   title: string;
   year: string;
   overview: string;
   posterPath: string;
 }
 
+export interface MovieRequestDraft extends DraftDetails {
+  tmdbId: number;
+}
+
+/** Sends the TVDB id, never `tmdbId`: Plex Request refuses a show without it. */
+export interface ShowRequestDraft extends DraftDetails {
+  mediaType: "tv";
+  tvdbId: number;
+  /** Left out for every season. */
+  seasons?: number[];
+}
+
+export type RequestDraft = MovieRequestDraft | ShowRequestDraft;
+
 type Operation =
   | { op: "findUser"; email: string }
   | { op: "libraryMovies" }
   | { op: "libraryShows" }
   | { op: "movieStatus"; tmdbId: number; userId: string }
+  | { op: "showStatus"; tvdbId: number; userId: string }
   | ({ op: "createRequest" } & RequestDraft);
 
 let client: LambdaClient | undefined;
@@ -125,8 +147,8 @@ export async function libraryShows(): Promise<ShowLibraryEntry[]> {
   );
 }
 
-export async function movieStatus(tmdbId: number, userId: string): Promise<MovieState> {
-  const body = asRecord(await invoke({ op: "movieStatus", tmdbId, userId }, LOOKUP_TIMEOUT_MS));
+function toTitleState(answer: unknown): MovieState {
+  const body = asRecord(answer);
   // Reading an unexpected answer as "not in library" would offer a pointless request.
   if (typeof body.inLibrary !== "boolean") throw new PlexRequestUnavailableError();
   return {
@@ -134,6 +156,14 @@ export async function movieStatus(tmdbId: number, userId: string): Promise<Movie
     hasFile: body.hasFile === true,
     hasActiveRequest: Boolean(body.activeRequest),
   };
+}
+
+export async function movieStatus(tmdbId: number, userId: string): Promise<MovieState> {
+  return toTitleState(await invoke({ op: "movieStatus", tmdbId, userId }, LOOKUP_TIMEOUT_MS));
+}
+
+export async function showStatus(tvdbId: number, userId: string): Promise<MovieState> {
+  return toTitleState(await invoke({ op: "showStatus", tvdbId, userId }, LOOKUP_TIMEOUT_MS));
 }
 
 /** A duplicate is an answer, not a failure: the title is requested either way. */

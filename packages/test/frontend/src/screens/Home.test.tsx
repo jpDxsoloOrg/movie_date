@@ -58,7 +58,6 @@ window.PointerEvent = FakePointerEvent as unknown as typeof PointerEvent;
 
 function makeCard(id: number, overrides: Partial<DeckCard> = {}): DeckCard {
   return {
-    likedByRoommate: false,
     mediaType: "MOVIE",
     show: null,
     movie: {
@@ -87,6 +86,7 @@ function makeMatch(id: number): Match {
     round: 1,
     matchedAt: "2026-01-01T00:00:00Z",
     mediaType: "MOVIE",
+    cleared: false,
     movie: makeCard(id).movie,
     show: null,
   };
@@ -267,14 +267,6 @@ describe("Home deck states", () => {
     await topCard("Movie 9");
     expect(mocks.deck).toHaveBeenLastCalledWith(6, "MOVIE");
     expect(screen.queryByRole("heading", { name: "No more movies" })).not.toBeInTheDocument();
-  });
-
-  it("badges a card a roommate liked", async () => {
-    mocks.deck.mockResolvedValue({ cards: [makeCard(1, { likedByRoommate: true }), makeCard(2)], nextPage: null });
-    renderHome();
-    expect(within(await topCard("Movie 1")).getByText("A roommate liked this")).toBeInTheDocument();
-    pressKey("ArrowLeft");
-    expect(within(await topCard("Movie 2")).queryByText("A roommate liked this")).not.toBeInTheDocument();
   });
 
   it("falls back to a placeholder when a poster fails", async () => {
@@ -970,7 +962,7 @@ describe("Home on Plex", () => {
     await userEvent.click(await sheet.findByRole("button", { name: "Request on Plex" }));
     await userEvent.click(await screen.findByRole("button", { name: "Request" }));
     expect(await sheet.findByText("Requested on Plex")).toBeInTheDocument();
-    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "MOVIE");
+    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1, "MOVIE", undefined);
     expect(sheet.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Request Movie 1?" })).not.toBeInTheDocument();
     expect(await screen.findByText("Requested Movie 1 on Plex")).toBeInTheDocument();

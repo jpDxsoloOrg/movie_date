@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   setRoom: vi.fn(),
   plexStatus: vi.fn(),
   requestOnPlex: vi.fn(),
+  clearMatch: vi.fn(),
 }));
 
 vi.mock("@movie-date/frontend/services/api", () => ({
@@ -19,15 +20,16 @@ vi.mock("@movie-date/frontend/services/api", () => ({
     startNewRound: mocks.startNewRound,
     plexStatus: mocks.plexStatus,
     requestOnPlex: mocks.requestOnPlex,
+    clearMatch: mocks.clearMatch,
   },
   errorMessage: (error: unknown) => (error instanceof Error ? error.message : "Something went wrong."),
 }));
 vi.mock("@movie-date/frontend/services/realtime", () => ({ subscribeToRoom: vi.fn() }));
 
-import { RoomContext, type MatchRouteState, type RoomContextValue } from "@movie-date/frontend/context/RoomProvider";
+import { RoomContext, type MatchRouteState, type RoomContextValue, type RoomEventListener } from "@movie-date/frontend/context/RoomProvider";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
 import MatchFound from "@movie-date/frontend/screens/MatchFound";
-import type { Match, Room, WatchOption } from "@movie-date/frontend/services/api";
+import type { Match, Room, RoomEvent, WatchOption } from "@movie-date/frontend/services/api";
 
 const room: Room = {
   id: "room-1",
@@ -49,6 +51,7 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
     round: 3,
     matchedAt: "2026-01-15T12:00:00Z",
     mediaType: "MOVIE",
+    cleared: false,
     show: null,
     movie: {
       id: 949,
@@ -80,11 +83,17 @@ function Path(): JSX.Element {
   return <div data-testid="path">{useLocation().pathname}</div>;
 }
 
+let roomListener: RoomEventListener = () => undefined;
+
 function renderScreen(routerState?: MatchRouteState, currentRoom: Room = room, plexLinked = false) {
   const context = {
     me: { plexLinked },
     room: currentRoom,
     setRoom: mocks.setRoom,
+    subscribeEvents: (listener: RoomEventListener) => {
+      roomListener = listener;
+      return () => undefined;
+    },
   } as unknown as RoomContextValue;
   return render(
     <MemoryRouter
@@ -214,6 +223,61 @@ describe("MatchFound", () => {
 
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/));
       expect(mocks.startNewRound).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Clear match", () => {
+    const button = () => screen.queryByRole("button", { name: "Clear match" });
+
+    it("clears it and goes home, leaving the round alone", async () => {
+      mocks.clearMatch.mockResolvedValue(true);
+      renderScreen({ match: makeMatch() });
+      await userEvent.click(button() as HTMLElement);
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/));
+      expect(mocks.clearMatch).toHaveBeenCalledWith("match-1", "MOVIE");
+      expect(mocks.startNewRound).not.toHaveBeenCalled();
+      expect(mocks.setRoom).not.toHaveBeenCalled();
+    });
+
+    it("stays put and allows another try when it fails", async () => {
+      mocks.clearMatch.mockRejectedValue(new Error("Nope"));
+      renderScreen({ match: makeMatch() });
+      await userEvent.click(button() as HTMLElement);
+      expect(await screen.findByText("Nope")).toBeInTheDocument();
+      expect(screen.getByTestId("path")).toHaveTextContent("/match/match-1");
+      expect(button()).toBeEnabled();
+    });
+
+    it("leaves a cleared match without restarting the round", async () => {
+      renderScreen({ match: makeMatch({ cleared: true }) });
+      await userEvent.setup().click(screen.getByRole("button", { name: "Back to Start" }));
+      expect(mocks.startNewRound).not.toHaveBeenCalled();
+      expect(await screen.findByTestId("path")).toHaveTextContent("/");
+    });
+
+    it("hears when someone else clears it, and then leaves without restarting the round", async () => {
+      const match = makeMatch();
+      renderScreen({ match });
+      expect(button()).toBeInTheDocument();
+      act(() => roomListener({ roomId: match.roomId, type: "MATCH_CLEARED", matchId: match.id } as RoomEvent));
+      expect(button()).not.toBeInTheDocument();
+      await userEvent.setup().click(screen.getByRole("button", { name: "Back to Start" }));
+      expect(mocks.startNewRound).not.toHaveBeenCalled();
+    });
+
+    it("isn't offered for a match already cleared", () => {
+      renderScreen({ match: makeMatch({ cleared: true }) });
+      expect(button()).not.toBeInTheDocument();
+    });
+
+    it("isn't offered for an older round's match", () => {
+      renderScreen({ match: makeMatch({ round: 2 }) });
+      expect(button()).not.toBeInTheDocument();
+    });
+
+    it("isn't offered for another room's match", () => {
+      renderScreen({ match: makeMatch({ roomId: "room-2" }) });
+      expect(button()).not.toBeInTheDocument();
     });
   });
 
@@ -402,7 +466,7 @@ describe("MatchFound", () => {
 
       expect(await screen.findByText("Requested on Plex")).toBeInTheDocument();
       expect(mocks.requestOnPlex).toHaveBeenCalledTimes(1);
-      expect(mocks.requestOnPlex).toHaveBeenCalledWith(949, "MOVIE");
+      expect(mocks.requestOnPlex).toHaveBeenCalledWith(949, "MOVIE", undefined);
       expect(screen.getByText("Requested Heat on Plex")).toBeInTheDocument();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();

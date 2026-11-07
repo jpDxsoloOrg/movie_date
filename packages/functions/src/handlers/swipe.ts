@@ -134,7 +134,7 @@ export async function swipe(
       // A repeat still evaluates: the original may have died before its check ran.
       const match =
         existing.direction === "LIKE"
-          ? await evaluateMovie(roomId, round, movieId, mediaType, userId)
+          ? await evaluateMovie(roomId, round, movieId, mediaType)
           : null;
       return { movieId, mediaType, direction: existing.direction, match };
     }
@@ -151,7 +151,7 @@ export async function swipe(
       continue;
     }
     const match =
-      direction === "LIKE" ? await evaluateMovie(roomId, round, movieId, mediaType, userId) : null;
+      direction === "LIKE" ? await evaluateMovie(roomId, round, movieId, mediaType) : null;
     return { movieId, mediaType, direction, match };
   }
   throw new ConflictError();

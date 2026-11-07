@@ -82,12 +82,14 @@ export interface MatchItem extends Item {
   matchedAt: string;
   movie: Movie;
   show?: Show;
+  clearedAt?: string;
 }
 
 export interface MatchedItem extends Item {
   matchId: string;
   movieId: number;
   matchSk: string;
+  clearedAt?: string;
 }
 
 export const FIRST_ROUND = 1;
@@ -144,6 +146,7 @@ export function toMatch(item: MatchItem, roomId: string): Match {
     mediaType: keys.mediaRefOfSk(item.sk).mediaType,
     movie: item.movie,
     show: item.show ?? null,
+    cleared: item.clearedAt !== undefined,
   };
 }
 
