@@ -32,3 +32,6 @@ dev-dist/
 coverage/
 .env.*
 sst-env.d.ts
+
+# Operational notes kept off the public repo
+docs/private/

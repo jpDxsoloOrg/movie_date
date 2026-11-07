@@ -5,7 +5,7 @@ through the same deck, and when enough of you like the same title, it's a match.
 
 It's a mobile-first website that also installs as an app, live at
 https://d19oka7lgeykfv.cloudfront.net. It replaced the original Flutter and Supabase mobile
-app, whose code is in this repo's git history.
+app.
 
 ## Features
 
@@ -75,7 +75,7 @@ with `npm run dev -w @movie-date/frontend`. There's no local backend.
 it creates. Playwright isn't a dependency of this repo, so point the script at an install:
 
 ```bash
-AWS_PROFILE=league-szn PLAYWRIGHT_MODULE=/path/to/node_modules/playwright node scripts/e2e-live.mjs
+AWS_PROFILE=<profile> PLAYWRIGHT_MODULE=/path/to/node_modules/playwright node scripts/e2e-live.mjs
 ```
 
 The comment at the top of the script explains its options and how to recover from a killed run.
@@ -92,11 +92,10 @@ Everything runs on AWS in `us-east-1` and is defined with SST in `sst.config.ts`
 - SES sends Plex link codes
 - A scheduled Lambda refreshes the Plex library index every 6 hours
 
-The TMDB and RapidAPI keys are SecureStrings in SSM, so they stay out of the repo and the
-browser. Deploying is a manual step:
+Deploying is a manual step:
 
 ```bash
-AWS_PROFILE=league-szn npx sst deploy --stage production
+AWS_PROFILE=<profile> npx sst deploy --stage production
 ```
 
 CI (`.github/workflows/ci.yml`) typechecks, tests and builds every pull request.
@@ -105,4 +104,4 @@ CI (`.github/workflows/ci.yml`) typechecks, tests and builds every pull request.
 
 - [CLAUDE.md](CLAUDE.md): a working guide to the code
 - [packages/frontend/README.md](packages/frontend/README.md): how screens are built
-- [docs/](docs/): the specs, the design notes and the decisions awaiting review
+- [docs/](docs/): the specs and the design notes

@@ -3,8 +3,7 @@
 Guide for AI assistants working on Movie Date. A room of people swipe through titles,
 and everyone agreeing on one is a match. Live at https://d19oka7lgeykfv.cloudfront.net.
 
-The site replaced a Flutter + Supabase mobile app, which is gone from this branch and
-stays in git history.
+The site replaced a Flutter + Supabase mobile app.
 
 ## Stack
 
@@ -14,8 +13,7 @@ stays in git history.
 - Data: one DynamoDB table, S3 for avatars, a private S3 bucket for the Plex index
 - Auth: Cognito user pool, email as username, SRP from `amazon-cognito-identity-js`
 - Infrastructure: SST (`sst` 4.17.1 pinned) in `sst.config.ts`, AWS `us-east-1`, stage `production`
-- Titles from TMDB, streaming availability from RapidAPI. Their keys are SSM SecureStrings
-  under `/movie-date/<stage>/`, read by the Lambda, and never reach the browser or the repo
+- Titles from TMDB, streaming availability from RapidAPI, both called from the Lambda
 
 ## Layout
 
@@ -54,7 +52,7 @@ Run these from the repo root.
 npm test             # all suites
 npm run typecheck
 npm run build        # frontend
-AWS_PROFILE=league-szn npx sst deploy --stage production
+AWS_PROFILE=<profile> npx sst deploy --stage production
 ```
 
 - Always run tests with `npm test` from the root. `vitest --root` gives false failures.
@@ -68,15 +66,9 @@ AWS_PROFILE=league-szn npx sst deploy --stage production
 
 ### Live end-to-end run
 
-```bash
-AWS_PROFILE=league-szn PLAYWRIGHT_MODULE=/path/to/node_modules/playwright node scripts/e2e-live.mjs
-```
-
-Playwright isn't a dependency here, so `PLAYWRIGHT_MODULE` points at an install whose
-browser is present. The run uses real Cognito, AppSync, TMDB and the streaming API, and
-creates a temporary user in Plex Request's real pool. It deletes what it creates. If a run
-is killed, recover with `node scripts/e2e-live.mjs --cleanup <E2E_OUT>/state.json`.
-`E2E_ONLY` runs a subset, but only a full run counts.
+`scripts/e2e-live.mjs` runs against the live site and deletes what it creates. Only a full run
+counts. The comment at the top of the script has the options, and `docs/private/OPERATIONS.md`
+has the details for this setup.
 
 ## Data model
 
@@ -103,7 +95,7 @@ never inline.
 Rows written before shows existed have a bare id, and `parseMediaKey` reads those as movies.
 Never pick a mode from a `movie:` prefix: use `mediaRefOfSk`. `round` and `tvRound` are
 separate counters that overlap, so filter a round's rows with `inMode`.
-Decision 7 in `docs/DECISIONS_FOR_REVIEW.md` covers what the bare rows still affect.
+Decision 7 covers what the bare rows still affect.
 
 ## Keeping likes private
 
@@ -142,32 +134,16 @@ and threshold. Each has its own deck, filters, swipes, matches and round.
 
 ## Plex Request integration
 
-Plex Request is a separate app (`~/source/plex_request`) with live users. Movie Date calls
-its private Lambda, `plex-request-api-devtest-integration`, directly with `lambda:InvokeFunction`.
-That name is pinned in `sst.config.ts`, and that IAM grant is the only access control.
+Plex Request is a separate app that Movie Date talks to privately. All the calls are in
+`packages/functions/src/lib/plexRequest.ts`. Movies keep TMDB ids and Plex Request keeps shows
+by TVDB id, so `plexIndexJob` converts them when it builds the index every 6 hours.
 
-- The ops are `findUser`, `libraryMovies`, `libraryShows`, `movieStatus`, `showStatus` and `createRequest`,
-  all in `packages/functions/src/lib/plexRequest.ts`. `createRequest` makes a single attempt,
-  because a retry could start a second download for a trusted user.
-- People link their account with a code emailed through SES. The code is the only proof of
-  ownership, since sign-up doesn't verify an email.
-- `plexIndexJob` reads the library every 6 hours and writes the index to the private bucket.
-  Run it by hand with `aws lambda invoke` on the `plexIndexFunction` output.
-- Movies keep TMDB ids. Plex Request keeps shows by TVDB id, and the job converts them.
+- `createRequest` makes a single attempt, because a retry could send a request twice.
 - Plex status, the Plex filter and Request on Plex work in both modes. A show request sends its
   TVDB id, never `tmdbId`, and optional `seasons`. A show's id sent to `requestOnPlex` without
   `mediaType` would request the movie with that number, so never send one, in a script or a test.
-
-### Deploying Plex Request
-
-Deploy it from its `main` branch with its own commands, not from a feature branch, and only
-with the owner's approval. `sst deploy` here doesn't touch it.
-
-The caveat is its environment. Radarr and Sonarr keys live in its settings table, and
-`serverless.yml` defaults the `*_API_KEY` variables to empty strings, though the `*_BASE_URL`
-variables have real defaults. Those variables are the fallback for a settings row with no
-URL or key, so a deploy from an empty environment removes that fallback. Before deploying, check what an empty environment would change,
-and confirm the settings rows hold both values.
+- `sst deploy` here doesn't touch Plex Request. Don't deploy it from this repo's work without
+  the owner's approval.
 
 ## Conventions
 
@@ -185,6 +161,8 @@ and confirm the settings rows hold both values.
 
 ## Docs
 
-- `docs/REWRITE_SPEC.md`, `docs/PLEX_AND_REDESIGN_SPEC.md`, `docs/GOING_STEADY_TV_PLAN.md`: what was asked for
-- `docs/DECISIONS_FOR_REVIEW.md`: choices the owner can overturn, and the Needs your action list
+- `docs/REWRITE_SPEC.md`, `docs/GOING_STEADY_TV_PLAN.md`: what was asked for
 - `docs/DESIGN_NOTES.md`: the design system
+- `docs/private/` (gitignored, on the owner's machine only): deploy and operations notes, the Plex
+  spec, and `DECISIONS_FOR_REVIEW.md`, which the decision numbers in this repo refer to. This repo
+  is public, so keep operational detail there.
