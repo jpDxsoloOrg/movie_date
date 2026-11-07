@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Guide for AI assistants working on Movie Date. A room of people swipe through titles,
-and everyone agreeing on one is a match. Live at https://d19oka7lgeykfv.cloudfront.net.
+and everyone agreeing on one is a match. Live at https://moviedate.jpdxsolo.com.
 
 The site replaced a Flutter + Supabase mobile app.
 

@@ -86,6 +86,7 @@ interface ClientArgs {
 interface SiteArgs {
   path: string;
   errorPage?: string;
+  domain?: { name: string; dns: false; cert: string };
   environment: Record<string, string>;
   transform: { cdn: (args: { defaultCacheBehavior: Record<string, unknown> }) => void };
 }
@@ -207,6 +208,11 @@ function fakeAws(recorded: Recorded) {
   return {
     getCallerIdentityOutput: () => ({ accountId: "123456789012" }),
     kms: { getKeyOutput: () => ({ arn: "arn:aws:kms:us-east-1:123456789012:key/ssm" }) },
+    acm: {
+      getCertificateOutput: (args: { domain: string }) => ({
+        arn: `arn:aws:acm:us-east-1:123456789012:certificate/${args.domain}`,
+      }),
+    },
     iam: {
       RolePolicy: class {
         constructor(_name: string, args: { role: string; policy: string }) {
@@ -554,6 +560,14 @@ describe("sst.config.ts", () => {
   });
 
   describe("site", () => {
+    it("serves the custom domain on the wildcard certificate, leaving DNS to the owner", () => {
+      expect(production.site?.domain).toEqual({
+        name: "moviedate.jpdxsolo.com",
+        dns: false,
+        cert: "arn:aws:acm:us-east-1:123456789012:certificate/*.jpdxsolo.com",
+      });
+    });
+
     it("builds with everything the frontend reads", () => {
       expect(production.site?.path).toBe("packages/frontend");
       expect(production.site?.environment).toEqual({

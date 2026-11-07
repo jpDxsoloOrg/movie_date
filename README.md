@@ -4,7 +4,7 @@ Movie Date helps couples and groups agree on what to watch. Everyone joins a roo
 through the same deck, and when enough of you like the same title, it's a match.
 
 It's a mobile-first website that also installs as an app, live at
-https://d19oka7lgeykfv.cloudfront.net. It replaced the original Flutter and Supabase mobile
+https://moviedate.jpdxsolo.com. It replaced the original Flutter and Supabase mobile
 app.
 
 ## Features

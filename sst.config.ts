@@ -24,6 +24,7 @@ const ROOT_TYPES = ["Query", "Mutation", "Subscription"];
 /** Plex Request's private function. The env var and the IAM grant both come from this. */
 const PLEX_INTEGRATION_FUNCTION = "plex-request-api-devtest-integration";
 const MAIL_DOMAIN = "jpdxsolo.com";
+const SITE_DOMAIN = `moviedate.${MAIL_DOMAIN}`;
 const MAIL_FROM = `noreply@${MAIL_DOMAIN}`;
 /** Partition key of the job's lease, the only row it may touch. */
 const PLEX_INDEX_PK = "PLEX#INDEX";
@@ -426,6 +427,13 @@ export default $config({
     // client-side routes, where setting it would answer them with a 404.
     const site = new sst.aws.StaticSite("Site", {
       path: "packages/frontend",
+      // DNS for jpdxsolo.com is outside AWS, so the CNAME is added by hand and
+      // the existing wildcard certificate is looked up rather than created.
+      domain: {
+        name: SITE_DOMAIN,
+        dns: false,
+        cert: aws.acm.getCertificateOutput({ domain: "*.jpdxsolo.com", statuses: ["ISSUED"], mostRecent: true }).arn,
+      },
       build: { command: "npm run build", output: "dist" },
       assets: {
         // Later entries win. SST's default marks everything but HTML immutable for
