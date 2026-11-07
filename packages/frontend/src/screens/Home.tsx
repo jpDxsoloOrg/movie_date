@@ -5,6 +5,7 @@ import { MovieDetailsSheet } from "../components/deck/MovieDetailsSheet";
 import { RoomPanel } from "../components/deck/RoomPanel";
 import { RoomTicketStrip } from "../components/deck/RoomTicket";
 import { SwipeDeck } from "../components/deck/SwipeDeck";
+import { InstallBanner } from "../components/InstallBanner";
 import { ModeSwitch } from "../components/ModeSwitch";
 import { MatchBannerSlotContext } from "../context/RoomProvider";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -35,7 +36,9 @@ export default function Home(): JSX.Element {
       <div className="home__stage">
         <ModeSwitch className="home__mode" />
         {isMobile && <RoomTicketStrip code={room.code} members={room.members} onInvite={openInvite} />}
-        <div ref={bannerSlot} className="home__banner-slot" />
+        <div ref={bannerSlot} className="home__banner-slot">
+          <InstallBanner />
+        </div>
         {/* The key makes a new round or new filters a fresh deck. The sheets sit outside
             it so a roommate's filter change doesn't shut a trailer someone is watching. */}
         <SwipeDeck

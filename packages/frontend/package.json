@@ -42,6 +42,7 @@
     "./context/*": "./src/context/*.tsx",
     "./mode/ModeProvider": "./src/mode/ModeProvider.tsx",
     "./mode/*": "./src/mode/*.ts",
+    "./install/*": "./src/install/*.ts",
     "./AppRoutes": "./src/AppRoutes.tsx"
   }
 }
