@@ -1,0 +1,68 @@
+/*
+ * Mode themes. Everything that differs between Movies and Going Steady is a --theme-*
+ * variable here, and nothing else in the app may name a mode colour. Switching mode is
+ * `document.documentElement.dataset.theme = "shows"`; the aliases in tokens.css follow.
+ *
+ * Every theme must define the same variables and pass the contrast pairs checked in
+ * packages/test/frontend/src/styles/themes.test.ts.
+ *
+ * Text never sits straight on the gradient: no single colour passes on both ends of
+ * either theme. It sits on --theme-scrim, which passes over every stop.
+ */
+:root,
+[data-theme="movies"] {
+  --theme-gradient-start: #ff5f6d;
+  --theme-gradient-end: #ffc371;
+
+  /* Filled brand controls. Separate from the backdrop because the Shows gradient's
+     dark end couldn't carry the same ink. */
+  --theme-brand-start: #ff5f6d;
+  --theme-brand-end: #ffc371;
+  --theme-on-brand: #1f0f0a;
+
+  --theme-accent: #ff9800;
+  --theme-on-accent: #1a1a1a;
+  --theme-accent-text: #ffb45e;
+  --theme-accent-soft: rgb(255 152 0 / 16%);
+  --theme-glow: rgb(255 110 80 / 20%);
+
+  --theme-page: #150e0b;
+  --theme-surface: #211713;
+  --theme-surface-muted: #2c201a;
+  --theme-surface-raised: #362821;
+  --theme-border: #54423a;
+  --theme-border-control: #8a7264;
+  --theme-text: #fbf0e4;
+  --theme-text-muted: #ccb9a9;
+  --theme-scrim: rgb(20 10 6 / 62%);
+  --theme-skeleton: #2f231d;
+  --theme-skeleton-shine: #453529;
+}
+
+/* Going Steady. Not reachable from the UI yet; see docs/GOING_STEADY_TV_PLAN.md. */
+[data-theme="shows"] {
+  --theme-gradient-start: #2e2a7a;
+  --theme-gradient-end: #14a3a8;
+
+  --theme-brand-start: #14a3a8;
+  --theme-brand-end: #7fe6e4;
+  --theme-on-brand: #04181d;
+
+  --theme-accent: #22c1c6;
+  --theme-on-accent: #04181d;
+  --theme-accent-text: #72e4e6;
+  --theme-accent-soft: rgb(34 193 198 / 16%);
+  --theme-glow: rgb(60 90 220 / 24%);
+
+  --theme-page: #0b0e1b;
+  --theme-surface: #141829;
+  --theme-surface-muted: #1b2036;
+  --theme-surface-raised: #252b45;
+  --theme-border: #3f4768;
+  --theme-border-control: #7c86ad;
+  --theme-text: #eef1fb;
+  --theme-text-muted: #b1b9d4;
+  --theme-scrim: rgb(8 9 28 / 62%);
+  --theme-skeleton: #1e2338;
+  --theme-skeleton-shine: #323a58;
+}

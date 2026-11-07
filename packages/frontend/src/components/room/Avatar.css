@@ -5,23 +5,31 @@
   justify-content: center;
   overflow: hidden;
   border-radius: 50%;
-  background: var(--color-skeleton);
-  color: var(--color-text-muted);
+  background: var(--gradient-brand);
+  color: var(--color-on-brand);
 }
 
 .room-avatar--md {
   width: var(--touch-target);
   height: var(--touch-target);
+  font-size: var(--font-size-lg);
 }
 
 .room-avatar--lg {
-  width: 100px;
-  height: 100px;
+  width: 7.5rem;
+  height: 7.5rem;
+  font-size: 3.25rem;
 }
 
 .room-avatar--lg .room-avatar__fallback {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
+}
+
+.room-avatar__initial {
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-display);
+  line-height: 1;
 }
 
 .room-avatar__image {

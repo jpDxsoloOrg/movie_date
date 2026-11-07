@@ -54,6 +54,13 @@ describe("Members", () => {
     expect(screen.getByLabelText("Invite link")).toHaveValue(`${window.location.origin}/join/ABC234`);
   });
 
+  it("says what makes a match, and links to where it's changed", () => {
+    renderWithRoom(<Members />, { room: makeRoom({ matchThreshold: 2 }) });
+
+    expect(screen.getByText("2 yeses make a match.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change" })).toHaveAttribute("href", "/settings");
+  });
+
   it("refreshes the room on arrival", async () => {
     const { context } = renderWithRoom(<Members />);
     await waitFor(() => expect(context.refreshRoom).toHaveBeenCalled());

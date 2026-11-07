@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { findProvider } from "@movie-date/core";
+import { findProvider, PLEX_SERVICE } from "@movie-date/core";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { api, errorMessage, type WatchOption } from "../../services/api";
 import { Skeleton } from "../Skeleton";
 import { EmptyState, ErrorState } from "../StateMessage";
+import { PlexMark } from "../PlexMark";
 import { safeExternalLink, usesJustWatchData } from "./watchLinks";
 import "./WhereToWatch.css";
 
-const LOADING_TILES = 3;
+const LOADING_TILES = 4;
 
 const TYPE_LABELS: Record<string, string> = {
   subscription: "Subscription",
@@ -15,7 +16,20 @@ const TYPE_LABELS: Record<string, string> = {
   rent: "Rent",
   buy: "Buy",
   addon: "Add-on",
+  library: "Library",
 };
+
+/** Plex has no deep link: it's a sign the room already owns the movie, not a way out. */
+function PlexTile({ option }: { option: WatchOption }): JSX.Element {
+  return (
+    <div className="where-to-watch__tile where-to-watch__tile--plex">
+      <span className="where-to-watch__plate">
+        <PlexMark className="where-to-watch__plex-mark" label={option.serviceName} />
+      </span>
+      <span className="where-to-watch__type">{TYPE_LABELS[option.type] ?? option.type}</span>
+    </div>
+  );
+}
 
 function ServiceTile({ option, movieTitle }: { option: WatchOption; movieTitle: string }): JSX.Element {
   const [logoFailed, setLogoFailed] = useState(false);
@@ -27,7 +41,7 @@ function ServiceTile({ option, movieTitle }: { option: WatchOption; movieTitle: 
     <>
       {logo ? (
         <img
-          className="where-to-watch__logo"
+          className="where-to-watch__logo md-logo"
           src={logo}
           alt={option.serviceName}
           width={60}
@@ -35,7 +49,7 @@ function ServiceTile({ option, movieTitle }: { option: WatchOption; movieTitle: 
           onError={() => setLogoFailed(true)}
         />
       ) : (
-        <span className="where-to-watch__logo where-to-watch__logo--text">{option.serviceName}</span>
+        <span className="where-to-watch__name">{option.serviceName}</span>
       )}
       <span className="where-to-watch__type">{typeLabel}</span>
     </>
@@ -70,8 +84,12 @@ export function WhereToWatch({ movieId, movieTitle, onGradient = false }: WhereT
         <>
           <ul className="where-to-watch__list">
             {options.map((option) => (
-              <li key={option.serviceId}>
-                <ServiceTile option={option} movieTitle={movieTitle} />
+              <li key={`${option.serviceId}-${option.type}`}>
+                {option.serviceId === PLEX_SERVICE ? (
+                  <PlexTile option={option} />
+                ) : (
+                  <ServiceTile option={option} movieTitle={movieTitle} />
+                )}
               </li>
             ))}
           </ul>
@@ -90,7 +108,8 @@ export function WhereToWatch({ movieId, movieTitle, onGradient = false }: WhereT
       return (
         <EmptyState
           title="Not streaming right now"
-          message="We couldn't find this movie on a streaming service in the US."
+          message="We couldn't find this on a streaming service in the US."
+          icon="visibilityOff"
           onGradient={onGradient}
         />
       );
@@ -108,7 +127,7 @@ export function WhereToWatch({ movieId, movieTitle, onGradient = false }: WhereT
     return (
       <div className="where-to-watch__list" role="status" aria-label="Loading streaming options">
         {Array.from({ length: LOADING_TILES }, (_, index) => (
-          <Skeleton key={index} shape="rect" className="where-to-watch__logo" />
+          <Skeleton key={index} shape="rect" className="where-to-watch__tile-skeleton" />
         ))}
       </div>
     );

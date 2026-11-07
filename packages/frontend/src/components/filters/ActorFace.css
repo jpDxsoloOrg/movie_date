@@ -1,0 +1,20 @@
+.actor-face {
+  flex: none;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.actor-face--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.actor-face--fallback .md-icon {
+  width: 60%;
+  height: 60%;
+}

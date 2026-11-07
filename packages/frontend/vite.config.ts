@@ -23,7 +23,7 @@ export default defineConfig({
       // of the deck mid-swipe; the spec wants updates to apply on the next load.
       registerType: "autoUpdate",
       injectRegister: "script",
-      includeAssets: ["favicon-32.png", "apple-touch-icon.png", "movieDate.png", "icons/*.png"],
+      includeAssets: ["favicon-32.png", "apple-touch-icon.png", "movieDate.png", "icons/*.{png,svg}"],
       manifest: {
         name: "Movie Date",
         short_name: "Movie Date",
@@ -31,7 +31,7 @@ export default defineConfig({
         start_url: "/",
         scope: "/",
         display: "standalone",
-        orientation: "portrait",
+        orientation: "any",
         theme_color: "#000000",
         background_color: "#ff5f6d",
         icons: [
@@ -41,7 +41,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,png,svg,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,woff2}"],
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
         // No runtimeCaching on purpose: the API is cross-origin POST and websocket

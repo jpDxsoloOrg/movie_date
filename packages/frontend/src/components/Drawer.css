@@ -15,7 +15,7 @@
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
   outline: none;
-  animation: md-drawer-slide var(--duration-normal) ease-out;
+  animation: md-drawer-slide var(--duration-normal) var(--ease-out);
 }
 
 .md-drawer__header {
@@ -23,7 +23,6 @@
   padding: calc(var(--safe-top) + var(--space-6)) var(--space-4) var(--space-5) calc(var(--safe-left) + var(--space-4));
   background: var(--color-app-bar);
   color: var(--color-on-app-bar);
-  font-size: var(--font-size-xl);
 }
 
 .md-drawer__list {
@@ -49,12 +48,13 @@
 }
 
 .md-drawer__item:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-hover-wash);
 }
 
 .md-drawer__item.active {
   font-weight: 700;
   color: var(--color-accent-text);
+  background: var(--color-accent-soft);
 }
 
 .md-drawer__divider {

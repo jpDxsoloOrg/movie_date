@@ -17,7 +17,11 @@ export default function History(): JSX.Element {
   const tabRefs = useRef(new Map<TabId, HTMLButtonElement>());
 
   function selectTab(tab: TabId): void {
+    if (tab === activeTab) return;
     setSearchParams({ tab }, { replace: true });
+    // The tabs share the page's scroller, so the other list would open at this one's offset.
+    const scroller = tabRefs.current.get(tab)?.closest(".md-page__content");
+    if (scroller) scroller.scrollTop = 0;
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -29,7 +33,7 @@ export default function History(): JSX.Element {
   }
 
   return (
-    <div className="history">
+    <div className="history md-page-wide">
       <div className="history__tabs" role="tablist" aria-label="History" onKeyDown={handleKeyDown}>
         {TABS.map((tab) => (
           <button

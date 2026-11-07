@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +27,15 @@ describe("JoinRoomDialog", () => {
 
     await userEvent.type(field, "abc");
     expect(field).toHaveValue("ABC");
+  });
+
+  it("takes a pasted code with its hyphen and stops at the code's length", () => {
+    renderWithRoom(<JoinRoomDialog open onClose={vi.fn()} />);
+    const field = screen.getByLabelText("Enter Room Code");
+
+    fireEvent.change(field, { target: { value: "abc-234xyz" } });
+
+    expect(field).toHaveValue("ABC234");
   });
 
   it("normalises the code, applies the room and goes home", async () => {

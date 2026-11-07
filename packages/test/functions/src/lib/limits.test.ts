@@ -1,5 +1,5 @@
-import { consume, isExhausted, recordFailure } from "@movie-date/functions/lib/limits";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { claimInterval, consume, isExhausted, recordFailure, refund } from "@movie-date/functions/lib/limits";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeDynamo } from "../support/fakeDynamo";
 
 const key = { pk: "USER#a", sk: "LIMIT#test#window" };
@@ -37,5 +37,40 @@ describe("recordFailure", () => {
     expect(await isExhausted(key, 2)).toBe(false);
     await recordFailure(key, 100);
     expect(await isExhausted(key, 2)).toBe(true);
+  });
+});
+
+describe("refund", () => {
+  it("makes room for one more", async () => {
+    await consume(key, 1);
+    await refund(key);
+    expect(await consume(key, 1)).toBe(true);
+  });
+});
+
+describe("claimInterval", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("measures from the claim, not a calendar boundary", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-03-01T10:00:59Z") });
+    expect(await claimInterval(key, 60)).toBe(true);
+    vi.setSystemTime(new Date("2026-03-01T10:01:01Z"));
+    expect(await claimInterval(key, 60)).toBe(false);
+    vi.setSystemTime(new Date("2026-03-01T10:02:00Z"));
+    expect(await claimInterval(key, 60)).toBe(true);
+  });
+
+  it("lets one of two simultaneous claims win", async () => {
+    const claims = await Promise.all([claimInterval(key, 60), claimInterval(key, 60)]);
+    expect(claims.filter(Boolean)).toHaveLength(1);
+  });
+
+  it("doesn't push the window out on a refused claim", async () => {
+    await claimInterval(key, 60);
+    const expiry = table.row(key.pk, key.sk)?.expiresAt;
+    await claimInterval(key, 60);
+    expect(table.row(key.pk, key.sk)?.expiresAt).toBe(expiry);
   });
 });

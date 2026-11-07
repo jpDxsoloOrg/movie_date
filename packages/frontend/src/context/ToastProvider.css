@@ -12,31 +12,64 @@
 }
 
 .md-toast {
+  --toast-tone: var(--color-toast-info);
+
   pointer-events: auto;
-  min-height: var(--touch-target);
-  padding: var(--space-2) var(--space-4);
-  border: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 3rem;
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-left: 4px solid var(--toast-tone);
   border-radius: var(--radius-field);
   background: var(--color-toast);
-  color: #fff;
+  color: var(--color-text);
   text-align: left;
   font-size: var(--font-size-sm);
-  box-shadow: var(--shadow-raised);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
-  animation: md-toast-in var(--duration-normal) ease-out;
+  animation: md-toast-in var(--duration-slow) var(--ease-out);
+}
+
+.md-toast__icon {
+  flex: none;
+  color: var(--toast-tone);
 }
 
 .md-toast--success {
-  background: var(--color-toast-success);
+  --toast-tone: var(--color-toast-success);
 }
 
 .md-toast--error {
-  background: var(--color-toast-error);
+  --toast-tone: var(--color-toast-error);
+}
+
+/* Without a bottom nav, the foot of the phone screen holds whatever the page ends with,
+   and where that lands depends on its length, so no bottom offset stays clear of it. */
+@media (max-width: 639px) {
+  body:not(:has(.md-bottom-nav)) .md-toasts {
+    top: calc(var(--app-bar-height) + var(--safe-top) + var(--space-2));
+    bottom: auto;
+  }
+}
+
+/* No bottom nav from here up, and a toast shouldn't sit over the deck's buttons. */
+@media (min-width: 640px) {
+  .md-toasts {
+    left: auto;
+    right: calc(var(--safe-right) + var(--space-5));
+    bottom: calc(var(--safe-bottom) + var(--space-5));
+    width: 24rem;
+    max-width: calc(100vw - 2 * var(--space-5));
+    transform: none;
+  }
 }
 
 @keyframes md-toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px) scale(0.98);
   }
 }

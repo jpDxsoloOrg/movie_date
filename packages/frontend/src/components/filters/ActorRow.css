@@ -7,19 +7,9 @@
 }
 
 .actor-row__image {
-  flex: none;
   width: 48px;
   height: 48px;
-  border-radius: 8px;
-  object-fit: cover;
-}
-
-.actor-row__image--fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface-muted);
-  color: var(--color-text-muted);
+  border-radius: 50%;
 }
 
 .actor-row__name {

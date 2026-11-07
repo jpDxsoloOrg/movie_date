@@ -1,6 +1,6 @@
 import {
-  DECK_LANGUAGE,
   emptyFilters,
+  parseMediaKey,
   type DeckCard,
   type DeckPage,
   type FieldArguments,
@@ -8,10 +8,11 @@ import {
   type Movie,
 } from "@movie-date/core";
 import { getItem, queryAll, type Item } from "../lib/db.js";
+import { deckSource, type DeckSource } from "../lib/deckSource.js";
 import { NotFoundError, ValidationError } from "../lib/errors.js";
 import type { ResolverContext } from "../lib/identity.js";
 import { parseSwipeSk, prefixes, profile, roomMeta, roomPk } from "../lib/keys.js";
-import { discoverMovies, hydrateMovies } from "../lib/tmdb.js";
+import { hydrateMovies } from "../lib/tmdb.js";
 
 /** TMDB rejects anything past this even when total_pages reports more. */
 const MAX_TMDB_PAGE = 500;
@@ -32,6 +33,7 @@ interface TallyRow extends Item {
 }
 
 interface RoomDeckState {
+  roomId: string;
   filters: Filters;
   swipedIds: Set<number>;
   /** Tally rows by movie id, for movies the caller hasn't swiped. */
@@ -39,7 +41,7 @@ interface RoomDeckState {
 }
 
 function tallyMovieId(row: TallyRow, round: number): number {
-  return Number(row.sk.slice(prefixes.roundTallies(round).length));
+  return parseMediaKey(row.sk.slice(prefixes.roundTallies(round).length)).id;
 }
 
 /** Consistent reads, because the client reloads the deck straight after swiping or joining. */
@@ -55,14 +57,19 @@ async function loadDeckState(userId: string): Promise<RoomDeckState> {
     queryAll<TallyRow>(pk, { skPrefix: prefixes.roundTallies(room.round), consistent: true }),
   ]);
 
-  const swipedIds = new Set(swipes.map((row) => parseSwipeSk(row.sk).movieId));
+  const swipedIds = new Set(swipes.map((row) => parseSwipeSk(row.sk).id));
   // The caller hasn't swiped these, so every like on the tally is someone else's.
   const roommateLikes = new Map<number, TallyRow>();
   for (const row of tallies) {
     const movieId = tallyMovieId(row, room.round);
     if ((row.likes ?? 0) > 0 && !swipedIds.has(movieId)) roommateLikes.set(movieId, row);
   }
-  return { filters: room.filters ?? emptyFilters(), swipedIds, roommateLikes };
+  return {
+    roomId: caller.roomId,
+    filters: room.filters ?? emptyFilters(),
+    swipedIds,
+    roommateLikes,
+  };
 }
 
 function hasPoster(movie: Movie): boolean {
@@ -84,24 +91,19 @@ async function roommateCards(state: RoomDeckState): Promise<DeckCard[]> {
 }
 
 /**
- * Walks forward until a TMDB page yields something. An empty result with a
- * nextPage means the walk ran out, not the deck, so clients should keep going.
+ * Walks forward until a page yields something. An empty result with a nextPage
+ * means the walk ran out, not the deck, so clients should keep going.
  */
 async function discoverCards(
   state: RoomDeckState,
+  source: DeckSource,
   startPage: number,
   alreadyDealt: ReadonlySet<number>,
 ): Promise<DeckPage> {
   for (let page = startPage; ; page += 1) {
-    const { results, totalPages } = await discoverMovies(state.filters, page);
-    const candidates = results.filter(
-      (result) =>
-        result.originalLanguage === DECK_LANGUAGE &&
-        result.hasPoster &&
-        !state.swipedIds.has(result.id) &&
-        !alreadyDealt.has(result.id),
-    );
-    const movies = await hydrateMovies([...new Set(candidates.map((result) => result.id))]);
+    const { ids, totalPages } = await source(page);
+    const candidates = ids.filter((id) => !state.swipedIds.has(id) && !alreadyDealt.has(id));
+    const movies = await hydrateMovies([...new Set(candidates)]);
     const cards = movies
       .filter(hasPoster)
       .map((movie) => ({ movie, likedByRoommate: state.roommateLikes.has(movie.id) }))
@@ -124,6 +126,11 @@ export async function deck(
   const state = await loadDeckState(userId);
   const head = page === 1 ? await roommateCards(state) : [];
   const dealt = new Set(head.map((card) => card.movie.id));
-  const { cards, nextPage } = await discoverCards(state, page, dealt);
+  const { cards, nextPage } = await discoverCards(
+    state,
+    await deckSource(state.roomId, state.filters),
+    page,
+    dealt,
+  );
   return { cards: [...head, ...cards], nextPage };
 }

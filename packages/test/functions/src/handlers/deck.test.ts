@@ -36,6 +36,7 @@ function movieFixture(id: number, overrides: Partial<Movie> = {}): Movie {
 function discoverPage(ids: number[], totalPages = 10): DiscoverPage {
   return {
     totalPages,
+    totalResults: ids.length * totalPages,
     results: ids.map((id) => ({ id, originalLanguage: "en", hasPoster: true })),
   };
 }
@@ -56,12 +57,12 @@ function givenRoom({ filters, swipedIds = [], tallies = [] }: RoomFixture = {}):
   dynamo.on(QueryCommand).callsFake((input: { ExpressionAttributeValues: { ":sk": string } }) => {
     const prefix = input.ExpressionAttributeValues[":sk"];
     if (prefix === `SWIPE#${ROUND}#me#`) {
-      return { Items: swipedIds.map((id) => ({ sk: `${prefix}${id}`, direction: "PASS" })) };
+      return { Items: swipedIds.map((id) => ({ sk: `${prefix}movie:${id}`, direction: "PASS" })) };
     }
     if (prefix === `TALLY#${ROUND}#`) {
       return {
         Items: tallies.map(({ movieId, likes, movie }) => ({
-          sk: `${prefix}${movieId}`,
+          sk: `${prefix}movie:${movieId}`,
           likes,
           ...(movie ? { movie } : {}),
         })),
@@ -151,6 +152,7 @@ describe("what gets excluded", () => {
     givenRoom();
     vi.mocked(discoverMovies).mockResolvedValue({
       totalPages: 1,
+      totalResults: null,
       results: [
         { id: 1, originalLanguage: "ko", hasPoster: true },
         { id: 2, originalLanguage: "en", hasPoster: true },
@@ -164,6 +166,7 @@ describe("what gets excluded", () => {
     givenRoom();
     vi.mocked(discoverMovies).mockResolvedValue({
       totalPages: 1,
+      totalResults: null,
       results: [
         { id: 1, originalLanguage: "en", hasPoster: false },
         { id: 2, originalLanguage: "en", hasPoster: true },

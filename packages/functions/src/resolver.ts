@@ -18,6 +18,12 @@ import { leaveRoom } from "./handlers/leaveRoom.js";
 import { startNewRound } from "./handlers/startNewRound.js";
 import { updateProfile } from "./handlers/updateProfile.js";
 import { createAvatarUpload } from "./handlers/createAvatarUpload.js";
+import { filterPreview } from "./handlers/filterPreview.js";
+import { plexStatus } from "./handlers/plexStatus.js";
+import { startPlexLink } from "./handlers/startPlexLink.js";
+import { confirmPlexLink } from "./handlers/confirmPlexLink.js";
+import { unlinkPlex } from "./handlers/unlinkPlex.js";
+import { requestOnPlex } from "./handlers/requestOnPlex.js";
 import { publishRoomEvent } from "./handlers/publishRoomEvent.js";
 import { revokeRoomSubscriptions } from "./handlers/revokeRoomSubscriptions.js";
 import { onRoomEvent } from "./handlers/onRoomEvent.js";
@@ -39,9 +45,11 @@ const handlers: HandlerTable = {
   me,
   myRoom,
   deck,
+  filterPreview,
   movie,
   trailer,
   watchOptions,
+  plexStatus,
   genres,
   searchPeople,
   matches,
@@ -56,6 +64,10 @@ const handlers: HandlerTable = {
   startNewRound,
   updateProfile,
   createAvatarUpload,
+  startPlexLink,
+  confirmPlexLink,
+  unlinkPlex,
+  requestOnPlex,
   publishRoomEvent,
   revokeRoomSubscriptions,
   onRoomEvent,

@@ -1,62 +1,96 @@
 /*
- * Design tokens and the base layer. Imported first in main.tsx: Vite emits CSS in
- * module-graph order, and this must come before component CSS so components can
- * override it.
+ * Design tokens. Imported first in main.tsx: Vite emits CSS in module-graph order, and
+ * this must come before component CSS so components can override the base layer.
+ *
+ * Screens use the --color-* names here. Those are aliases of the --theme-* variables in
+ * themes.css, so a screen follows the mode without knowing about it.
+ *
+ * Media queries can't read custom properties, so the breakpoints are literal everywhere:
+ * tablet from 640px, desktop from 1024px, matching hooks/useBreakpoint.ts.
  */
-:root {
+@import "./fonts.css";
+@import "./themes.css";
+@import "./base.css";
+
+/* [data-theme] as well as :root, so a subtree can show the other mode. */
+:root,
+[data-theme] {
   /* Identity */
-  --color-gradient-start: #ff5f6d;
-  --color-gradient-end: #ffc371;
-  --gradient-page: linear-gradient(to bottom, var(--color-gradient-start), var(--color-gradient-end));
+  --color-gradient-start: var(--theme-gradient-start);
+  --color-gradient-end: var(--theme-gradient-end);
+  --gradient-page: linear-gradient(to bottom, var(--theme-gradient-start), var(--theme-gradient-end));
+  --gradient-brand: linear-gradient(100deg, var(--theme-brand-start), var(--theme-brand-end));
+  --gradient-glow: radial-gradient(70rem 32rem at 75% -12rem, var(--theme-glow), transparent);
 
-  --color-accent: #ff9800;
-  --color-on-accent: #1a1a1a; /* White on this orange fails contrast. */
-  --color-accent-text: #b05800; /* Orange dark enough for text on white and --color-page. */
-  --color-brand-red: #d32f2f;
-  --color-brand-green: #2e7d32;
-
-  /* Swipe overlays */
-  --color-like: #2e7d32;
-  --color-pass: #d32f2f;
+  --color-accent: var(--theme-accent);
+  --color-on-accent: var(--theme-on-accent);
+  --color-accent-text: var(--theme-accent-text);
+  --color-accent-soft: var(--theme-accent-soft);
+  --color-brand-red: var(--theme-brand-start);
+  --color-on-brand: var(--theme-on-brand);
 
   /* Surfaces */
+  --color-page: var(--theme-page);
+  --color-surface: var(--theme-surface);
+  --color-surface-muted: var(--theme-surface-muted);
+  --color-surface-raised: var(--theme-surface-raised);
+  --color-border: var(--theme-border);
+  /* For an edge that identifies a control, which needs 3:1 where a divider doesn't. */
+  --color-border-control: var(--theme-border-control);
+  --color-scrim: var(--theme-scrim);
+
+  /* Text */
+  --color-text: var(--theme-text);
+  --color-text-muted: var(--theme-text-muted);
+
+  /* Skeletons */
+  --color-skeleton: var(--theme-skeleton);
+  --color-skeleton-shine: var(--theme-skeleton-shine);
+}
+
+:root {
+  /* Shared by every mode: the black chrome stays black in both. */
   --color-app-bar: #000000;
   --color-on-app-bar: #ffffff;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f4f4f5;
-  --color-page: #fafafa;
-  --color-border: #d4d4d8;
-  --color-scrim: rgb(0 0 0 / 55%);
+  --color-on-app-bar-muted: #c8c2bd;
+  --color-app-bar-hover: rgb(255 255 255 / 10%);
+  --color-hover-wash: rgb(255 255 255 / 8%);
+  --color-on-gradient: #ffffff;
+  --color-logo-plate: #fbf5ee; /* Service logos are drawn for light backgrounds. */
+  --color-error: #ff9b8f;
+
+  /* Swipe colours. One value has to work as a fill under white overlay text and as
+     icon or label colour on a surface. */
+  --color-like: #2f9e44;
+  --color-pass: #ea5358;
+
   --gradient-card-scrim: linear-gradient(to top, rgb(0 0 0 / 70%), transparent);
   --gradient-card-text: linear-gradient(to top, rgb(0 0 0 / 75%) calc(100% - var(--space-5)), transparent);
 
-  /* Text */
-  --color-text: #18181b;
-  --color-text-muted: #52525b;
-  --color-on-gradient: #ffffff;
-  --color-error: #c62828;
-
-  /* Focus: one of the two always contrasts, on the gradient, white or black. */
+  /* Focus: one of the two always contrasts, on the gradient, a surface or a poster. */
   --color-focus-inner: #000000;
   --color-focus-outer: #ffffff;
 
   /* Toasts */
-  --color-toast: #27272a;
-  --color-toast-success: #1b5e20;
-  --color-toast-error: #b71c1c;
-
-  /* Skeletons */
-  --color-skeleton: #e4e4e7;
-  --color-skeleton-shine: #f4f4f5;
+  --color-toast: #2f2520;
+  --color-toast-success: #7ddc92;
+  --color-toast-error: #ff9b8f;
+  --color-toast-info: var(--theme-accent-text);
 
   /* Type */
   --font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Fraunces Display", "Fraunces Fallback", Georgia, "Times New Roman", serif;
+  --font-weight-display: 700;
+  --tracking-display: -0.012em;
+  --line-height-display: 1.12;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 1rem;
   --font-size-lg: 1.25rem;
   --font-size-xl: 1.5rem;
   --font-size-2xl: 2rem;
+  --font-size-display: clamp(2rem, 1.5rem + 1.6vw, 2.75rem);
+  --font-size-hero: clamp(2.5rem, 1.25rem + 3.4vw, 4.25rem);
 
   /* Spacing, on a 4px grid */
   --space-1: 0.25rem;
@@ -72,12 +106,17 @@
   --radius-card: 16px;
   --radius-sheet: 20px;
   --radius-pill: 9999px;
-  --shadow-card: 0 8px 24px rgb(0 0 0 / 25%);
-  --shadow-raised: 0 4px 12px rgb(0 0 0 / 30%);
+  --shadow-card: 0 12px 32px rgb(0 0 0 / 45%);
+  --shadow-raised: 0 4px 14px rgb(0 0 0 / 40%);
 
   /* Layout */
   --touch-target: 44px;
-  --column-width: 30rem; /* The phone-width column on wide screens. */
+  --column-width: 30rem; /* The phone-width column. */
+  --content-reading: 44rem; /* Tablet and desktop default. */
+  --content-wide: 76rem; /* Screens that opt in with .md-page-wide. */
+  --rail-width: 5.5rem;
+  --sidebar-width: 16.5rem;
+  --page-gutter: var(--space-4);
   --app-bar-height: 56px;
   --bottom-nav-height: 64px;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -88,6 +127,10 @@
   /* Motion */
   --duration-fast: 120ms;
   --duration-normal: 220ms;
+  --duration-slow: 360ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --route-distance: 10px;
 
   /* Stacking */
   --z-app-bar: 10;
@@ -95,86 +138,20 @@
   --z-toast: 200;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@media (min-width: 640px) {
+  :root {
+    --page-gutter: var(--space-5);
+  }
 }
 
-html,
-body,
-#root {
-  height: 100%;
-}
-
-html {
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  /* The page never scrolls; .md-page__content does. Stops pull-to-refresh
-     and rubber-banding fighting the deck. */
-  overflow: hidden;
-  overscroll-behavior: none;
-  background: var(--color-page);
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent;
-}
-
-h1,
-h2,
-h3,
-p {
-  margin: 0;
-}
-
-img {
-  display: block;
-  max-width: 100%;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-a {
-  color: var(--color-accent-text);
-}
-
-:focus-visible {
-  outline: 3px solid var(--color-focus-inner);
-  outline-offset: 0;
-  box-shadow: 0 0 0 6px var(--color-focus-outer);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
+@media (min-width: 1024px) {
+  :root {
+    --page-gutter: var(--space-6);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+  :root {
+    --route-distance: 0px;
   }
 }

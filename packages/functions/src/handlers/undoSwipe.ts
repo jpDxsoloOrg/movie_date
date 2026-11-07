@@ -1,4 +1,4 @@
-import type { FieldArguments, UndoResult } from "@movie-date/core";
+import { movieKey, type FieldArguments, type UndoResult } from "@movie-date/core";
 import {
   cancellationCodes,
   getItem,
@@ -36,7 +36,7 @@ function undoWrites(roomId: string, round: number, row: SwipeItem): TransactItem
     {
       ConditionCheck: {
         TableName: tableName(),
-        Key: keys.matched(roomId, round, row.movieId),
+        Key: keys.matched(roomId, round, movieKey(row.movieId)),
         ConditionExpression: "attribute_not_exists(pk)",
       },
     },
@@ -45,7 +45,7 @@ function undoWrites(roomId: string, round: number, row: SwipeItem): TransactItem
     writes.push({
       Update: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, row.movieId),
+        Key: keys.tally(roomId, round, movieKey(row.movieId)),
         UpdateExpression: "ADD likes :decrement",
         ExpressionAttributeValues: { ":decrement": -1 },
       },
@@ -62,7 +62,7 @@ export async function undoSwipe(
   for (let attempt = 0; attempt < MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
     const { roomId } = await getOrCreateProfile(context);
     const { round } = await requireRoomMeta(roomId);
-    const row = await getItem<SwipeItem>(keys.swipe(roomId, round, context.userId, movieId), {
+    const row = await getItem<SwipeItem>(keys.swipe(roomId, round, context.userId, movieKey(movieId)), {
       consistent: true,
     });
     if (!row) return { movieId, undone: false };

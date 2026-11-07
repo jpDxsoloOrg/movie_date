@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Icon, type IconName } from "../components/Icon";
 import "./ToastProvider.css";
 
 export type ToastVariant = "info" | "success" | "error";
@@ -16,7 +17,9 @@ interface Toast {
   variant: ToastVariant;
 }
 
-const TOAST_DURATION_MS = 4000;
+/** Errors stay longer: they're the toast someone may need to read twice. */
+const TOAST_DURATION_MS: Record<ToastVariant, number> = { info: 4000, success: 4000, error: 7000 };
+const TOAST_ICON: Record<ToastVariant, IconName> = { info: "info", success: "check", error: "alert" };
 const MAX_VISIBLE_TOASTS = 3;
 
 export const ToastContext = createContext<ToastApi | null>(null);
@@ -42,7 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
       const timer = setTimeout(() => {
         timers.current.delete(timer);
         dismiss(id);
-      }, TOAST_DURATION_MS);
+      }, TOAST_DURATION_MS[variant]);
       timers.current.add(timer);
     },
     [dismiss],
@@ -76,6 +79,7 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
               className={`md-toast md-toast--${toast.variant}`}
               onClick={() => dismiss(toast.id)}
             >
+              <Icon name={TOAST_ICON[toast.variant]} className="md-toast__icon" />
               {toast.message}
             </button>
           ))}

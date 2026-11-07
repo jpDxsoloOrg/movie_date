@@ -39,6 +39,14 @@ export type DeckPage = {
   nextPage?: Maybe<Scalars['Int']['output']>;
 };
 
+/** What a set of filters would deal, before they are saved. */
+export type FilterPreview = {
+  /** The first few matching posters, for a preview strip. */
+  posterUrls: Array<Scalars['String']['output']>;
+  /** About how many titles match. Null when no count is available. */
+  totalResults?: Maybe<Scalars['Int']['output']>;
+};
+
 export type Filters = {
   cast: Array<Person>;
   genreIds: Array<Scalars['Int']['output']>;
@@ -46,7 +54,7 @@ export type Filters = {
   releaseDateGte?: Maybe<Scalars['String']['output']>;
   /** YYYY-MM-DD */
   releaseDateLte?: Maybe<Scalars['String']['output']>;
-  /** Keys from the provider catalogue, e.g. netflix. Empty means any service. */
+  /** Keys from the provider catalogue, e.g. netflix. Empty means any service. plex is ignored unless Room.plexAvailable. */
   services: Array<Scalars['String']['output']>;
 };
 
@@ -88,6 +96,11 @@ export type MatchPage = {
   nextToken?: Maybe<Scalars['String']['output']>;
 };
 
+/** TMDB numbers movies and shows separately, so an id alone can't identify a title. */
+export type MediaType =
+  | 'MOVIE'
+  | 'TV';
+
 /** What other room members may see. Never includes an email. */
 export type Member = {
   avatarUrl?: Maybe<Scalars['String']['output']>;
@@ -109,6 +122,7 @@ export type Movie = {
 };
 
 export type Mutation = {
+  confirmPlexLink: Profile;
   createAvatarUpload: AvatarUpload;
   /** Case-insensitive. Leaves the caller's current room first. */
   joinRoom: Room;
@@ -116,15 +130,25 @@ export type Mutation = {
   leaveRoom: Room;
   /** Backend only. Pass-through that fans out to onRoomEvent subscribers. */
   publishRoomEvent: RoomEvent;
+  /** Acts only as the caller's linked account. A duplicate comes back as REQUESTED. */
+  requestOnPlex: PlexStatus;
   /** Backend only. Closes a departed member's open onRoomEvent subscriptions to that room. */
   revokeRoomSubscriptions?: Maybe<Scalars['Boolean']['output']>;
   /** Back to Start. expectedRound makes a double press from two members a no-op. */
   startNewRound: Room;
+  /** Emails a code to the caller's own profile address if it has a Plex Request account. */
+  startPlexLink: PlexLinkStart;
   swipe: SwipeResult;
   undoSwipe: UndoResult;
+  unlinkPlex: Profile;
   updateFilters: Room;
   updateProfile: Profile;
   updateRoomSettings: Room;
+};
+
+
+export type MutationConfirmPlexLinkArgs = {
+  code: Scalars['String']['input'];
 };
 
 
@@ -140,6 +164,11 @@ export type MutationJoinRoomArgs = {
 
 export type MutationPublishRoomEventArgs = {
   input: RoomEventInput;
+};
+
+
+export type MutationRequestOnPlexArgs = {
+  movieId: Scalars['Int']['input'];
 };
 
 
@@ -195,16 +224,38 @@ export type PersonInput = {
   profileUrl?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type PlexAvailability =
+  /** In the library with a file. */
+  | 'AVAILABLE'
+  /** In the library, waiting on a file. */
+  | 'MONITORED'
+  | 'NOT_IN_LIBRARY'
+  /** An active request exists. */
+  | 'REQUESTED';
+
+export type PlexLinkStart = {
+  /** Always true, so this can't be used to discover who has a Plex Request account. */
+  sent: Scalars['Boolean']['output'];
+};
+
+export type PlexStatus = {
+  availability: PlexAvailability;
+  canRequest: Scalars['Boolean']['output'];
+};
+
 export type Profile = {
   avatarUrl?: Maybe<Scalars['String']['output']>;
   displayName: Scalars['String']['output'];
   email: Scalars['String']['output'];
   id: Scalars['ID']['output'];
+  plexLinked: Scalars['Boolean']['output'];
 };
 
 export type Query = {
   /** Unswiped movies for the caller. page starts at 1. */
   deck: DeckPage;
+  /** Takes draft filters because deck() only reads the saved ones. Call it debounced. */
+  filterPreview: FilterPreview;
   genres: Array<Genre>;
   /** Matches in the caller's room, newest first, across all rounds. */
   matches: MatchPage;
@@ -215,6 +266,8 @@ export type Query = {
   myRoom: Room;
   /** A match the current round already has, for clients that were offline when it happened. */
   pendingMatch?: Maybe<Match>;
+  /** Null when the caller hasn't linked Plex Request. */
+  plexStatus?: Maybe<PlexStatus>;
   searchPeople: Array<Person>;
   /** The caller's own swipes in the current room, newest first. */
   swipeHistory: HistoryPage;
@@ -229,6 +282,11 @@ export type QueryDeckArgs = {
 };
 
 
+export type QueryFilterPreviewArgs = {
+  filters: FiltersInput;
+};
+
+
 export type QueryMatchesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   nextToken?: InputMaybe<Scalars['String']['input']>;
@@ -237,6 +295,11 @@ export type QueryMatchesArgs = {
 
 export type QueryMovieArgs = {
   id: Scalars['Int']['input'];
+};
+
+
+export type QueryPlexStatusArgs = {
+  movieId: Scalars['Int']['input'];
 };
 
 
@@ -266,6 +329,8 @@ export type Room = {
   id: Scalars['ID']['output'];
   matchThreshold: Scalars['Int']['output'];
   members: Array<Member>;
+  /** True when any member has linked Plex Request. Unlocks the plex filter for the whole room. */
+  plexAvailable: Scalars['Boolean']['output'];
   requireMajority: Scalars['Boolean']['output'];
   /** Increments on Back to Start. Swipes and tallies belong to one round. */
   round: Scalars['Int']['output'];
@@ -334,15 +399,19 @@ export type WatchOption = {
   logoUrl?: Maybe<Scalars['String']['output']>;
   serviceId: Scalars['String']['output'];
   serviceName: Scalars['String']['output'];
-  /** subscription, free, rent, buy or addon */
+  /** subscription, free, rent, buy, addon or library. library is the room's Plex, which has no link. */
   type: Scalars['String']['output'];
 };
+
+export type ProfileFieldsFragment = { id: string, email: string, displayName: string, avatarUrl?: string | null, plexLinked: boolean };
+
+export type PlexStatusFieldsFragment = { availability: PlexAvailability, canRequest: boolean };
 
 export type PersonFieldsFragment = { id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null };
 
 export type MemberFieldsFragment = { userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean };
 
-export type RoomFieldsFragment = { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> };
+export type RoomFieldsFragment = { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> };
 
 export type MovieFieldsFragment = { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> };
 
@@ -353,12 +422,12 @@ export type HistoryEntryFieldsFragment = { direction: SwipeDirection, round: num
 export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MeQuery = { me: { id: string, email: string, displayName: string, avatarUrl?: string | null } };
+export type MeQuery = { me: { id: string, email: string, displayName: string, avatarUrl?: string | null, plexLinked: boolean } };
 
 export type MyRoomQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MyRoomQuery = { myRoom: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
+export type MyRoomQuery = { myRoom: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
 
 export type DeckQueryVariables = Exact<{
   page: Scalars['Int']['input'];
@@ -366,6 +435,13 @@ export type DeckQueryVariables = Exact<{
 
 
 export type DeckQuery = { deck: { nextPage?: number | null, cards: Array<{ likedByRoommate: boolean, movie: { id: number, title: string, overview: string, releaseYear?: number | null, runtime?: number | null, voteAverage?: number | null, posterUrl?: string | null, backdropUrl?: string | null, genres: Array<string> } }> } };
+
+export type FilterPreviewQueryVariables = Exact<{
+  filters: FiltersInput;
+}>;
+
+
+export type FilterPreviewQuery = { filterPreview: { totalResults?: number | null, posterUrls: Array<string> } };
 
 export type MovieQueryVariables = Exact<{
   id: Scalars['Int']['input'];
@@ -387,6 +463,13 @@ export type WatchOptionsQueryVariables = Exact<{
 
 
 export type WatchOptionsQuery = { watchOptions: Array<{ serviceId: string, serviceName: string, type: string, link?: string | null, logoUrl?: string | null }> };
+
+export type PlexStatusQueryVariables = Exact<{
+  movieId: Scalars['Int']['input'];
+}>;
+
+
+export type PlexStatusQuery = { plexStatus?: { availability: PlexAvailability, canRequest: boolean } | null };
 
 export type GenresQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -441,7 +524,7 @@ export type UpdateFiltersMutationVariables = Exact<{
 }>;
 
 
-export type UpdateFiltersMutation = { updateFilters: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
+export type UpdateFiltersMutation = { updateFilters: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
 
 export type UpdateRoomSettingsMutationVariables = Exact<{
   matchThreshold: Scalars['Int']['input'];
@@ -449,26 +532,26 @@ export type UpdateRoomSettingsMutationVariables = Exact<{
 }>;
 
 
-export type UpdateRoomSettingsMutation = { updateRoomSettings: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
+export type UpdateRoomSettingsMutation = { updateRoomSettings: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
 
 export type JoinRoomMutationVariables = Exact<{
   code: Scalars['String']['input'];
 }>;
 
 
-export type JoinRoomMutation = { joinRoom: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
+export type JoinRoomMutation = { joinRoom: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
 
 export type LeaveRoomMutationVariables = Exact<{ [key: string]: never; }>;
 
 
-export type LeaveRoomMutation = { leaveRoom: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
+export type LeaveRoomMutation = { leaveRoom: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
 
 export type StartNewRoundMutationVariables = Exact<{
   expectedRound: Scalars['Int']['input'];
 }>;
 
 
-export type StartNewRoundMutation = { startNewRound: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
+export type StartNewRoundMutation = { startNewRound: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
 
 export type UpdateProfileMutationVariables = Exact<{
   displayName?: InputMaybe<Scalars['String']['input']>;
@@ -476,7 +559,7 @@ export type UpdateProfileMutationVariables = Exact<{
 }>;
 
 
-export type UpdateProfileMutation = { updateProfile: { id: string, email: string, displayName: string, avatarUrl?: string | null } };
+export type UpdateProfileMutation = { updateProfile: { id: string, email: string, displayName: string, avatarUrl?: string | null, plexLinked: boolean } };
 
 export type CreateAvatarUploadMutationVariables = Exact<{
   contentType: Scalars['String']['input'];
@@ -484,6 +567,30 @@ export type CreateAvatarUploadMutationVariables = Exact<{
 
 
 export type CreateAvatarUploadMutation = { createAvatarUpload: { url: string, fields: string, key: string } };
+
+export type StartPlexLinkMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type StartPlexLinkMutation = { startPlexLink: { sent: boolean } };
+
+export type ConfirmPlexLinkMutationVariables = Exact<{
+  code: Scalars['String']['input'];
+}>;
+
+
+export type ConfirmPlexLinkMutation = { confirmPlexLink: { id: string, email: string, displayName: string, avatarUrl?: string | null, plexLinked: boolean } };
+
+export type UnlinkPlexMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type UnlinkPlexMutation = { unlinkPlex: { id: string, email: string, displayName: string, avatarUrl?: string | null, plexLinked: boolean } };
+
+export type RequestOnPlexMutationVariables = Exact<{
+  movieId: Scalars['Int']['input'];
+}>;
+
+
+export type RequestOnPlexMutation = { requestOnPlex: { availability: PlexAvailability, canRequest: boolean } };
 
 export type OnRoomEventSubscriptionVariables = Exact<{
   roomId: Scalars['ID']['input'];
@@ -510,6 +617,21 @@ export class TypedDocumentString<TResult, TVariables>
     return this.value;
   }
 }
+export const ProfileFieldsFragmentDoc = new TypedDocumentString(`
+    fragment ProfileFields on Profile {
+  id
+  email
+  displayName
+  avatarUrl
+  plexLinked
+}
+    `, {"fragmentName":"ProfileFields"}) as unknown as TypedDocumentString<ProfileFieldsFragment, unknown>;
+export const PlexStatusFieldsFragmentDoc = new TypedDocumentString(`
+    fragment PlexStatusFields on PlexStatus {
+  availability
+  canRequest
+}
+    `, {"fragmentName":"PlexStatusFields"}) as unknown as TypedDocumentString<PlexStatusFieldsFragment, unknown>;
 export const PersonFieldsFragmentDoc = new TypedDocumentString(`
     fragment PersonFields on Person {
   id
@@ -533,6 +655,7 @@ export const RoomFieldsFragmentDoc = new TypedDocumentString(`
   matchThreshold
   requireMajority
   round
+  plexAvailable
   filters {
     genreIds
     services
@@ -615,13 +738,16 @@ export const HistoryEntryFieldsFragmentDoc = new TypedDocumentString(`
 export const MeDocument = new TypedDocumentString(`
     query Me {
   me {
-    id
-    email
-    displayName
-    avatarUrl
+    ...ProfileFields
   }
 }
-    `) as unknown as TypedDocumentString<MeQuery, MeQueryVariables>;
+    fragment ProfileFields on Profile {
+  id
+  email
+  displayName
+  avatarUrl
+  plexLinked
+}`) as unknown as TypedDocumentString<MeQuery, MeQueryVariables>;
 export const MyRoomDocument = new TypedDocumentString(`
     query MyRoom {
   myRoom {
@@ -646,6 +772,7 @@ fragment RoomFields on Room {
   matchThreshold
   requireMajority
   round
+  plexAvailable
   filters {
     genreIds
     services
@@ -682,6 +809,14 @@ export const DeckDocument = new TypedDocumentString(`
   backdropUrl
   genres
 }`) as unknown as TypedDocumentString<DeckQuery, DeckQueryVariables>;
+export const FilterPreviewDocument = new TypedDocumentString(`
+    query FilterPreview($filters: FiltersInput!) {
+  filterPreview(filters: $filters) {
+    totalResults
+    posterUrls
+  }
+}
+    `) as unknown as TypedDocumentString<FilterPreviewQuery, FilterPreviewQueryVariables>;
 export const MovieDocument = new TypedDocumentString(`
     query Movie($id: Int!) {
   movie(id: $id) {
@@ -715,6 +850,16 @@ export const WatchOptionsDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<WatchOptionsQuery, WatchOptionsQueryVariables>;
+export const PlexStatusDocument = new TypedDocumentString(`
+    query PlexStatus($movieId: Int!) {
+  plexStatus(movieId: $movieId) {
+    ...PlexStatusFields
+  }
+}
+    fragment PlexStatusFields on PlexStatus {
+  availability
+  canRequest
+}`) as unknown as TypedDocumentString<PlexStatusQuery, PlexStatusQueryVariables>;
 export const GenresDocument = new TypedDocumentString(`
     query Genres {
   genres {
@@ -880,6 +1025,7 @@ fragment RoomFields on Room {
   matchThreshold
   requireMajority
   round
+  plexAvailable
   filters {
     genreIds
     services
@@ -920,6 +1066,7 @@ fragment RoomFields on Room {
   matchThreshold
   requireMajority
   round
+  plexAvailable
   filters {
     genreIds
     services
@@ -957,6 +1104,7 @@ fragment RoomFields on Room {
   matchThreshold
   requireMajority
   round
+  plexAvailable
   filters {
     genreIds
     services
@@ -994,6 +1142,7 @@ fragment RoomFields on Room {
   matchThreshold
   requireMajority
   round
+  plexAvailable
   filters {
     genreIds
     services
@@ -1031,6 +1180,7 @@ fragment RoomFields on Room {
   matchThreshold
   requireMajority
   round
+  plexAvailable
   filters {
     genreIds
     services
@@ -1047,13 +1197,16 @@ fragment RoomFields on Room {
 export const UpdateProfileDocument = new TypedDocumentString(`
     mutation UpdateProfile($displayName: String, $avatarKey: String) {
   updateProfile(displayName: $displayName, avatarKey: $avatarKey) {
-    id
-    email
-    displayName
-    avatarUrl
+    ...ProfileFields
   }
 }
-    `) as unknown as TypedDocumentString<UpdateProfileMutation, UpdateProfileMutationVariables>;
+    fragment ProfileFields on Profile {
+  id
+  email
+  displayName
+  avatarUrl
+  plexLinked
+}`) as unknown as TypedDocumentString<UpdateProfileMutation, UpdateProfileMutationVariables>;
 export const CreateAvatarUploadDocument = new TypedDocumentString(`
     mutation CreateAvatarUpload($contentType: String!) {
   createAvatarUpload(contentType: $contentType) {
@@ -1063,6 +1216,49 @@ export const CreateAvatarUploadDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<CreateAvatarUploadMutation, CreateAvatarUploadMutationVariables>;
+export const StartPlexLinkDocument = new TypedDocumentString(`
+    mutation StartPlexLink {
+  startPlexLink {
+    sent
+  }
+}
+    `) as unknown as TypedDocumentString<StartPlexLinkMutation, StartPlexLinkMutationVariables>;
+export const ConfirmPlexLinkDocument = new TypedDocumentString(`
+    mutation ConfirmPlexLink($code: String!) {
+  confirmPlexLink(code: $code) {
+    ...ProfileFields
+  }
+}
+    fragment ProfileFields on Profile {
+  id
+  email
+  displayName
+  avatarUrl
+  plexLinked
+}`) as unknown as TypedDocumentString<ConfirmPlexLinkMutation, ConfirmPlexLinkMutationVariables>;
+export const UnlinkPlexDocument = new TypedDocumentString(`
+    mutation UnlinkPlex {
+  unlinkPlex {
+    ...ProfileFields
+  }
+}
+    fragment ProfileFields on Profile {
+  id
+  email
+  displayName
+  avatarUrl
+  plexLinked
+}`) as unknown as TypedDocumentString<UnlinkPlexMutation, UnlinkPlexMutationVariables>;
+export const RequestOnPlexDocument = new TypedDocumentString(`
+    mutation RequestOnPlex($movieId: Int!) {
+  requestOnPlex(movieId: $movieId) {
+    ...PlexStatusFields
+  }
+}
+    fragment PlexStatusFields on PlexStatus {
+  availability
+  canRequest
+}`) as unknown as TypedDocumentString<RequestOnPlexMutation, RequestOnPlexMutationVariables>;
 export const OnRoomEventDocument = new TypedDocumentString(`
     subscription OnRoomEvent($roomId: ID!) {
   onRoomEvent(roomId: $roomId) {

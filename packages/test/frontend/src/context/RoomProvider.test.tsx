@@ -36,6 +36,7 @@ function makeRoom(overrides: Partial<Room> = {}): Room {
     matchThreshold: 2,
     requireMajority: false,
     round: 1,
+    plexAvailable: false,
     filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
     members: [member("me", "Me", true), member("u2", "Sam")],
     ...overrides,

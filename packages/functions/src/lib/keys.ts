@@ -3,6 +3,8 @@
  * these rather than building key strings inline.
  */
 
+import { parseMediaKey, type MediaKey, type MediaRef } from "@movie-date/core";
+
 export interface TableKey {
   pk: string;
   sk: string;
@@ -28,22 +30,22 @@ export function member(roomId: string, sub: string): TableKey {
   return { pk: roomPk(roomId), sk: `MEMBER#${sub}` };
 }
 
-export function swipe(roomId: string, round: number, sub: string, movieId: number): TableKey {
-  return { pk: roomPk(roomId), sk: `SWIPE#${round}#${sub}#${movieId}` };
+export function swipe(roomId: string, round: number, sub: string, media: MediaKey): TableKey {
+  return { pk: roomPk(roomId), sk: `SWIPE#${round}#${sub}#${media}` };
 }
 
-export function tally(roomId: string, round: number, movieId: number): TableKey {
-  return { pk: roomPk(roomId), sk: `TALLY#${round}#${movieId}` };
+export function tally(roomId: string, round: number, media: MediaKey): TableKey {
+  return { pk: roomPk(roomId), sk: `TALLY#${round}#${media}` };
 }
 
 /** `matchedAt` leads so a reverse query reads newest first. */
-export function match(roomId: string, matchedAt: string, movieId: number): TableKey {
-  return { pk: roomPk(roomId), sk: `MATCH#${matchedAt}#${movieId}` };
+export function match(roomId: string, matchedAt: string, media: MediaKey): TableKey {
+  return { pk: roomPk(roomId), sk: `MATCH#${matchedAt}#${media}` };
 }
 
 /** Sentinel whose conditional put decides the single winner of a match. */
-export function matched(roomId: string, round: number, movieId: number): TableKey {
-  return { pk: roomPk(roomId), sk: `MATCHED#${round}#${movieId}` };
+export function matched(roomId: string, round: number, media: MediaKey): TableKey {
+  return { pk: roomPk(roomId), sk: `MATCHED#${round}#${media}` };
 }
 
 export function roomCode(code: string): TableKey {
@@ -61,6 +63,20 @@ export function userLimit(sub: string, name: string, window: string): TableKey {
 
 export function globalLimit(name: string, window: string): TableKey {
   return { pk: `LIMIT#${name}`, sk: window };
+}
+
+/** A pending emailed code. Under the user's partition, which is what binds it to them. */
+export function plexLink(sub: string): TableKey {
+  return { pk: userPk(sub), sk: "PLEX_LINK" };
+}
+
+/** Separate from the code row: the send limit has to hold when nothing was sent. */
+export function plexLinkCooldown(sub: string): TableKey {
+  return { pk: userPk(sub), sk: "PLEX_LINK_COOLDOWN" };
+}
+
+export function plexIndexLease(): TableKey {
+  return { pk: "PLEX#INDEX", sk: "LEASE" };
 }
 
 /**
@@ -91,14 +107,13 @@ export const prefixes = {
   },
 } as const;
 
-export interface SwipeKeyParts {
+export interface SwipeKeyParts extends MediaRef {
   round: number;
   sub: string;
-  movieId: number;
 }
 
-/** A swipe row keeps its round, owner and movie only in the sort key. */
+/** A swipe row keeps its round, owner and title only in the sort key. */
 export function parseSwipeSk(sk: string): SwipeKeyParts {
-  const [, round, sub, movieId] = sk.split("#");
-  return { round: Number(round), sub: sub ?? "", movieId: Number(movieId) };
+  const [, round, sub, media] = sk.split("#");
+  return { round: Number(round), sub: sub ?? "", ...parseMediaKey(media ?? "") };
 }

@@ -5,7 +5,6 @@ import {
   emptyFilters,
   generateRoomCode,
   type Filters,
-  type Member,
   type Match,
   type Movie,
   type Profile,
@@ -34,6 +33,9 @@ export interface ProfileItem extends Item {
   avatarKey?: string;
   roomId: string;
   createdAt: string;
+  /** Set together by confirmPlexLink: the Plex Request account this user proved they own. */
+  plexUserId?: string;
+  plexEmail?: string;
 }
 
 export interface RoomMetaItem extends Item {
@@ -119,6 +121,7 @@ export function toProfile(item: ProfileItem, userId: string): Profile {
     email: item.email,
     displayName: item.displayName,
     avatarUrl: avatarUrl(item.avatarKey),
+    plexLinked: Boolean(item.plexUserId),
   };
 }
 
@@ -240,28 +243,31 @@ function memberUserId(row: MemberItem): string {
   return row.sk.slice(keys.prefixes.members().length);
 }
 
-async function loadMembers(rows: MemberItem[], callerId: string): Promise<Member[]> {
+type MemberProfile = readonly [userId: string, profile: ProfileItem];
+
+async function loadMemberProfiles(rows: MemberItem[]): Promise<MemberProfile[]> {
   const ordered = [...rows].sort((first, second) => first.joinedAt.localeCompare(second.joinedAt));
   const profiles = await Promise.all(
     ordered.map((row) => getItem<ProfileItem>(keys.profile(memberUserId(row)))),
   );
   return ordered.flatMap((row, index) => {
     const memberProfile = profiles[index];
-    if (!memberProfile) return [];
-    const userId = memberUserId(row);
-    return [
-      {
-        userId,
-        displayName: memberProfile.displayName,
-        avatarUrl: avatarUrl(memberProfile.avatarKey),
-        isMe: userId === callerId,
-      },
-    ];
+    return memberProfile ? [[memberUserId(row), memberProfile] as const] : [];
   });
+}
+
+function anyoneLinked(profiles: readonly MemberProfile[]): boolean {
+  return profiles.some(([, profile]) => Boolean(profile.plexUserId));
+}
+
+/** One linked member unlocks Plex for the whole room. */
+export async function isPlexAvailable(roomId: string): Promise<boolean> {
+  return anyoneLinked(await loadMemberProfiles(await loadMemberRows(roomId)));
 }
 
 export async function loadRoom(roomId: string, callerId: string): Promise<Room> {
   const [meta, memberRows] = await Promise.all([requireRoomMeta(roomId), loadMemberRows(roomId)]);
+  const profiles = await loadMemberProfiles(memberRows);
   return {
     id: roomId,
     code: meta.code,
@@ -270,7 +276,13 @@ export async function loadRoom(roomId: string, callerId: string): Promise<Room> 
     matchThreshold: effectiveThreshold(meta, memberRows.length),
     requireMajority: meta.requireMajority,
     round: meta.round,
-    members: await loadMembers(memberRows, callerId),
+    members: profiles.map(([userId, profile]) => ({
+      userId,
+      displayName: profile.displayName,
+      avatarUrl: avatarUrl(profile.avatarKey),
+      isMe: userId === callerId,
+    })),
+    plexAvailable: anyoneLinked(profiles),
   };
 }
 

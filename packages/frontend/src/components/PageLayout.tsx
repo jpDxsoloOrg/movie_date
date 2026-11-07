@@ -1,14 +1,20 @@
-import { useState, type ReactNode } from "react";
-import { Outlet } from "react-router-dom";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { AppBar } from "./AppBar";
 import { BottomNav } from "./BottomNav";
 import { Drawer } from "./Drawer";
+import { PageActionsContext, PageHeader } from "./PageHeader";
+import { RouteTransition } from "./RouteTransition";
+import { SideNav } from "./SideNav";
 import "./PageLayout.css";
 
 export interface PageLayoutProps {
-  /** The coral to amber background used behind the deck and match screens. */
+  /** The mode gradient used behind the deck and match screens. */
   gradient?: boolean;
+  /** Phones only; from 640px the side navigation is always there. */
   bottomNav?: boolean;
+  /** In the app bar on phones, and a PageHeader above the screen from 640px. */
   title?: string;
   /**
    * The screen gets exactly the space between the bars and nothing scrolls, so
@@ -24,6 +30,11 @@ export interface PageLayoutProps {
   children?: ReactNode;
 }
 
+/**
+ * The chrome swaps with the breakpoint but the screen must not remount with it, or a
+ * rotated tablet would lose its deck. Each slot below keeps its position in the tree
+ * for that reason, so don't restructure them into per-breakpoint branches.
+ */
 export function PageLayout({
   gradient = false,
   bottomNav = false,
@@ -32,7 +43,25 @@ export function PageLayout({
   bare = false,
   children,
 }: PageLayoutProps): JSX.Element {
+  const breakpoint = useBreakpoint();
+  const { pathname } = useLocation();
+  const content = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  const isMobile = breakpoint === "mobile";
+  const isDesktop = breakpoint === "desktop";
+
+  // PageLayout survives navigation, so its scroller would keep the last page's position.
+  useEffect(() => {
+    if (content.current) content.current.scrollTop = 0;
+  }, [pathname]);
+
+  // There's no drawer on desktop, and it shouldn't reappear when the window narrows.
+  useEffect(() => {
+    if (isDesktop) setMenuOpen(false);
+  }, [isDesktop]);
+
+  const pageClasses = ["md-page", gradient && "md-page--gradient"].filter(Boolean).join(" ");
   const contentClasses = [
     "md-page__content",
     fill && "md-page__content--fill",
@@ -42,13 +71,21 @@ export function PageLayout({
     .join(" ");
 
   return (
-    <div className={gradient ? "md-page md-page--gradient" : "md-page"}>
-      {!bare && <AppBar title={title} onOpenMenu={() => setMenuOpen(true)} />}
-      {!bare && <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
-      <main className={contentClasses}>
-        <div className="md-page__column">{children ?? <Outlet />}</div>
+    <div className={pageClasses}>
+      {!bare && isMobile && <AppBar title={title} onOpenMenu={() => setMenuOpen(true)} />}
+      {!bare && !isMobile && <SideNav rail={!isDesktop} onOpenMenu={() => setMenuOpen(true)} />}
+      {!bare && !isDesktop && <Drawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
+      <main ref={content} className={contentClasses}>
+        <PageActionsContext.Provider value={actionsSlot}>
+          <RouteTransition className="md-page__column">
+            {!bare && title && !isMobile && <PageHeader level={1} title={title} actionsRef={setActionsSlot} />}
+            {!bare && title && isMobile && <div ref={setActionsSlot} className="md-page__actions" />}
+            {!bare && !title && !isMobile && <h1 className="sr-only">Movie Date</h1>}
+            {children ?? <Outlet />}
+          </RouteTransition>
+        </PageActionsContext.Provider>
       </main>
-      {bottomNav && <BottomNav />}
+      {bottomNav && isMobile && <BottomNav />}
     </div>
   );
 }

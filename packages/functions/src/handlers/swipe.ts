@@ -1,4 +1,4 @@
-import type { FieldArguments, Movie, SwipeDirection, SwipeResult } from "@movie-date/core";
+import { movieKey, type FieldArguments, type Movie, type SwipeDirection, type SwipeResult } from "@movie-date/core";
 import {
   cancellationCodes,
   getItem,
@@ -40,7 +40,7 @@ interface SwipeWrite {
 function swipeWrites(write: SwipeWrite): TransactItems {
   const { roomId, round, userId, movieId, direction, movie } = write;
   const row: SwipeItem = {
-    ...keys.swipe(roomId, round, userId, movieId),
+    ...keys.swipe(roomId, round, userId, movieKey(movieId)),
     movieId,
     direction,
     swipedAt: new Date().toISOString(),
@@ -66,7 +66,7 @@ function swipeWrites(write: SwipeWrite): TransactItems {
     writes.push({
       Update: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, movieId),
+        Key: keys.tally(roomId, round, movieKey(movieId)),
         UpdateExpression: "ADD likes :one SET movie = if_not_exists(movie, :movie), movieId = :movieId",
         ExpressionAttributeValues: { ":one": 1, ":movie": movie, ":movieId": movieId },
       },
@@ -89,7 +89,7 @@ export async function swipe(
     const { roomId } = await getOrCreateProfile(context);
     const { round } = await requireRoomMeta(roomId);
 
-    const existing = await getItem<SwipeItem>(keys.swipe(roomId, round, userId, movieId), {
+    const existing = await getItem<SwipeItem>(keys.swipe(roomId, round, userId, movieKey(movieId)), {
       consistent: true,
     });
     if (existing) {

@@ -5,14 +5,48 @@
   gap: var(--space-1);
 }
 
+/* The ring is what says "this is you"; the badge is what says it can be changed. */
 .room-avatar-picker__preview {
-  padding: 0;
+  position: relative;
+  padding: 5px;
   border: 0;
   border-radius: 50%;
-  background: transparent;
+  background: var(--color-surface-raised);
+  box-shadow: 0 0 0 1px var(--color-border);
   cursor: pointer;
+  transition:
+    box-shadow var(--duration-fast),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.room-avatar-picker__preview:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.room-avatar-picker__preview:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.room-avatar-picker .md-button {
+  padding-inline: var(--space-3);
+  white-space: nowrap;
 }
 
 .room-avatar-picker__preview:disabled {
   cursor: progress;
+}
+
+.room-avatar-picker__badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }

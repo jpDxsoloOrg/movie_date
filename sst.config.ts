@@ -18,6 +18,16 @@ const RESOLVER_COUNT_LIMIT = 5;
 
 const ROOT_TYPES = ["Query", "Mutation", "Subscription"];
 
+/** Plex Request's private function. The env var and the IAM grant both come from this. */
+const PLEX_INTEGRATION_FUNCTION = "plex-request-api-devtest-integration";
+const MAIL_DOMAIN = "jpdxsolo.com";
+const MAIL_FROM = `noreply@${MAIL_DOMAIN}`;
+/** Partition key of the job's lease, the only row it may touch. */
+const PLEX_INDEX_PK = "PLEX#INDEX";
+
+/** The trailer player hands the browser this artwork for its media controls, under this page's CSP. */
+const TRAILER_ARTWORK_HOST = "https://i.ytimg.com";
+
 const PUBLISH_RESOLVER_CODE = `
 export function request(ctx) {
   return { payload: ctx.args.input };
@@ -107,6 +117,9 @@ export default $config({
       // Uploads wait here until updateProfile checks and promotes them.
       lifecycle: [{ id: "expire-pending-avatars", prefix: "pending/", expiresIn: "1 day" }],
     });
+
+    // Private, unlike avatars: this lists what's on the owner's server.
+    const plexLibrary = new sst.aws.Bucket("PlexLibrary");
 
     // Its own resource, so its policy can name the pool: an inline grant would be a
     // cycle, because the pool needs this function's ARN.
@@ -200,6 +213,23 @@ export default $config({
       $interpolate`arn:aws:ssm:${REGION}:${accountId}:parameter${name}`;
     const tmdbKeyParam = parameterName("tmdb-api-key");
     const rapidApiKeyParam = parameterName("rapidapi-key");
+    const invokePlexRequest = {
+      actions: ["lambda:InvokeFunction"],
+      resources: [
+        $interpolate`arn:aws:lambda:${REGION}:${accountId}:function:${PLEX_INTEGRATION_FUNCTION}`,
+      ],
+    };
+    const decryptParameters = {
+      actions: ["kms:Decrypt"],
+      resources: [aws.kms.getKeyOutput({ keyId: "alias/aws/ssm" }).arn],
+      conditions: [
+        {
+          test: "StringEquals",
+          variable: "kms:ViaService",
+          values: [`ssm.${REGION}.amazonaws.com`],
+        },
+      ],
+    };
 
     const lambdaSource = api.addDataSource({
       name: "lambda",
@@ -217,6 +247,9 @@ export default $config({
           GRAPHQL_URL: api.url,
           TMDB_KEY_PARAM: tmdbKeyParam,
           RAPIDAPI_KEY_PARAM: rapidApiKeyParam,
+          PLEX_INTEGRATION_FUNCTION,
+          PLEX_INDEX_BUCKET: plexLibrary.name,
+          MAIL_FROM,
         },
         permissions: [
           {
@@ -256,16 +289,68 @@ export default $config({
             actions: ["ssm:GetParameter"],
             resources: [parameterArn(tmdbKeyParam), parameterArn(rapidApiKeyParam)],
           },
+          decryptParameters,
+          invokePlexRequest,
           {
-            actions: ["kms:Decrypt"],
-            resources: [aws.kms.getKeyOutput({ keyId: "alias/aws/ssm" }).arn],
+            // SES authorises against the verified domain, so the address needs the condition.
+            actions: ["ses:SendEmail"],
+            resources: [$interpolate`arn:aws:ses:${REGION}:${accountId}:identity/${MAIL_DOMAIN}`],
+            conditions: [{ test: "StringEquals", variable: "ses:FromAddress", values: [MAIL_FROM] }],
+          },
+          {
+            // Without this a missing index reads as AccessDenied instead of NoSuchKey.
+            actions: ["s3:ListBucket"],
+            resources: [plexLibrary.arn],
+          },
+          {
+            actions: ["s3:GetObject"],
+            resources: [$interpolate`${plexLibrary.arn}/*`],
+          },
+        ],
+      },
+    });
+
+    // Runs by hand too: `aws lambda invoke` on the plexIndexFunction output.
+    const plexIndexJob = new sst.aws.Cron("PlexIndexJob", {
+      schedule: "rate(6 hours)",
+      function: {
+        handler: "packages/functions/src/plexIndexJob.handler",
+        runtime: RUNTIME,
+        timeout: "15 minutes",
+        memory: "512 MB",
+        // A rerun of a failed job would fail the same way, and the next one is 6 hours off.
+        retries: 0,
+        environment: {
+          TABLE_NAME: table.name,
+          TMDB_KEY_PARAM: tmdbKeyParam,
+          PLEX_INTEGRATION_FUNCTION,
+          PLEX_INDEX_BUCKET: plexLibrary.name,
+        },
+        permissions: [
+          {
+            actions: ["dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+            resources: [table.arn],
             conditions: [
               {
-                test: "StringEquals",
-                variable: "kms:ViaService",
-                values: [`ssm.${REGION}.amazonaws.com`],
+                test: "ForAllValues:StringEquals",
+                variable: "dynamodb:LeadingKeys",
+                values: [PLEX_INDEX_PK],
               },
             ],
+          },
+          {
+            actions: ["ssm:GetParameter"],
+            resources: [parameterArn(tmdbKeyParam)],
+          },
+          decryptParameters,
+          invokePlexRequest,
+          {
+            actions: ["s3:ListBucket"],
+            resources: [plexLibrary.arn],
+          },
+          {
+            actions: ["s3:GetObject", "s3:PutObject"],
+            resources: [$interpolate`${plexLibrary.arn}/*`],
           },
         ],
       },
@@ -317,7 +402,7 @@ export default $config({
       "frame-src https://www.youtube-nocookie.com",
       "worker-src 'self'",
       "manifest-src 'self'",
-    ].join("; ")}; img-src 'self' data: blob: https://image.tmdb.org https://media.movieofthenight.com ${avatarHosts}; connect-src 'self' ${api.url} ${realtimeUrl} https://cognito-idp.${REGION}.amazonaws.com ${avatarHosts}`;
+    ].join("; ")}; img-src 'self' data: blob: https://image.tmdb.org https://media.movieofthenight.com ${TRAILER_ARTWORK_HOST} ${avatarHosts}; connect-src 'self' ${api.url} ${realtimeUrl} https://cognito-idp.${REGION}.amazonaws.com ${avatarHosts}`;
 
     const securityHeaders = new aws.cloudfront.ResponseHeadersPolicy("SecurityHeaders", {
       name: `movie-date-${$app.stage}-security`,
@@ -368,6 +453,7 @@ export default $config({
       api: api.url,
       apiRealtime: realtimeUrl,
       avatarsBucket: avatars.name,
+      plexIndexFunction: plexIndexJob.nodes.function.name,
       site: site.url,
       userPoolClientId: webClient.id,
       userPoolId: userPool.id,

@@ -24,7 +24,7 @@ function matchEvents() {
 }
 
 function tallyLikes(roomId: string, round: number, movieId: number) {
-  return table.row(`ROOM#${roomId}`, `TALLY#${round}#${movieId}`)?.likes;
+  return table.row(`ROOM#${roomId}`, `TALLY#${round}#movie:${movieId}`)?.likes;
 }
 
 beforeEach(() => {
@@ -45,7 +45,7 @@ describe("swipe", () => {
     const result = await swipe({ movieId: 7, direction: "PASS" }, user("ann"));
     expect(result).toEqual({ movieId: 7, direction: "PASS", match: null });
     expect(table.find(`ROOM#${room.id}`, "TALLY#")).toEqual([]);
-    expect(table.row(`ROOM#${room.id}`, "SWIPE#1#sub-ann#7")).toMatchObject({
+    expect(table.row(`ROOM#${room.id}`, "SWIPE#1#sub-ann#movie:7")).toMatchObject({
       direction: "PASS",
       movie: { title: "Movie 7" },
     });
@@ -72,7 +72,7 @@ describe("swipe", () => {
       actorId: "sub-bob",
     });
     expect(table.find(`ROOM#${room.id}`, "MATCH#")).toHaveLength(1);
-    expect(table.row(`ROOM#${room.id}`, "MATCHED#1#7")?.matchId).toBe(second.match?.id);
+    expect(table.row(`ROOM#${room.id}`, "MATCHED#1#movie:7")?.matchId).toBe(second.match?.id);
   });
 
   it("uses the room's threshold, not a fixed two", async () => {
@@ -128,7 +128,7 @@ describe("swipe", () => {
     expect(table.find(`ROOM#${room.id}`, "MATCHED#")).toHaveLength(1);
     expect(matchEvents()).toHaveLength(1);
     const matchIds = new Set(results.flatMap((result) => result.match?.id ?? []));
-    expect(matchIds).toEqual(new Set([table.row(`ROOM#${room.id}`, "MATCHED#1#7")?.matchId]));
+    expect(matchIds).toEqual(new Set([table.row(`ROOM#${room.id}`, "MATCHED#1#movie:7")?.matchId]));
   });
 
   it("never misses a match when the deciding likes land together", async () => {
@@ -356,7 +356,7 @@ describe("undoSwipe", () => {
 
     await expect(undoSwipe({ movieId: 7 }, user("ann"))).resolves.toMatchObject({ undone: false });
     expect(tallyLikes(room.id, 1, 7)).toBe(2);
-    expect(table.row(`ROOM#${room.id}`, "SWIPE#1#sub-ann#7")).toBeDefined();
+    expect(table.row(`ROOM#${room.id}`, "SWIPE#1#sub-ann#movie:7")).toBeDefined();
   });
 
   it("never leaves an undone like behind a match when the two race", async () => {

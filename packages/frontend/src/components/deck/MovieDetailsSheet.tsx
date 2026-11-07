@@ -4,8 +4,23 @@ import { Skeleton } from "../Skeleton";
 import { ErrorState } from "../StateMessage";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { api, errorMessage, type Movie } from "../../services/api";
+import { PlexStatusPanel } from "../match/PlexStatusPanel";
 import { runtimeAndRating } from "./movieFacts";
 import "./MovieDetailsSheet.css";
+
+/** Only ever mounted by a deliberate tap, because it starts playing with sound. */
+export function TrailerPlayer({ movie, trailerId }: { movie: Movie; trailerId: string }): JSX.Element {
+  return (
+    <iframe
+      className="deck-details__video"
+      src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailerId)}?autoplay=1`}
+      title={`${movie.title} trailer`}
+      allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+      allowFullScreen
+      referrerPolicy="strict-origin-when-cross-origin"
+    />
+  );
+}
 
 function Trailer({ movie }: { movie: Movie }): JSX.Element {
   const { data: trailerId, error, reload } = useAsyncData(() => api.trailer(movie.id), [movie.id]);
@@ -23,16 +38,7 @@ function Trailer({ movie }: { movie: Movie }): JSX.Element {
   if (trailerId === null) {
     return <p className="deck-details__no-trailer">No trailer available</p>;
   }
-  return (
-    <iframe
-      className="deck-details__video"
-      src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailerId)}?autoplay=1`}
-      title={`${movie.title} trailer`}
-      allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-      allowFullScreen
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
-  );
+  return <TrailerPlayer movie={movie} trailerId={trailerId} />;
 }
 
 function MovieDetails({ movie }: { movie: Movie }): JSX.Element {
@@ -55,6 +61,7 @@ function MovieDetails({ movie }: { movie: Movie }): JSX.Element {
           {movie.releaseYear && <p className="deck-details__year">{movie.releaseYear}</p>}
         </div>
       </div>
+      <PlexStatusPanel movieId={movie.id} movieTitle={movie.title} />
       <p className="deck-details__overview">{movie.overview}</p>
     </div>
   );

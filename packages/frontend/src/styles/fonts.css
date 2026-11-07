@@ -1,0 +1,23 @@
+/*
+ * Fraunces, cut down for headings only: Latin glyphs, SOFT 100 and WONK 1 pinned, optical
+ * size pinned at 60, weight kept as an axis from 600 to 900: 31 KB against 121 KB for the full
+ * file. index.html preloads the same URL, so the two must change together.
+ * Body text stays on the system stack and costs nothing.
+ */
+@font-face {
+  font-family: "Fraunces Display";
+  src: url("./fonts/fraunces-display.woff2") format("woff2");
+  font-weight: 600 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Georgia stretched to Fraunces' metrics, so the swap doesn't shift a heading's lines. */
+@font-face {
+  font-family: "Fraunces Fallback";
+  src: local("Georgia");
+  size-adjust: 108%;
+  ascent-override: 90.5%;
+  descent-override: 23.6%;
+  line-gap-override: 0%;
+}

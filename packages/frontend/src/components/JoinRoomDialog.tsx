@@ -1,4 +1,4 @@
-import { normaliseRoomCode } from "@movie-date/core";
+import { normaliseRoomCode, ROOM_CODE_LENGTH } from "@movie-date/core";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoom } from "../hooks/useRoom";
@@ -6,7 +6,9 @@ import { useToast } from "../hooks/useToast";
 import { api, errorMessage } from "../services/api";
 import { Button } from "./Button";
 import { Modal } from "./Modal";
-import { TextField } from "./TextField";
+import { CodeField } from "./room/CodeField";
+
+const cleanCode = (raw: string): string => normaliseRoomCode(raw).slice(0, ROOM_CODE_LENGTH);
 
 export interface JoinRoomDialogProps {
   open: boolean;
@@ -71,15 +73,16 @@ function JoinRoomForm({ onClose }: { onClose: () => void }): JSX.Element {
       }
     >
       <form ref={form} id={formId} onSubmit={(event) => void submit(event)} noValidate>
-        <TextField
+        <CodeField
           label="Enter Room Code"
+          hint="It's on the Room Members page of whoever invited you."
+          length={ROOM_CODE_LENGTH}
+          clean={cleanCode}
           value={code}
           error={error}
           autoComplete="off"
           autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
-          onChange={(event) => setCode(event.target.value.toUpperCase())}
+          onChange={setCode}
         />
       </form>
     </Modal>

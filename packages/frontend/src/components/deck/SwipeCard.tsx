@@ -10,6 +10,7 @@ import {
 import { IconButton } from "../Button";
 import { Icon } from "../Icon";
 import type { DeckCard, Movie, SwipeDirection } from "../../services/api";
+import { DECK_COPY } from "./deckCopy";
 import { runtimeAndRating } from "./movieFacts";
 import "./SwipeCard.css";
 
@@ -27,6 +28,8 @@ const VERTICAL_FOLLOW = 0.35;
 const EXIT_ROTATION_DEG = 28;
 /** Longer than the CSS exit, for when transitionend never comes (a hidden tab). */
 const EXIT_FALLBACK_MS = 500;
+/** On the stack, not the card, so the cards behind can rise as this one is dragged away. */
+const DRAG_PROGRESS_VAR = "--deck-drag";
 
 interface Gesture {
   pointerId: number;
@@ -48,7 +51,8 @@ export interface SwipeCardProps {
   exitDirection?: SwipeDirection;
   returningFrom?: SwipeDirection;
   onSwipe: (direction: SwipeDirection) => void;
-  onOpenDetails: (movie: Movie) => void;
+  /** Left out, a tap does nothing and the card has no details button. */
+  onOpenDetails?: (movie: Movie) => void;
   onExited: (movieId: number) => void;
 }
 
@@ -107,9 +111,14 @@ export function SwipeCard({
   const [overlay, setOverlay] = useState<SwipeDirection | null>(null);
   const isTop = depth === 0 && !exitDirection;
 
+  const clearDragProgress = (): void => {
+    element.current?.parentElement?.style.removeProperty(DRAG_PROGRESS_VAR);
+  };
+
   const resetDrag = (): void => {
     gesture.current = null;
     if (element.current) element.current.style.transform = "";
+    clearDragProgress();
     setDragging(false);
     setOverlay(null);
   };
@@ -128,6 +137,7 @@ export function SwipeCard({
     const distance = window.innerWidth / 2 + width * 0.75;
     node.style.transform = `translate3d(${sign * distance}px, 0, 0) rotate(${sign * EXIT_ROTATION_DEG}deg)`;
     gesture.current = null;
+    clearDragProgress();
     setDragging(false);
     // exitDirection drives the overlay from here, and this one mustn't outlive an undo.
     setOverlay(null);
@@ -186,6 +196,8 @@ export function SwipeCard({
     const fraction = Math.max(-1, Math.min(1, offsetX / active.width));
     event.currentTarget.style.transform =
       `translate3d(${offsetX}px, ${offsetY * VERTICAL_FOLLOW}px, 0) rotate(${fraction * MAX_ROTATION_DEG}deg)`;
+    const progress = Math.min(1, Math.abs(fraction) / COMMIT_FRACTION);
+    event.currentTarget.parentElement?.style.setProperty(DRAG_PROGRESS_VAR, progress.toFixed(3));
     setOverlay(Math.abs(fraction) > OVERLAY_FRACTION ? directionOf(offsetX) : null);
   };
 
@@ -206,12 +218,12 @@ export function SwipeCard({
    * is hit-tested then, so a sheet opened any earlier takes the click and closes.
    */
   const handleClick = (): void => {
-    if (isTop && !suppressClick.current) onOpenDetails(movie);
+    if (isTop && !suppressClick.current) onOpenDetails?.(movie);
   };
 
   const handleInfoClick = (event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
-    onOpenDetails(movie);
+    onOpenDetails?.(movie);
   };
 
   const handlePointerCancel = (event: PointerEvent<HTMLElement>): void => {
@@ -259,7 +271,7 @@ export function SwipeCard({
           A roommate liked this
         </span>
       )}
-      {isTop && (
+      {isTop && onOpenDetails && (
         <IconButton
           className="deck-card__info"
           label={`Details for ${movie.title}`}
@@ -276,7 +288,7 @@ export function SwipeCard({
       </div>
       {shownOverlay && (
         <div className={`deck-card__overlay deck-card__overlay--${shownOverlay.toLowerCase()}`}>
-          <span className="deck-card__overlay-label">{shownOverlay === "LIKE" ? "Watch Movie" : "Don't Watch"}</span>
+          <span className="deck-card__overlay-label">{shownOverlay === "LIKE" ? DECK_COPY.likeOverlay : DECK_COPY.passOverlay}</span>
         </div>
       )}
     </article>

@@ -41,6 +41,17 @@ describe("Profile", () => {
     expect(container.querySelector("img")).toHaveAttribute("src", "https://x.test/a.jpg");
   });
 
+  it("has the Plex Request card, in a form of its own", async () => {
+    const { container } = renderWithRoom(<Profile />);
+
+    expect(screen.getByRole("heading", { name: "Plex Request" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "I Have a Code" }));
+    expect(container.querySelector("form form")).toBeNull();
+
+    await userEvent.type(screen.getByLabelText("6-digit code"), "12{Enter}");
+    expect(api.updateProfile).not.toHaveBeenCalled();
+  });
+
   it("requires a display name", async () => {
     renderWithRoom(<Profile />);
     await userEvent.clear(screen.getByLabelText("Display Name"));

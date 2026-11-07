@@ -6,19 +6,24 @@
 
 export type SwipeDirection = "LIKE" | "PASS";
 
+export type MediaType = "MOVIE" | "TV";
+
+export type PlexAvailability = "AVAILABLE" | "MONITORED" | "REQUESTED" | "NOT_IN_LIBRARY";
+
 export type RoomEventType =
   | "MATCH_FOUND"
   | "ROOM_UPDATED"
   | "MEMBERS_CHANGED"
   | "ROUND_RESET";
 
-export type WatchOptionType = "subscription" | "free" | "rent" | "buy" | "addon";
+export type WatchOptionType = "subscription" | "free" | "rent" | "buy" | "addon" | "library";
 
 export interface Profile {
   id: string;
   email: string;
   displayName: string;
   avatarUrl: string | null;
+  plexLinked: boolean;
 }
 
 export interface Member {
@@ -56,6 +61,7 @@ export interface Room {
   requireMajority: boolean;
   round: number;
   members: Member[];
+  plexAvailable: boolean;
 }
 
 export interface Movie {
@@ -78,6 +84,11 @@ export interface DeckCard {
 export interface DeckPage {
   cards: DeckCard[];
   nextPage: number | null;
+}
+
+export interface FilterPreview {
+  totalResults: number | null;
+  posterUrls: string[];
 }
 
 export interface Match {
@@ -124,6 +135,15 @@ export interface MatchPage {
   nextToken: string | null;
 }
 
+export interface PlexStatus {
+  availability: PlexAvailability;
+  canRequest: boolean;
+}
+
+export interface PlexLinkStart {
+  sent: boolean;
+}
+
 export interface AvatarUpload {
   url: string;
   /** AWSJSON: a JSON-encoded string, not an object. */
@@ -154,9 +174,11 @@ export interface FieldArguments {
   me: Record<string, never>;
   myRoom: Record<string, never>;
   deck: { page: number };
+  filterPreview: { filters: Filters };
   movie: { id: number };
   trailer: { movieId: number };
   watchOptions: { movieId: number };
+  plexStatus: { movieId: number };
   genres: Record<string, never>;
   searchPeople: { query: string };
   matches: { limit?: number | null; nextToken?: string | null };
@@ -171,6 +193,10 @@ export interface FieldArguments {
   startNewRound: { expectedRound: number };
   updateProfile: { displayName?: string | null; avatarKey?: string | null };
   createAvatarUpload: { contentType: string };
+  startPlexLink: Record<string, never>;
+  confirmPlexLink: { code: string };
+  unlinkPlex: Record<string, never>;
+  requestOnPlex: { movieId: number };
   publishRoomEvent: { input: RoomEventInput };
   revokeRoomSubscriptions: { roomId: string; userId: string };
   onRoomEvent: { roomId: string };

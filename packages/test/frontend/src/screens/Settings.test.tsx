@@ -39,6 +39,15 @@ describe("Settings", () => {
     expect(screen.getByText("Invite more people to raise this.")).toBeInTheDocument();
   });
 
+  it("says what the setting means as it's dragged", () => {
+    renderWithRoom(<Settings />, { room: makeRoom({ members: people(5), matchThreshold: 2 }) });
+    expect(screen.getByText("2 of the 5 people in the room have to say yes.")).toBeInTheDocument();
+
+    fireEvent.change(slider(), { target: { value: "5" } });
+
+    expect(screen.getByText("Everyone in the room has to say yes.")).toBeInTheDocument();
+  });
+
   it("has nothing to save until something changes", () => {
     renderWithRoom(<Settings />, { room: makeRoom({ members: people(5) }) });
     expect(saveButton()).toBeDisabled();

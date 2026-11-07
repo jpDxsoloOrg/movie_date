@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button, IconButton } from "../components/Button";
+import { Chip } from "../components/Chip";
+import { ActorFace } from "../components/filters/ActorFace";
 import { ActorRow } from "../components/filters/ActorRow";
 import { peekFilterDraft, stashFilterDraft } from "../components/filters/filterDraft";
 import { Icon } from "../components/Icon";
@@ -180,21 +182,15 @@ export default function ActorSearch(): JSX.Element {
       <section className="actor-search__section">
         <h3 className="actor-search__heading">Selected Actors</h3>
         {selected.length > 0 ? (
-          <ul className="actor-search__list" aria-label="Selected actors">
+          <ul className="actor-search__chips" aria-label="Selected actors">
             {selected.map((actor) => (
-              <ActorRow
-                key={actor.id}
-                actor={actor}
-                action={
-                  <IconButton
-                    className="actor-search__remove"
-                    label={`Remove ${actor.name}`}
-                    onClick={() => removeActor(actor)}
-                  >
-                    <Icon name="close" />
-                  </IconButton>
-                }
-              />
+              <li key={actor.id}>
+                <Chip
+                  label={actor.name}
+                  leading={<ActorFace actor={actor} />}
+                  onRemove={() => removeActor(actor)}
+                />
+              </li>
             ))}
           </ul>
         ) : (

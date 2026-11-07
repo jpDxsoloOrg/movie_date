@@ -5,6 +5,7 @@ import { Icon } from "../Icon";
 import { Skeleton } from "../Skeleton";
 import { EmptyState, ErrorState } from "../StateMessage";
 import { errorMessage, type Movie } from "../../services/api";
+import { DECK_COPY } from "./deckCopy";
 import { SwipeCard } from "./SwipeCard";
 import { STACK_SIZE, useDeck } from "./useDeck";
 import "./SwipeDeck.css";
@@ -16,10 +17,22 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
-export function SwipeDeck({ onOpenDetails }: { onOpenDetails: (movie: Movie) => void }): JSX.Element {
+export interface SwipeDeckProps {
+  /** Left out where a details panel is already showing the top card. */
+  onOpenDetails?: (movie: Movie) => void;
+  /** Null once there's no card to show. Not called while a deck loads, so a reload keeps the last one. */
+  onTopChange?: (movie: Movie | null) => void;
+}
+
+export function SwipeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.Element {
   const navigate = useNavigate();
   const { status, error, retry, entries, exiting, swipe, undo, canUndo, finishExit } = useDeck();
   const top = entries[0];
+  const topMovie = top?.card.movie ?? null;
+
+  useEffect(() => {
+    if (status !== "loading") onTopChange?.(topMovie);
+  }, [status, topMovie, onTopChange]);
 
   // One list on purpose: a swiped card must stay the same element, keyed by movie,
   // to fly off from where the drag left it. Two lists would remount it at rest.
@@ -55,10 +68,10 @@ export function SwipeDeck({ onOpenDetails }: { onOpenDetails: (movie: Movie) => 
   }, [swipe, undo]);
 
   return (
-    <section className="deck" aria-label="Movie deck">
+    <section className="deck" aria-label={DECK_COPY.deckLabel}>
       <div className="deck__stack">
         {status === "loading" && (
-          <div className="deck__state" role="status" aria-label="Loading movies">
+          <div className="deck__state" role="status" aria-label={DECK_COPY.loading}>
             <Skeleton shape="card" />
           </div>
         )}
@@ -70,8 +83,8 @@ export function SwipeDeck({ onOpenDetails }: { onOpenDetails: (movie: Movie) => 
         {status === "end" && (
           <div className="deck__state">
             <EmptyState
-              title="No more movies"
-              message="You've seen everything that fits your filters. Widen them to keep swiping."
+              title={DECK_COPY.endTitle}
+              message={DECK_COPY.endMessage}
               action={<Button onClick={() => navigate("/filters")}>Change Filters</Button>}
               onGradient
             />
@@ -88,6 +101,7 @@ export function SwipeDeck({ onOpenDetails }: { onOpenDetails: (movie: Movie) => 
         <IconButton
           className="deck__control deck__control--pass"
           label="Pass"
+          aria-keyshortcuts="ArrowLeft"
           disabled={!top}
           onClick={() => swipe("PASS")}
         >
@@ -96,6 +110,7 @@ export function SwipeDeck({ onOpenDetails }: { onOpenDetails: (movie: Movie) => 
         <IconButton
           className="deck__control deck__control--undo"
           label="Undo"
+          aria-keyshortcuts="Backspace"
           disabled={!canUndo}
           onClick={undo}
         >
@@ -104,12 +119,25 @@ export function SwipeDeck({ onOpenDetails }: { onOpenDetails: (movie: Movie) => 
         <IconButton
           className="deck__control deck__control--like"
           label="Like"
+          aria-keyshortcuts="ArrowRight"
           disabled={!top}
           onClick={() => swipe("LIKE")}
         >
           <Icon name="heart" />
         </IconButton>
       </div>
+
+      <p className="deck__hint">
+        <span className="deck__hint-key">
+          <kbd className="md-kbd">←</kbd> Pass
+        </span>
+        <span className="deck__hint-key">
+          <kbd className="md-kbd">⌫</kbd> Undo
+        </span>
+        <span className="deck__hint-key">
+          <kbd className="md-kbd">→</kbd> Like
+        </span>
+      </p>
     </section>
   );
 }

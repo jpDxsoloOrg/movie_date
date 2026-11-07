@@ -1,9 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Tutorial from "@movie-date/frontend/screens/Tutorial";
 import { hasSeenTutorial, resetTutorialSeen } from "@movie-date/frontend/services/tutorial";
+import { fakeViewport } from "../support/viewport";
 
 function Path(): JSX.Element {
   return <div data-testid="path">{useLocation().pathname}</div>;
@@ -88,5 +89,96 @@ describe("Tutorial", () => {
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     expect(screen.getByTestId("path")).toHaveTextContent("/join/ABC234");
+  });
+
+  it("keeps keyboard talk off a phone", async () => {
+    renderTutorial();
+    await next();
+    await next();
+    await next();
+
+    expect(screen.queryByText("Backspace")).not.toBeInTheDocument();
+  });
+
+  describe("on desktop", () => {
+    let viewport: ReturnType<typeof fakeViewport>;
+
+    beforeEach(() => {
+      viewport = fakeViewport(1280);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      viewport.restore();
+    });
+
+    const toSwipeStep = async (): Promise<void> => {
+      await next();
+      await next();
+      await next();
+    };
+
+    const card = (): Element | null => document.querySelector(".tutorial__card");
+
+    it("explains the swipe keys, in the words of what they do", async () => {
+      renderTutorial();
+      await toSwipeStep();
+
+      const keys = screen.getByLabelText("Keyboard shortcuts");
+      expect(keys).toHaveTextContent("←Pass");
+      expect(keys).toHaveTextContent("→Like");
+      expect(keys).toHaveTextContent("BackspaceUndo");
+      expect(screen.queryByText(/Swipe left/)).not.toBeInTheDocument();
+    });
+
+    it("shows the keys only on that step, and points at the details beside the deck", async () => {
+      renderTutorial();
+      expect(screen.queryByText("Backspace")).not.toBeInTheDocument();
+
+      await toSwipeStep();
+      await next();
+
+      expect(screen.queryByText("Backspace")).not.toBeInTheDocument();
+      expect(screen.getByText(/sit beside the deck/)).toBeInTheDocument();
+      expect(screen.queryByText(/Tap on the poster/)).not.toBeInTheDocument();
+    });
+
+    it("answers the arrow keys on the card, and Backspace puts it back", async () => {
+      renderTutorial();
+      await toSwipeStep();
+
+      await userEvent.keyboard("{ArrowRight}");
+      expect(card()).toHaveClass("tutorial__card--tried-like");
+
+      await userEvent.keyboard("{ArrowLeft}");
+      expect(card()).toHaveClass("tutorial__card--tried-pass");
+
+      await userEvent.keyboard("{Backspace}");
+      expect(card()).toHaveClass("tutorial__card--swiping");
+    });
+
+    it("settles the card again after a try", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      renderTutorial();
+      for (let press = 0; press < 3; press += 1) {
+        act(() => screen.getByRole("button", { name: "Next" }).click());
+      }
+
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+      });
+      expect(card()).toHaveClass("tutorial__card--tried-like");
+
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(card()).toHaveClass("tutorial__card--swiping");
+    });
+
+    it("leaves the arrow keys alone on the other steps", async () => {
+      renderTutorial();
+      await userEvent.keyboard("{ArrowRight}");
+      expect(card()).not.toHaveClass("tutorial__card--tried-like");
+    });
   });
 });

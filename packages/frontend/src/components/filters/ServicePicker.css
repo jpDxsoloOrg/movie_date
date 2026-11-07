@@ -1,102 +1,32 @@
-.service-picker {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+.service-picker.md-tile-grid {
+  grid-template-columns: repeat(auto-fill, minmax(4.75rem, 1fr));
 }
 
-.service-picker__label {
-  font-size: var(--font-size-sm);
-  font-weight: 700;
+.service-picker .md-tile {
+  /* From the top, so a two-line label doesn't knock its logo out of the row. */
+  justify-content: flex-start;
+  min-height: 6rem;
+  padding: var(--space-2) 2px;
 }
 
-.service-picker__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+.service-picker .md-tile__media {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.service-picker .md-tile__label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* On a black plate, as in Where to Watch: the light logo plate would wash the mark out. */
+.plex-mark {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
-  min-height: 48px;
-  padding: var(--space-2) var(--space-3);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-field);
-  background: var(--color-surface);
-  text-align: left;
-  cursor: pointer;
-}
-
-.service-picker__toggle:hover {
-  border-color: var(--color-accent);
-}
-
-.service-picker__arrow {
-  border-top: 6px solid currentcolor;
-  border-right: 6px solid transparent;
-  border-left: 6px solid transparent;
-  transition: transform var(--duration-fast);
-}
-
-.service-picker__toggle[aria-expanded="true"] .service-picker__arrow {
-  transform: rotate(180deg);
-}
-
-.service-picker__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: var(--space-1) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.service-picker__chip {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-left: var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-muted);
-  font-size: var(--font-size-sm);
-}
-
-.service-picker__icon {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: contain;
-}
-
-.service-picker__options {
-  display: grid;
-  margin-top: var(--space-1);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-field);
-  background: var(--color-surface);
-  overflow: hidden;
-}
-
-/* `display: grid` would otherwise beat the attribute's default. */
-.service-picker__options[hidden] {
-  display: none;
-}
-
-.service-picker__option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: var(--touch-target);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-}
-
-.service-picker__option:hover {
-  background: var(--color-surface-muted);
-}
-
-.service-picker__option input {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin: 0;
-  accent-color: var(--color-accent);
+  height: 100%;
+  padding: var(--space-2);
+  background: var(--color-app-bar);
+  color: var(--color-accent);
 }

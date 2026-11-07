@@ -45,6 +45,34 @@ export async function consume(key: TableKey, limit: number, ttlSeconds = 2 * DAY
   }
 }
 
+/** Gives back a unit whose work never happened. */
+export async function refund(key: TableKey): Promise<void> {
+  await updateItem(key, {
+    updateExpression: "ADD #count :minusOne",
+    names: { "#count": "count" },
+    values: { ":minusOne": -1 },
+  });
+}
+
+/**
+ * True at most once per interval, measured from the last claim. Calendar windows
+ * would let two through either side of a boundary.
+ */
+export async function claimInterval(key: TableKey, intervalSeconds: number): Promise<boolean> {
+  const now = nowSeconds();
+  try {
+    await updateItem(key, {
+      updateExpression: "SET expiresAt = :next",
+      values: { ":next": now + intervalSeconds, ":now": now },
+      conditionExpression: "attribute_not_exists(expiresAt) OR expiresAt < :now",
+    });
+    return true;
+  } catch (error) {
+    if (isConditionFailure(error)) return false;
+    throw error;
+  }
+}
+
 /** For counting only failures: check with this first, record with `recordFailure`. */
 export async function isExhausted(key: TableKey, limit: number): Promise<boolean> {
   const row = await getItem<LimitRow>(key, { consistent: true });

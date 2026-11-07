@@ -10,11 +10,19 @@
   border-radius: var(--radius-field);
   font-weight: 600;
   cursor: pointer;
-  transition: filter var(--duration-fast), background-color var(--duration-fast);
+  transition:
+    filter var(--duration-fast),
+    background-color var(--duration-fast),
+    border-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .md-button:hover:not(:disabled) {
-  filter: brightness(0.94);
+  filter: brightness(1.08);
+}
+
+.md-button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .md-button:disabled {
@@ -28,19 +36,27 @@
 }
 
 .md-button--brand {
-  background: var(--color-brand-red);
-  color: #fff;
+  background: var(--gradient-brand);
+  color: var(--color-on-brand);
 }
 
 .md-button--secondary {
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
   border-color: var(--color-border);
   color: var(--color-text);
+}
+
+.md-button--secondary:hover:not(:disabled) {
+  border-color: var(--color-accent);
 }
 
 .md-button--ghost {
   background: transparent;
   color: var(--color-accent-text);
+}
+
+.md-button--ghost:hover:not(:disabled) {
+  background: var(--color-hover-wash);
 }
 
 .md-button--block {
@@ -80,10 +96,11 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
+  transition: background-color var(--duration-fast);
 }
 
 .md-icon-button:hover:not(:disabled) {
-  background: rgb(128 128 128 / 18%);
+  background: var(--color-hover-wash);
 }
 
 .md-icon-button:disabled {

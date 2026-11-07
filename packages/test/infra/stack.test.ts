@@ -17,9 +17,16 @@ interface ResolverRoute {
   code?: string;
 }
 
+interface PermissionCondition {
+  test: string;
+  variable: string;
+  values: string[];
+}
+
 interface FunctionPermission {
   actions: string[];
   resources: string[];
+  conditions?: PermissionCondition[];
 }
 
 interface LambdaArgs {
@@ -28,6 +35,11 @@ interface LambdaArgs {
   link?: unknown[];
   environment: Record<string, string>;
   permissions: FunctionPermission[];
+}
+
+interface CronArgs {
+  schedule: string;
+  function: LambdaArgs & { handler: string; retries: number; concurrency?: unknown };
 }
 
 interface DataSourceArgs {
@@ -98,6 +110,8 @@ interface Recorded {
   tableTtl?: string;
   bucketAccess?: string;
   bucketLifecycle?: { prefix: string; expiresIn: string }[];
+  privateBuckets: string[];
+  cron?: CronArgs;
   postConfirmationHandler?: string;
   rolePolicy?: { role: string; policy: string };
   headersPolicy?: HeadersPolicyArgs;
@@ -125,7 +139,16 @@ function fakeResources(recorded: Recorded) {
         name = "bucket-name";
         domain = "bucket-name.s3.amazonaws.com";
         arn = "arn:bucket";
-        constructor(_name: string, args: Pick<Recorded, "bucketLifecycle"> & { access: string; lifecycle: Recorded["bucketLifecycle"] }) {
+        constructor(
+          name: string,
+          args?: Pick<Recorded, "bucketLifecycle"> & { access: string; lifecycle: Recorded["bucketLifecycle"] },
+        ) {
+          if (!args?.access) {
+            recorded.privateBuckets.push(name);
+            this.name = "plex-library-name";
+            this.arn = "arn:plex-library";
+            return;
+          }
           recorded.bucketAccess = args.access;
           recorded.bucketLifecycle = args.lifecycle;
         }
@@ -135,6 +158,12 @@ function fakeResources(recorded: Recorded) {
         nodes = { role: { name: "post-confirmation-role" } };
         constructor(_name: string, args: { handler: string }) {
           recorded.postConfirmationHandler = args.handler;
+        }
+      },
+      Cron: class {
+        nodes = { function: { name: "plex-index-function" } };
+        constructor(_name: string, args: CronArgs) {
+          recorded.cron = args;
         }
       },
       CognitoUserPool: class {
@@ -197,7 +226,7 @@ function fakeAws(recorded: Recorded) {
 }
 
 async function runStack(config: StackConfig, stage: string): Promise<Recorded> {
-  const recorded: Recorded = { routes: new Map(), dataSources: [] };
+  const recorded: Recorded = { routes: new Map(), dataSources: [], privateBuckets: [] };
   vi.stubGlobal("$app", { stage });
   vi.stubGlobal("sst", fakeResources(recorded));
   vi.stubGlobal("aws", fakeAws(recorded));
@@ -209,6 +238,11 @@ function lambdaArgs(recorded: Recorded): LambdaArgs {
   const lambda = recorded.dataSources.find((source) => source.lambda)?.lambda;
   if (!lambda) throw new Error("No Lambda data source was created");
   return lambda;
+}
+
+function cronArgs(recorded: Recorded): CronArgs {
+  if (!recorded.cron) throw new Error("No cron was created");
+  return recorded.cron;
 }
 
 function schemaOperations(): string[] {
@@ -340,7 +374,8 @@ describe("sst.config.ts", () => {
     it("can reach exactly the paths avatars use", () => {
       const resources = lambdaArgs(production)
         .permissions.filter(({ actions }) => actions.some((action) => action.startsWith("s3:")))
-        .flatMap((permission) => permission.resources);
+        .flatMap((permission) => permission.resources)
+        .filter((resource) => resource.startsWith("arn:bucket"));
       expect(resources.sort()).toEqual(["arn:bucket", "arn:bucket/avatars/*", "arn:bucket/pending/*"]);
     });
 
@@ -372,6 +407,86 @@ describe("sst.config.ts", () => {
       expect(permission?.resources).toEqual([
         "arn:aws:ssm:us-east-1:123456789012:parameter/movie-date/production/tmdb-api-key",
         "arn:aws:ssm:us-east-1:123456789012:parameter/movie-date/production/rapidapi-key",
+      ]);
+    });
+  });
+
+  describe("Plex permissions", () => {
+    const integrationArn =
+      "arn:aws:lambda:us-east-1:123456789012:function:plex-request-api-devtest-integration";
+
+    function grantsOf(permissions: FunctionPermission[], action: string): FunctionPermission[] {
+      return permissions.filter((permission) => permission.actions.includes(action));
+    }
+
+    it("may invoke only the Plex Request integration function", () => {
+      const lambda = lambdaArgs(production);
+      for (const permissions of [lambda.permissions, cronArgs(production).function.permissions]) {
+        expect(grantsOf(permissions, "lambda:InvokeFunction")).toEqual([
+          { actions: ["lambda:InvokeFunction"], resources: [integrationArn] },
+        ]);
+      }
+    });
+
+    it("names the function once, for both the code and the grant", () => {
+      const functionName = integrationArn.split(":").at(-1);
+      expect(lambdaArgs(production).environment.PLEX_INTEGRATION_FUNCTION).toBe(functionName);
+      expect(cronArgs(production).function.environment.PLEX_INTEGRATION_FUNCTION).toBe(functionName);
+      const config = readFileSync(resolve(root, "sst.config.ts"), "utf8");
+      expect(config.split(functionName ?? "")).toHaveLength(2);
+    });
+
+    it("may send mail only as noreply@jpdxsolo.com", () => {
+      const lambda = lambdaArgs(production);
+      expect(lambda.environment.MAIL_FROM).toBe("noreply@jpdxsolo.com");
+      expect(grantsOf(lambda.permissions, "ses:SendEmail")).toEqual([
+        {
+          actions: ["ses:SendEmail"],
+          resources: ["arn:aws:ses:us-east-1:123456789012:identity/jpdxsolo.com"],
+          conditions: [
+            { test: "StringEquals", variable: "ses:FromAddress", values: ["noreply@jpdxsolo.com"] },
+          ],
+        },
+      ]);
+      expect(grantsOf(cronArgs(production).function.permissions, "ses:SendEmail")).toEqual([]);
+    });
+
+    it("keeps the index in a private bucket that only the job writes", () => {
+      expect(production.privateBuckets).toEqual(["PlexLibrary"]);
+      const lambda = lambdaArgs(production);
+      const job = cronArgs(production).function;
+      expect(lambda.environment.PLEX_INDEX_BUCKET).toBe("plex-library-name");
+      expect(job.environment.PLEX_INDEX_BUCKET).toBe("plex-library-name");
+      const reads = grantsOf(lambda.permissions, "s3:GetObject").flatMap((grant) => grant.resources);
+      expect(reads).toContain("arn:plex-library/*");
+      const writes = grantsOf(lambda.permissions, "s3:PutObject").flatMap((grant) => grant.resources);
+      expect(writes).not.toContain("arn:plex-library/*");
+      expect(grantsOf(job.permissions, "s3:PutObject").flatMap((grant) => grant.resources)).toEqual([
+        "arn:plex-library/*",
+      ]);
+    });
+
+    it("runs the job every 6 hours, once, without reserving concurrency", () => {
+      const { function: job, schedule } = cronArgs(production);
+      expect(schedule).toBe("rate(6 hours)");
+      expect(job.handler).toBe("packages/functions/src/plexIndexJob.handler");
+      expect(job.retries).toBe(0);
+      // The account limit of 10 leaves nothing to reserve, so this would fail the deploy.
+      expect(job.concurrency).toBeUndefined();
+    });
+
+    it("confines the job's table access to its lease", () => {
+      const job = cronArgs(production).function;
+      const tableGrants = job.permissions.filter((grant) =>
+        grant.actions.some((action) => action.startsWith("dynamodb:")),
+      );
+      expect(tableGrants).toHaveLength(1);
+      expect(tableGrants[0]?.conditions).toEqual([
+        {
+          test: "ForAllValues:StringEquals",
+          variable: "dynamodb:LeadingKeys",
+          values: ["PLEX#INDEX"],
+        },
       ]);
     });
   });
@@ -474,6 +589,7 @@ describe("sst.config.ts", () => {
       expect(directive("connect-src")).toContain("https://bucket-name.s3.us-east-1.amazonaws.com");
       expect(directive("img-src")).toContain("https://image.tmdb.org");
       expect(directive("img-src")).toContain("https://bucket-name.s3.amazonaws.com");
+      expect(directive("img-src")).toContain("https://i.ytimg.com");
       expect(directive("img-src")).not.toMatch(/ https: /);
     });
 

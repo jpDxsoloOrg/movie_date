@@ -3,15 +3,41 @@
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+  padding-bottom: calc(var(--space-5) + var(--safe-bottom));
 }
 
-.members__title {
-  margin-bottom: var(--space-2);
-  font-size: var(--font-size-md);
+.members__invite,
+.members__people {
+  min-width: 0;
+}
+
+.members__people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.members__rule-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  margin: calc(-1 * var(--space-2)) 0;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-field);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--duration-fast);
+}
+
+.members__rule-link:hover {
+  background: var(--color-hover-wash);
 }
 
 .members__list {
+  display: grid;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -21,13 +47,21 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
+  min-width: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-field);
+  transition: background-color var(--duration-fast);
+}
+
+.members__row:hover {
+  background: var(--color-surface-muted);
 }
 
 .members__name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  font-weight: 600;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -36,18 +70,71 @@
   flex: none;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-muted);
-  color: var(--color-text-muted);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
   font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .members__leave {
-  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: 0 var(--space-2);
+}
+
+.members__leave-note {
+  flex: 1 1 12rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.members__leave .md-button {
+  flex: 0 1 auto;
+  padding-inline: var(--space-4);
 }
 
 .members__leave .md-button__label {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+@media (max-width: 639px) {
+  .members__leave .md-button {
+    flex: 1 1 100%;
+  }
+}
+
+/* People on the left, because that's what the page is called; the ticket stays in reach
+   beside them however long the list gets. */
+@media (min-width: 1024px) {
+  .members {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 26rem);
+    grid-auto-flow: dense;
+    align-content: start;
+    align-items: start;
+    gap: var(--space-5) var(--space-6);
+  }
+
+  .members > .room-refresh {
+    grid-column: 1 / -1;
+  }
+
+  .members__invite {
+    position: sticky;
+    top: var(--space-5);
+    grid-column: 2;
+  }
+
+  .members__people {
+    grid-column: 1;
+  }
+
+  .members__list {
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  }
 }

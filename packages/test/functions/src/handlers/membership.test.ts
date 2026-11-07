@@ -147,7 +147,7 @@ describe("joinRoom", () => {
     await joinRoom({ code: room.code }, user("bob"));
 
     expect(publishRoomEvent).not.toHaveBeenCalled();
-    expect(table.row(`ROOM#${room.id}`, "TALLY#1#7")?.likes).toBe(1);
+    expect(table.row(`ROOM#${room.id}`, "TALLY#1#movie:7")?.likes).toBe(1);
     expect(table.row(`ROOM#${room.id}`, "MEMBER#sub-bob")?.joinedAt).toBe(joinedAt);
   });
 
@@ -162,8 +162,8 @@ describe("joinRoom", () => {
     await joinRoom({ code: other.code }, user("bob"));
 
     const pk = `ROOM#${first.id}`;
-    expect(table.row(pk, "TALLY#1#8")?.likes).toBe(0);
-    expect(table.row(pk, "TALLY#1#7")?.likes).toBe(1);
+    expect(table.row(pk, "TALLY#1#movie:8")?.likes).toBe(0);
+    expect(table.row(pk, "TALLY#1#movie:7")?.likes).toBe(1);
     expect(table.find(pk, "SWIPE#1#sub-bob#")).toEqual([]);
     expect(table.find(pk, "SWIPE#1#sub-ann#")).toHaveLength(2);
   });
@@ -228,15 +228,15 @@ describe("leaveRoom", () => {
   it("removes current-round swipes and tally contributions, keeping old rounds", async () => {
     const room = await roomOf("ann", "bob");
     const pk = `ROOM#${room.id}`;
-    table.seed({ pk, sk: "SWIPE#0#sub-bob#5", direction: "LIKE", movieId: 5, swipedAt: "t" });
+    table.seed({ pk, sk: "SWIPE#0#sub-bob#movie:5", direction: "LIKE", movieId: 5, swipedAt: "t" });
     await swipe({ movieId: 7, direction: "LIKE" }, user("bob"));
     await swipe({ movieId: 8, direction: "PASS" }, user("bob"));
 
     await leaveRoom({}, user("bob"));
 
-    expect(table.row(pk, "TALLY#1#7")?.likes).toBe(0);
+    expect(table.row(pk, "TALLY#1#movie:7")?.likes).toBe(0);
     expect(table.find(pk, "SWIPE#1#")).toEqual([]);
-    expect(table.row(pk, "SWIPE#0#sub-bob#5")).toBeDefined();
+    expect(table.row(pk, "SWIPE#0#sub-bob#movie:5")).toBeDefined();
   });
 
   it("clears more swipes than one transaction can hold", async () => {
@@ -277,7 +277,7 @@ describe("leaveRoom", () => {
 
       await Promise.all([leaveRoom({}, user(leaver)), undoSwipe({ movieId: 7 }, user(leaver))]);
 
-      expect(table.row(`ROOM#${room.id}`, "TALLY#1#7")?.likes).toBe(0);
+      expect(table.row(`ROOM#${room.id}`, "TALLY#1#movie:7")?.likes).toBe(0);
     }
   });
 
@@ -294,7 +294,7 @@ describe("leaveRoom", () => {
 
       const pk = `ROOM#${room.id}`;
       expect(table.find(pk, `SWIPE#1#sub-${leaver}#`)).toEqual([]);
-      expect(table.row(pk, "TALLY#1#7")?.likes ?? 0).toBe(0);
+      expect(table.row(pk, "TALLY#1#movie:7")?.likes ?? 0).toBe(0);
     }
   });
 
@@ -310,7 +310,7 @@ describe("leaveRoom", () => {
 
     const pk = `ROOM#${room.id}`;
     expect(table.find(pk, "SWIPE#")).toEqual([]);
-    expect(table.row(pk, "TALLY#1#7")?.likes).toBe(0);
+    expect(table.row(pk, "TALLY#1#movie:7")?.likes).toBe(0);
   });
 
   it("re-evaluates tallies when a departure lowers the threshold", async () => {
@@ -337,7 +337,7 @@ describe("leaveRoom", () => {
     await leaveRoom({}, user("cat"));
 
     expect(table.find(`ROOM#${room.id}`, "MATCH#")).toEqual([]);
-    expect(table.row(`ROOM#${room.id}`, "TALLY#1#7")?.likes).toBe(1);
+    expect(table.row(`ROOM#${room.id}`, "TALLY#1#movie:7")?.likes).toBe(1);
   });
 
   it("keeps the room joinable after everyone has gone", async () => {

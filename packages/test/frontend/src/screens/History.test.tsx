@@ -1,13 +1,15 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   matches: vi.fn(),
   swipeHistory: vi.fn(),
   watchOptions: vi.fn(),
   startNewRound: vi.fn(),
+  plexStatus: vi.fn(),
+  requestOnPlex: vi.fn(),
 }));
 
 vi.mock("@movie-date/frontend/services/api", () => ({
@@ -15,9 +17,12 @@ vi.mock("@movie-date/frontend/services/api", () => ({
   errorMessage: (error: unknown) => (error instanceof Error ? error.message : "Something went wrong."),
 }));
 
+import { RoomContext } from "@movie-date/frontend/context/RoomProvider";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
 import History from "@movie-date/frontend/screens/History";
 import type { HistoryEntry, Match, Movie } from "@movie-date/frontend/services/api";
+import { fakeRoomContext, makeProfile } from "../support/roomHarness";
+import { fakeViewport } from "../support/viewport";
 
 function makeMovie(id: number, title: string): Movie {
   return {
@@ -52,17 +57,21 @@ function Location(): JSX.Element {
   return <div data-testid="location">{`${pathname}${search}`}</div>;
 }
 
-function renderScreen(entry = "/history") {
+function renderScreen(entry = "/history", plexLinked = false, container?: HTMLElement) {
+  const context = fakeRoomContext({ me: makeProfile({ plexLinked }) });
   return render(
     <MemoryRouter
       future={{ v7_startTransition: false, v7_relativeSplatPath: true }}
       initialEntries={[entry]}
     >
       <ToastProvider>
-        <History />
-        <Location />
+        <RoomContext.Provider value={context}>
+          <History />
+          <Location />
+        </RoomContext.Provider>
       </ToastProvider>
     </MemoryRouter>,
+    container ? { container } : undefined,
   );
 }
 
@@ -114,6 +123,22 @@ describe("History tabs", () => {
     expect(swipesTab).toHaveAttribute("aria-selected", "true");
   });
 
+  it("opens the other tab at the top, since both share the page's scroller", async () => {
+    const scroller = document.body.appendChild(document.createElement("main"));
+    scroller.className = "md-page__content";
+    renderScreen("/history", false, scroller);
+    await screen.findByRole("button", { name: /Heat/ });
+
+    scroller.scrollTop = 900;
+    await userEvent.click(screen.getByRole("tab", { name: "My Swipes" }));
+    expect(scroller.scrollTop).toBe(0);
+
+    scroller.scrollTop = 900;
+    await userEvent.click(screen.getByRole("tab", { name: "My Swipes" }));
+    expect(scroller.scrollTop).toBe(900);
+    scroller.remove();
+  });
+
   it("keeps loaded pages when switching away and back", async () => {
     renderScreen();
     await screen.findByRole("button", { name: /Heat/ });
@@ -159,6 +184,70 @@ describe("Past matches", () => {
     await screen.findByRole("button", { name: /Heat/ });
 
     expect(mocks.watchOptions).not.toHaveBeenCalled();
+  });
+});
+
+describe("Plex on a past match", () => {
+  beforeEach(() => {
+    mocks.plexStatus.mockResolvedValue({ availability: "NOT_IN_LIBRARY", canRequest: true });
+  });
+
+  async function openRequestDialog(): Promise<HTMLElement> {
+    renderScreen("/history", true);
+    await userEvent.click(await screen.findByRole("button", { name: /Heat/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Request on Plex" }));
+    return screen.getByRole("dialog", { name: "Request Heat?" });
+  }
+
+  it("waits for a match to be opened before asking", async () => {
+    renderScreen("/history", true);
+    await screen.findByRole("button", { name: /Heat/ });
+
+    expect(mocks.plexStatus).not.toHaveBeenCalled();
+  });
+
+  it("requests from the sheet after confirming, leaving the sheet open", async () => {
+    mocks.requestOnPlex.mockResolvedValue({ availability: "REQUESTED", canRequest: false });
+    const dialog = await openRequestDialog();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Request" }));
+
+    const sheet = screen.getByRole("dialog", { name: "Heat details" });
+    expect(await within(sheet).findByText("Requested on Plex")).toBeInTheDocument();
+    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1);
+  });
+
+  it("closes only the confirmation on Escape", async () => {
+    await openRequestDialog();
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Request Heat?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Heat details" })).toBeInTheDocument();
+    expect(mocks.requestOnPlex).not.toHaveBeenCalled();
+  });
+});
+
+describe("On a desktop", () => {
+  let viewport: ReturnType<typeof fakeViewport>;
+
+  beforeEach(() => {
+    viewport = fakeViewport(1280);
+  });
+
+  afterEach(() => viewport.restore());
+
+  it("features only the newest match, which still opens its details", async () => {
+    mocks.matches.mockResolvedValue({ matches: [makeMatch(1, "Heat"), makeMatch(2, "Alien")], nextToken: null });
+    renderScreen();
+
+    const newest = await within(matchesPanel()).findByRole("button", { name: /Heat \(1995\)/ });
+    expect(screen.getAllByText("Latest match")).toHaveLength(1);
+    expect(newest).toContainElement(screen.getByText("Latest match"));
+
+    await userEvent.click(newest);
+
+    expect(screen.getByRole("dialog", { name: "Heat details" })).toBeInTheDocument();
   });
 });
 

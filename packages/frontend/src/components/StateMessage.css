@@ -9,11 +9,29 @@
   text-align: center;
 }
 
+.md-state__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: var(--space-1);
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+.md-state__icon .md-icon {
+  width: 2rem;
+  height: 2rem;
+}
+
 .md-state__title {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
 }
 
 .md-state__message {
+  max-width: 26rem;
   color: var(--color-text-muted);
 }
 
@@ -21,6 +39,12 @@
 .md-state--on-gradient {
   border-radius: var(--radius-card);
   background: var(--color-scrim);
+  backdrop-filter: blur(14px);
+}
+
+.md-state--on-gradient .md-state__icon {
+  background: rgb(255 255 255 / 16%);
+  color: var(--color-on-gradient);
 }
 
 .md-state--on-gradient,

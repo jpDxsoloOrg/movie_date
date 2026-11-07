@@ -103,6 +103,32 @@ export function getMovie(movieId: number): Promise<Movie> {
   );
 }
 
+/** Enough for a filter to find a title by actor without tripling the index's size. */
+const INDEXED_CAST = 20;
+
+export interface LibraryDetails {
+  genreIds: number[];
+  castIds: number[];
+  releaseDate: string | null;
+  popularity: number;
+}
+
+/** What the library index keeps. Uncached: the job only asks once per title. */
+export async function getLibraryDetails(movieId: number): Promise<LibraryDetails> {
+  const details = await tmdbGet(moviePath(movieId), {
+    language: "en-US",
+    append_to_response: "credits",
+  });
+  return {
+    genreIds: asRecords(details.genres).flatMap((genre) => asNumber(genre.id) ?? []),
+    castIds: asRecords(asRecord(details.credits).cast)
+      .slice(0, INDEXED_CAST)
+      .flatMap((person) => asNumber(person.id) ?? []),
+    releaseDate: asText(details.release_date),
+    popularity: asNumber(details.popularity) ?? 0,
+  };
+}
+
 /**
  * Details for many movies at once, in the order given. One bad title is dropped
  * so it can't cost the whole deck, but if nothing loads at all the failure is
@@ -141,6 +167,7 @@ export interface DiscoverResult {
 export interface DiscoverPage {
   results: DiscoverResult[];
   totalPages: number;
+  totalResults: number | null;
 }
 
 export async function discoverMovies(filters: Filters, page: number): Promise<DiscoverPage> {
@@ -156,7 +183,11 @@ export async function discoverMovies(filters: Filters, page: number): Promise<Di
       },
     ];
   });
-  return { results, totalPages: asNumber(body.total_pages) ?? 0 };
+  return {
+    results,
+    totalPages: asNumber(body.total_pages) ?? 0,
+    totalResults: asNumber(body.total_results),
+  };
 }
 
 export function getGenres(): Promise<Genre[]> {

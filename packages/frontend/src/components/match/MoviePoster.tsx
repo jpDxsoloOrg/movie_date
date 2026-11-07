@@ -2,9 +2,17 @@ import { useState } from "react";
 import { Icon } from "../Icon";
 import "./MoviePoster.css";
 
-/** List rows are about 60px wide; the full w780 poster would cost far more on mobile data. */
-function thumbnailUrl(posterUrl: string): string {
-  return posterUrl.replace("/t/p/w780/", "/t/p/w185/");
+const FULL_SIZE_SEGMENT = "/t/p/w780/";
+const THUMBNAIL_WIDTHS = [185, 342, 500];
+
+function resized(posterUrl: string, width: number): string {
+  return posterUrl.replace(FULL_SIZE_SEGMENT, `/t/p/w${width}/`);
+}
+
+/** A list row needs about 70px and a poster wall about 240px; w780 would cost far more on mobile data. */
+function thumbnailSources(posterUrl: string): string | undefined {
+  if (!posterUrl.includes(FULL_SIZE_SEGMENT)) return undefined;
+  return THUMBNAIL_WIDTHS.map((width) => `${resized(posterUrl, width)} ${width}w`).join(", ");
 }
 
 export interface MoviePosterProps {
@@ -12,10 +20,12 @@ export interface MoviePosterProps {
   /** Leave empty when the title is already next to the poster. */
   alt: string;
   thumbnail?: boolean;
+  /** The rendered width for a thumbnail, as the `sizes` attribute takes it. */
+  sizes?: string;
   className?: string;
 }
 
-export function MoviePoster({ posterUrl, alt, thumbnail = false, className }: MoviePosterProps): JSX.Element {
+export function MoviePoster({ posterUrl, alt, thumbnail = false, sizes, className }: MoviePosterProps): JSX.Element {
   const [failed, setFailed] = useState(false);
   const classes = ["match-poster", className].filter(Boolean).join(" ");
 
@@ -29,7 +39,9 @@ export function MoviePoster({ posterUrl, alt, thumbnail = false, className }: Mo
   return (
     <img
       className={classes}
-      src={thumbnail ? thumbnailUrl(posterUrl) : posterUrl}
+      src={thumbnail ? resized(posterUrl, THUMBNAIL_WIDTHS[0] ?? 185) : posterUrl}
+      srcSet={thumbnail ? thumbnailSources(posterUrl) : undefined}
+      sizes={thumbnail ? sizes : undefined}
       alt={alt}
       loading={thumbnail ? "lazy" : undefined}
       onError={() => setFailed(true)}

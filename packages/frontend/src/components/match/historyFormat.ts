@@ -1,4 +1,4 @@
-import type { Movie } from "../../services/api";
+import type { Match, Movie } from "../../services/api";
 
 export const HISTORY_PAGE_SIZE = 20;
 
@@ -10,4 +10,9 @@ export function formatHistoryDate(isoDate: string): string {
 
 export function movieLabel(movie: Movie): string {
   return movie.releaseYear ? `${movie.title} (${movie.releaseYear})` : movie.title;
+}
+
+/** The line printed on a match's ticket. */
+export function matchStamp(match: Pick<Match, "matchedAt" | "round">): string {
+  return `${formatHistoryDate(match.matchedAt)} · Round ${match.round}`;
 }

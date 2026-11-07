@@ -2,18 +2,15 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  text-align: center;
 }
 
 .where-to-watch__title {
-  font-size: var(--font-size-md);
-  font-weight: 700;
+  font-size: var(--font-size-lg);
 }
 
 .where-to-watch__list {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: var(--space-3);
   margin: 0;
   padding: 0;
@@ -25,37 +22,67 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-1);
-  width: 4.5rem;
+  min-width: 3.75rem;
+  max-width: 6rem;
   border-radius: var(--radius-field);
   color: inherit;
+  text-align: center;
   text-decoration: none;
 }
 
 .where-to-watch__tile--link {
-  transition: transform var(--duration-fast);
+  transition: transform var(--duration-normal) var(--ease-out);
 }
 
-.where-to-watch__tile--link:hover {
-  transform: translateY(-2px);
+.where-to-watch__tile--link:active {
+  transform: scale(0.96);
 }
 
-/* The skeleton variant needs the size too, hence the specificity over md-skeleton--rect. */
-.where-to-watch .where-to-watch__logo {
-  width: 60px;
-  height: 60px;
+@media (hover: hover) {
+  .where-to-watch__tile--link:hover {
+    transform: translateY(-3px);
+  }
+}
+
+/* One size for all three, so a row of tiles lines up whichever each one turns out to be. */
+.where-to-watch .where-to-watch__logo,
+.where-to-watch__plate,
+.where-to-watch__name,
+.where-to-watch .where-to-watch__tile-skeleton {
+  width: 3.75rem;
+  height: 3.75rem;
   border-radius: var(--radius-field);
+}
+
+.where-to-watch .where-to-watch__logo {
+  padding: var(--space-1);
   object-fit: contain;
 }
 
-.where-to-watch .where-to-watch__logo--text {
+/* On its black plate the mark reads as the room's own library rather than one more service. */
+.where-to-watch__plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-app-bar);
+  box-shadow: 0 0 0 2px var(--color-accent);
+  color: var(--color-accent);
+}
+
+.where-to-watch__plex-mark {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.where-to-watch__name {
   display: flex;
   align-items: center;
   justify-content: center;
   /* Service names run long, so this tile grows rather than clipping them. */
-  width: 100%;
   height: auto;
-  min-height: 60px;
+  min-height: 3.75rem;
   padding: var(--space-1);
+  overflow-wrap: anywhere;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text);
@@ -66,19 +93,40 @@
 
 .where-to-watch__type {
   font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
 .where-to-watch__attribution {
   font-size: var(--font-size-xs);
 }
 
-/* Dark and red wordmarks disappear on the dark panel. */
-.where-to-watch--on-gradient img.where-to-watch__logo {
-  padding: var(--space-1);
-  background: var(--color-surface);
+.where-to-watch__attribution a {
+  color: inherit;
 }
 
-.where-to-watch--on-gradient,
-.where-to-watch--on-gradient .where-to-watch__attribution a {
+/* The shared state message is sized for a whole page, and the ticket is already its panel. */
+.where-to-watch .md-state {
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+  text-align: left;
+}
+
+.where-to-watch .md-state__icon {
+  display: none;
+}
+
+.where-to-watch .md-state__title {
+  font-size: var(--font-size-md);
+}
+
+.where-to-watch .md-state__message {
+  font-size: var(--font-size-sm);
+}
+
+.where-to-watch--on-gradient {
   color: var(--color-on-gradient);
 }

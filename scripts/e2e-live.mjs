@@ -6,6 +6,16 @@
  * AppSync over HTTP and websocket, TMDB, the streaming API, S3), then deletes
  * everything it created: Cognito users, USER#/ROOM#/CODE# rows, avatars.
  *
+ * The Plex steps also create a temporary user in Plex Request's real pool, with no
+ * user-preferences row, so auto-approve is off. Mail: only an admin status change
+ * sends Plex Request's status mail, so a request left at "requested" sends none, and
+ * the user is created with its invite suppressed. Linking does send two code mails. The
+ * actors who link use SES's mailbox simulator, so those mails are accepted and go nowhere:
+ * no bounce, no feedback forwarded, nothing on the suppression list. Codes can't be read
+ * there, so the script rewrites the stored hash for a known code. That needs AWS access,
+ * not an app backdoor.
+ * The request exists for seconds and is deleted, along with the user, whatever happens.
+ *
  *   AWS_PROFILE=league-szn PLAYWRIGHT_MODULE=/path/to/node_modules/playwright \
  *     node scripts/e2e-live.mjs
  *
@@ -26,7 +36,7 @@
  * records goes through redact().
  */
 import { execFile } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { randomBytes, scryptSync } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -41,6 +51,15 @@ const USER_POOL_ID = "us-east-1_TEy3ICBCA";
 const AVATAR_BUCKET = "movie-date-production-avatarsbucket-bbbbcwzc";
 const AVATAR_PREFIXES = ["avatars", "pending"];
 const TABLE = "movie-date-production-TableTable-bvwstdbe";
+const PLEX_USER_POOL_ID = "us-east-1_5QNT47Ud7";
+const PLEX_REQUESTS_TABLE = "plex-request-api-devtest-requests";
+const PLEX_PREFERENCES_TABLE = "plex-request-api-devtest-user-preferences";
+const PLEX_LIBRARY_TABLE = "plex-request-api-devtest-library";
+const PLEX_ACTIVE_STATUSES = ["requested", "approved", "downloading"];
+/** Mirrors confirmPlexLink and startPlexLink. */
+const PLEX_MAX_ATTEMPTS = 5;
+const PLEX_SEND_INTERVAL_MS = 60_000;
+const PLEX_WRONG_CODE = "That code isn't right, or it has expired.";
 const REGION = "us-east-1";
 const PHONE = { width: 390, height: 844 };
 const TIMEOUT_MS = 30_000;
@@ -74,9 +93,9 @@ async function aws(args) {
   return stdout.trim() ? JSON.parse(stdout) : null;
 }
 
-async function subOf(email) {
+async function subOf(email, poolId = USER_POOL_ID) {
   try {
-    const user = await aws(["cognito-idp", "admin-get-user", "--user-pool-id", USER_POOL_ID, "--username", email]);
+    const user = await aws(["cognito-idp", "admin-get-user", "--user-pool-id", poolId, "--username", email]);
     return user.UserAttributes.find((attribute) => attribute.Name === "sub")?.Value ?? null;
   } catch (error) {
     if (String(error.stderr ?? error).includes("UserNotFoundException")) return null;
@@ -120,9 +139,96 @@ async function roomsWithMembers(subs) {
   return result.Items.map((item) => item.pk.S.replace(/^ROOM#/, ""));
 }
 
+// Plex Request is live with real users, so nothing here acts on an address this
+// script didn't make, or on a row that isn't that user's.
+function assertTestAddress(email) {
+  assert(
+    /^(e2e-live-[0-9a-f]+-\w+@example\.com|success\+e2e-live-[0-9a-f]+-\w+@simulator\.amazonses\.com)$/.test(email),
+    `refusing to touch ${email}`,
+  );
+}
+
+async function plexRequestIdsOf(sub) {
+  const result = await aws([
+    "dynamodb", "query", "--table-name", PLEX_REQUESTS_TABLE, "--index-name", "UserIndex",
+    "--key-condition-expression", "userId = :userId",
+    "--expression-attribute-values", JSON.stringify({ ":userId": { S: sub } }),
+    "--projection-expression", "requestId",
+  ]);
+  return result.Items.map((item) => item.requestId.S);
+}
+
+async function plexRequest(requestId) {
+  const result = await aws([
+    "dynamodb", "get-item", "--table-name", PLEX_REQUESTS_TABLE, "--consistent-read",
+    "--key", JSON.stringify({ requestId: { S: requestId } }),
+  ]);
+  return result?.Item ?? null;
+}
+
+async function deletePlexRequest(requestId, sub) {
+  try {
+    await aws([
+      "dynamodb", "delete-item", "--table-name", PLEX_REQUESTS_TABLE,
+      "--key", JSON.stringify({ requestId: { S: requestId } }),
+      "--condition-expression", "userId = :userId",
+      "--expression-attribute-values", JSON.stringify({ ":userId": { S: sub } }),
+    ]);
+  } catch (error) {
+    // Already gone, which is the state this was after. A row of someone else's stays put.
+    if (!String(error.stderr ?? error).includes("ConditionalCheckFailed")) throw error;
+  }
+}
+
+async function plexPreference(sub) {
+  const result = await aws([
+    "dynamodb", "get-item", "--table-name", PLEX_PREFERENCES_TABLE, "--consistent-read",
+    "--key", JSON.stringify({ userId: { S: sub } }),
+  ]);
+  return result?.Item ?? null;
+}
+
+async function cleanupPlex(state) {
+  const log = [];
+  const leftovers = [];
+  const emails = state.plexEmails ?? [];
+  emails.forEach(assertTestAddress);
+  const subs = new Set(state.plexSubs ?? []);
+  for (const email of emails) {
+    const sub = await subOf(email, PLEX_USER_POOL_ID);
+    if (sub) subs.add(sub);
+  }
+
+  for (const sub of subs) {
+    // The index lags a fresh write, so the ids noted during the run count too.
+    const requestIds = new Set([...(state.plexRequestIds ?? []), ...(await plexRequestIdsOf(sub))]);
+    for (const requestId of requestIds) {
+      await deletePlexRequest(requestId, sub);
+      const row = await plexRequest(requestId);
+      if (row?.userId?.S === sub) leftovers.push(`plex request ${requestId}`);
+      else log.push(`plex request ${requestId}: deleted`);
+    }
+    await aws([
+      "dynamodb", "delete-item", "--table-name", PLEX_PREFERENCES_TABLE,
+      "--key", JSON.stringify({ userId: { S: sub } }),
+    ]);
+    if (await plexPreference(sub)) leftovers.push(`plex preference ${sub}`);
+  }
+  for (const email of emails) {
+    try {
+      await aws(["cognito-idp", "admin-delete-user", "--user-pool-id", PLEX_USER_POOL_ID, "--username", email]);
+      log.push(`plex cognito ${email}: deleted`);
+    } catch (error) {
+      if (!String(error.stderr ?? error).includes("UserNotFoundException")) throw error;
+    }
+    if (await subOf(email, PLEX_USER_POOL_ID)) leftovers.push(`plex cognito ${email}`);
+  }
+  return { log, leftovers };
+}
+
 /** Deletes exactly what `state` names, then checks nothing is left. */
 async function cleanup(state) {
-  const log = [];
+  const { log, leftovers } = await cleanupPlex(state);
   const subs = new Set(state.subs ?? []);
   for (const email of state.emails) {
     const sub = await subOf(email);
@@ -168,7 +274,6 @@ async function cleanup(state) {
     }
   }
 
-  const leftovers = [];
   for (const email of state.emails) if (await subOf(email)) leftovers.push(`cognito ${email}`);
   for (const sub of subs) {
     if ((await queryKeys(`USER#${sub}`)).length > 0) leftovers.push(`USER#${sub}`);
@@ -189,7 +294,7 @@ async function cleanup(state) {
 const runId = randomBytes(4).toString("hex");
 const OUT = process.env.E2E_OUT ?? join(tmpdir(), "movie-date-e2e", runId);
 
-const state = { runId, emails: [], subs: [], rooms: [], codes: [] };
+const state = { runId, emails: [], subs: [], rooms: [], codes: [], plexEmails: [], plexSubs: [], plexRequestIds: [] };
 const saveState = () => writeFileSync(join(OUT, "state.json"), JSON.stringify(state, null, 2));
 const remember = (list, value) => {
   if (value && !list.includes(value)) {
@@ -227,6 +332,11 @@ async function expectingNoise(pattern, action) {
   }
 }
 
+/** Leaving a page cancels whatever it had in flight, which is the script's doing, not a fault. */
+function leavingPage(action) {
+  return expectingNoise(/net::ERR_ABORTED$/, action);
+}
+
 function opOf(request) {
   try {
     const { query } = JSON.parse(request.postData() ?? "{}");
@@ -248,13 +358,14 @@ function collectRooms(value) {
 }
 
 class Actor {
-  constructor(name, context) {
+  constructor(name, context, { receivesMail = false } = {}) {
     this.name = name;
     this.context = context;
     this.frames = [];
     this.loads = 0;
         this.password = randomBytes(12).toString("base64url");
-    this.email = `e2e-live-${runId}-${name.toLowerCase()}@example.com`;
+    const localPart = `e2e-live-${runId}-${name.toLowerCase()}`;
+    this.email = receivesMail ? `success+${localPart}@simulator.amazonses.com` : `${localPart}@example.com`;
     remember(state.emails, this.email);
     actors.push(this);
   }
@@ -293,6 +404,12 @@ class Actor {
         resource: request.resourceType(),
         op: request.url() === GRAPHQL_URL ? opOf(request) : undefined,
       });
+    });
+    page.on("request", (request) => {
+      // Memory only: this is a live id token, and it never reaches the results.
+      if (request.url() === GRAPHQL_URL && request.headers().authorization) {
+        this.authorization = request.headers().authorization;
+      }
     });
     page.on("response", async (response) => {
       const request = response.request();
@@ -387,7 +504,7 @@ class Actor {
   }
 }
 
-async function newActor(browser, name) {
+async function newActor(browser, name, options) {
   const context = await browser.newContext({
     viewport: PHONE,
     screen: PHONE,
@@ -412,7 +529,7 @@ async function newActor(browser, name) {
       },
     });
   });
-  const actor = new Actor(name, context);
+  const actor = new Actor(name, context, options);
   await actor.open();
   return actor;
 }
@@ -495,6 +612,9 @@ async function logIn(actor, password = actor.password) {
 
 async function drawerTo(actor, label) {
   const { page } = actor;
+  // On a phone, Filters is a full-screen sheet over the app bar.
+  const filters = page.getByRole("dialog", { name: "Filters" });
+  if (await filters.count()) await filters.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Open menu" }).click();
   await page.getByRole("dialog", { name: "Menu" }).getByRole("link", { name: label, exact: true }).click();
 }
@@ -506,7 +626,7 @@ async function topTitle(actor) {
 }
 
 async function roomCode(actor) {
-  return (await actor.page.locator(".home__room-code strong").textContent({ timeout: TIMEOUT_MS }))?.trim() ?? "";
+  return (await actor.page.locator(".deck-ticket-strip__code").textContent({ timeout: TIMEOUT_MS }))?.trim() ?? "";
 }
 
 /** Presses Like or Pass and returns the server's SwipeResult. */
@@ -629,12 +749,10 @@ async function setGenre(actor, drop, pick) {
   const { page } = actor;
   await page.getByRole("link", { name: "Search" }).click();
   await onPath(actor, "/filters");
-  await page.getByRole("button", { name: /Genres/ }).click();
-  const dialog = page.getByRole("dialog", { name: "Choose genres" });
-  if (drop) await dialog.getByRole("button", { name: drop, exact: true }).click();
-  await dialog.getByRole("button", { name: pick, exact: true }).click();
-  await dialog.getByRole("button", { name: "Apply" }).click();
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const genres = page.getByRole("group", { name: "Genres" });
+  if (drop) await genres.getByRole("button", { name: drop, exact: true }).click();
+  await genres.getByRole("button", { name: pick, exact: true }).click();
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
 }
 
 async function assertMatchScreen(actor) {
@@ -692,6 +810,144 @@ function noteWatch(watch, note, who) {
 async function backToStart(actor) {
   await actor.page.getByRole("button", { name: "Back to Start" }).click();
   await onPath(actor, "/");
+}
+
+// ---------------------------------------------------------------- Plex helpers
+
+async function createPlexUser(email) {
+  assertTestAddress(email);
+  // Noted first: a run killed between these calls must still clean the user up.
+  remember(state.plexEmails, email);
+  const created = await aws([
+    "cognito-idp", "admin-create-user", "--user-pool-id", PLEX_USER_POOL_ID, "--username", email,
+    "--message-action", "SUPPRESS",
+    "--user-attributes", `Name=email,Value=${email}`, "Name=email_verified,Value=true",
+  ]);
+  const sub = created.User.Attributes.find((attribute) => attribute.Name === "sub")?.Value;
+  remember(state.plexSubs, sub);
+  try {
+    await aws([
+      "cognito-idp", "admin-set-user-password", "--user-pool-id", PLEX_USER_POOL_ID, "--username", email,
+      "--password", `Aa1-${randomBytes(18).toString("base64url")}`, "--permanent",
+    ]);
+  } catch {
+    // execFile's own message quotes the command line, password included.
+    throw new Error("could not confirm the temporary Plex Request user");
+  }
+  return sub;
+}
+
+async function plexUserState(email) {
+  const user = await aws(["cognito-idp", "admin-get-user", "--user-pool-id", PLEX_USER_POOL_ID, "--username", email]);
+  const verified = user.UserAttributes.find((attribute) => attribute.Name === "email_verified")?.Value;
+  return { status: user.UserStatus, verified };
+}
+
+async function userRow(sub, sk) {
+  const result = await aws([
+    "dynamodb", "get-item", "--table-name", TABLE, "--consistent-read",
+    "--key", JSON.stringify({ pk: { S: `USER#${sub}` }, sk: { S: sk } }),
+  ]);
+  return result?.Item ?? null;
+}
+
+/** The only thing this does to the app: swaps the hash of a code nobody can read. */
+async function plantLinkCode(sub, code) {
+  const pending = await userRow(sub, "PLEX_LINK");
+  assert(pending, "no pending link code to replace");
+  await aws([
+    "dynamodb", "update-item", "--table-name", TABLE,
+    "--key", JSON.stringify({ pk: { S: `USER#${sub}` }, sk: { S: "PLEX_LINK" } }),
+    "--update-expression", "SET codeHash = :codeHash",
+    "--condition-expression", "salt = :salt",
+    "--expression-attribute-values", JSON.stringify({
+      ":codeHash": { S: scryptSync(code, pending.salt.S, 32).toString("hex") },
+      ":salt": { S: pending.salt.S },
+    }),
+  ]);
+}
+
+/** For what the UI rightly gives no way to attempt. Bypasses the page, so it records no noise. */
+async function callApi(actor, query, variables = {}) {
+  assert(actor.authorization, `${actor.name} has made no API call yet`);
+  const response = await fetch(GRAPHQL_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: actor.authorization },
+    body: JSON.stringify({ query, variables }),
+  });
+  return response.json();
+}
+
+const PLEX_STATUS_QUERY = "query Status($id: Int!) { plexStatus(movieId: $id) { availability canRequest } }";
+const REQUEST_ON_PLEX = "mutation Ask($id: Int!) { requestOnPlex(movieId: $id) { availability canRequest } }";
+const START_PLEX_LINK = "mutation Start { startPlexLink { sent } }";
+
+async function libraryFiles(tmdbIds) {
+  const keys = [...new Set(tmdbIds)].map((tmdbId) => ({ pk: { S: `movie#${tmdbId}` } }));
+  const result = await aws([
+    "dynamodb", "batch-get-item", "--request-items",
+    JSON.stringify({ [PLEX_LIBRARY_TABLE]: { Keys: keys, ProjectionExpression: "pk, hasFile" } }),
+  ]);
+  return new Map(
+    result.Responses[PLEX_LIBRARY_TABLE].map((row) => [Number(row.pk.S.replace("movie#", "")), row.hasFile?.BOOL === true]),
+  );
+}
+
+async function activeRequestCount(tmdbId) {
+  let total = 0;
+  for (const status of PLEX_ACTIVE_STATUSES) {
+    const result = await aws([
+      "dynamodb", "query", "--table-name", PLEX_REQUESTS_TABLE, "--index-name", "StatusIndex",
+      "--key-condition-expression", "#status = :status",
+      "--filter-expression", "tmdbId = :tmdbId",
+      "--expression-attribute-names", JSON.stringify({ "#status": "status" }),
+      "--expression-attribute-values", JSON.stringify({ ":status": { S: status }, ":tmdbId": { N: String(tmdbId) } }),
+      "--select", "COUNT",
+    ]);
+    total += result.Count;
+  }
+  return total;
+}
+
+async function serviceTiles(actor) {
+  const { page } = actor;
+  if (homePath(page) !== "/filters") {
+    const search = page.getByRole("link", { name: "Search" });
+    // Only the routes with a bottom nav have it.
+    if ((await search.count()) === 0) {
+      await drawerTo(actor, "Home");
+      await onPath(actor, "/");
+    }
+    await search.click();
+    await onPath(actor, "/filters");
+  }
+  const tiles = page.getByRole("group", { name: "Streaming Services" });
+  await tiles.waitFor();
+  return tiles;
+}
+
+const plexTile = (tiles) => tiles.getByRole("button", { name: /^Plex/ });
+
+async function submitLinkCode(actor, code) {
+  const answer = actor.waitOp("ConfirmPlexLink");
+  await actor.page.getByLabel("6-digit code").fill(code);
+  await actor.page.getByRole("button", { name: "Link Account" }).click();
+  return (await answer).json();
+}
+
+/** Opens the top card's sheet and returns what the status panel settled on. */
+async function openPlexStatus(actor) {
+  const { page } = actor;
+  const title = (await topTitle(actor)).replace(/, \d{4}$/, "");
+  const statusCall = actor.waitOp("PlexStatus");
+  await page.getByRole("button", { name: `Details for ${title}` }).click();
+  const sheet = page.getByRole("dialog", { name: `${title} details` });
+  await sheet.waitFor();
+  const response = await statusCall;
+  const movieId = JSON.parse(response.request().postData()).variables.movieId;
+  const status = (await response.json()).data.plexStatus;
+  await sheet.locator(".plex-status__badge").waitFor();
+  return { title, sheet, movieId, status, badge: (await sheet.locator(".plex-status__badge").textContent())?.trim() };
 }
 
 // ---------------------------------------------------------------- the journey
@@ -824,7 +1080,7 @@ async function main() {
       await B.page.getByRole("button", { name: "Join Room" }).click();
       await B.page.getByLabel("Enter Room Code").fill(code.toLowerCase());
       await B.page.getByRole("button", { name: "Submit" }).click();
-      await B.page.locator(".home__room-code strong", { hasText: code }).waitFor();
+      await B.page.locator(".deck-ticket-strip__code", { hasText: code }).waitFor();
       const frame = await A.waitEvent("MEMBERS_CHANGED", since);
       await A.page.getByRole("heading", { name: "Members (2)" }).waitFor();
       await toast;
@@ -1037,7 +1293,7 @@ async function main() {
       const { page } = B;
       await drawerTo(B, "History");
       await onPath(B, "/history");
-      const row = page.locator("#history-panel-matches .history-row").first();
+      const row = page.locator("#history-panel-matches .history-stub").first();
       await row.waitFor();
       const text = await row.textContent();
       assert(text?.includes(filmOne.replace(/, \d{4}$/, "")), `history row: ${text}`);
@@ -1100,7 +1356,7 @@ async function main() {
       const toast = A.page.getByText(/joined the room/).waitFor({ timeout: TIMEOUT_MS });
       await B.page.getByRole("button", { name: "Join Room" }).first().click();
       await onPath(B, "/");
-      await B.page.locator(".home__room-code strong", { hasText: code }).waitFor();
+      await B.page.locator(".deck-ticket-strip__code", { hasText: code }).waitFor();
       await A.waitEvent("MEMBERS_CHANGED", since);
       await toast;
       await topCard(B).locator(".deck-card__badge", { hasText: "A roommate liked this" }).waitFor();
@@ -1228,10 +1484,10 @@ async function main() {
     });
 
     await step("session persists across reload", { requires: inRoom }, async () => {
-      await A.page.goto(`${BASE_URL}/`);
-      await A.page.locator(".home__room-code strong", { hasText: code }).waitFor();
-      await A.page.reload();
-      await A.page.locator(".home__room-code strong", { hasText: code }).waitFor();
+      await leavingPage(() => A.page.goto(`${BASE_URL}/`));
+      await A.page.locator(".deck-ticket-strip__code", { hasText: code }).waitFor();
+      await leavingPage(() => A.page.reload());
+      await A.page.locator(".deck-ticket-strip__code", { hasText: code }).waitFor();
       assert(homePath(A.page) === "/", `reload went to ${A.page.url()}`);
     });
 
@@ -1303,7 +1559,7 @@ async function main() {
       await onPath(C, `/join/${code}`);
       await C.page.getByRole("button", { name: "Join Room" }).first().click();
       await onPath(C, "/");
-      await C.page.locator(".home__room-code strong", { hasText: code }).waitFor();
+      await C.page.locator(".deck-ticket-strip__code", { hasText: code }).waitFor();
       await A.waitEvent("MEMBERS_CHANGED", since);
       await A.page.getByRole("heading", { name: "Members (3)" }).waitFor();
       await B.page.getByRole("heading", { name: "Members (3)" }).waitFor();
@@ -1389,14 +1645,14 @@ async function main() {
 
     await step("service worker controls the page and shell works offline", { requires: ["register A"] }, async (note) => {
       const { page } = A;
-      await page.goto(`${BASE_URL}/`);
+      await leavingPage(() => page.goto(`${BASE_URL}/`));
       await page.locator(".md-app-bar").or(page.getByRole("button", { name: "LOG IN" })).first().waitFor();
       const worker = await page.evaluate(async () => {
         const registration = await navigator.serviceWorker.ready;
         return { state: registration.active?.state, script: registration.active?.scriptURL };
       });
       assert(worker.state === "activated", `service worker state ${worker.state}`);
-      await page.reload();
+      await leavingPage(() => page.reload());
       await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: TIMEOUT_MS });
       const cached = await page.evaluate(async () => {
         const urls = [];
@@ -1425,6 +1681,379 @@ async function main() {
       note(`${cached.length} precached entries, none from the API; Chrome reports it installable; offline reload rendered the shell`);
     });
 
+    let P;
+    let Q;
+    let plexSub = "";
+    let linkedSub = "";
+    let roommateSub = "";
+    let plexSentAt = 0;
+    let missing = null;
+    const knownCode = String(100_000 + (randomBytes(4).readUInt32BE() % 800_000));
+    const wrongCode = (offset) => String(Number(knownCode) + offset + 1);
+
+    await step("Plex: two members in one room", async (note) => {
+      P = await newActor(browser, "P", { receivesMail: true });
+      Q = await newActor(browser, "Q");
+      for (const actor of [P, Q]) {
+        await actor.page.goto(`${BASE_URL}/register`);
+        await register(actor);
+        await onPath(actor, "/tutorial");
+        await actor.page.getByRole("button", { name: "Skip" }).click();
+        await onPath(actor, "/");
+        await topCard(actor).waitFor();
+      }
+      const plexRoom = await roomCode(P);
+      const since = Date.now();
+      await Q.page.getByRole("button", { name: "Join Room" }).click();
+      await Q.page.getByLabel("Enter Room Code").fill(plexRoom);
+      await Q.page.getByRole("button", { name: "Submit" }).click();
+      await Q.page.locator(".deck-ticket-strip__code", { hasText: plexRoom }).waitFor();
+      await Q.waitLive(since);
+      linkedSub = await subOf(P.email);
+      roommateSub = await subOf(Q.email);
+      note(`room ${plexRoom}`);
+    });
+
+    const plexRoomReady = ["Plex: two members in one room"];
+
+    await step("Plex: temporary Plex Request account, auto-approve off", { requires: plexRoomReady }, async (note) => {
+      plexSub = await createPlexUser(P.email);
+      const { status, verified } = await plexUserState(P.email);
+      assert(status === "CONFIRMED" && verified === "true", `user is ${status}, email_verified ${verified}`);
+      assert((await plexPreference(plexSub)) === null, "a new user already has a preference row");
+      note("CONFIRMED, verified, no preference row, invite mail suppressed");
+    });
+
+    const plexAccountReady = ["Plex: temporary Plex Request account, auto-approve off"];
+
+    await step("Plex: nothing shows before anyone links", { requires: plexAccountReady }, async (note) => {
+      for (const actor of [P, Q]) {
+        const tiles = await serviceTiles(actor);
+        await tiles.getByRole("button", { name: /^Any/ }).waitFor();
+        assert((await plexTile(tiles).count()) === 0, `${actor.name} sees a Plex filter in an unlinked room`);
+        const status = await callApi(actor, PLEX_STATUS_QUERY, { id: 550 });
+        assert(status.data?.plexStatus === null, `${actor.name} plexStatus: ${JSON.stringify(status)}`);
+      }
+      const refused = await callApi(P, REQUEST_ON_PLEX, { id: 550 });
+      assert(refused.errors?.length > 0 && !refused.data?.requestOnPlex, `unlinked requestOnPlex: ${JSON.stringify(refused)}`);
+      note(`unlinked requestOnPlex refused: ${refused.errors[0].errorType} "${refused.errors[0].message}"`);
+    });
+
+    await step("Plex: an address with no account gets the same answer and no code", { requires: plexAccountReady }, async (note) => {
+      const { page } = Q;
+      await drawerTo(Q, "Profile");
+      await onPath(Q, "/profile");
+      const answer = Q.waitOp("StartPlexLink");
+      await page.getByRole("button", { name: "Email Me a Code" }).click();
+      const body = await (await answer).json();
+      assert(body.data?.startPlexLink?.sent === true, `startPlexLink: ${JSON.stringify(body)}`);
+      await page.getByText("a code is on its way").waitFor();
+      assert((await userRow(roommateSub, "PLEX_LINK")) === null, "a code was stored for an address with no account");
+      await expectingNoise(/ConfirmPlexLink/, async () => {
+        const reply = await submitLinkCode(Q, knownCode);
+        assert(reply.errors?.[0]?.message === PLEX_WRONG_CODE, `code with nothing pending: ${JSON.stringify(reply)}`);
+        await page.getByText(PLEX_WRONG_CODE).waitFor();
+      });
+      await assertNoOverflow(Q, "profile");
+      note("sent: true, no code row, and a guess gets the ordinary wrong-code answer");
+    });
+
+    await step("Plex: real match stores a salted hash, one send a minute", { requires: plexAccountReady }, async (note) => {
+      const { page } = P;
+      await drawerTo(P, "Profile");
+      await onPath(P, "/profile");
+      const answer = P.waitOp("StartPlexLink");
+      await page.getByRole("button", { name: "Email Me a Code" }).click();
+      plexSentAt = Date.now();
+      const body = await (await answer).json();
+      assert(body.data?.startPlexLink?.sent === true, `startPlexLink: ${JSON.stringify(body)}`);
+      await page.getByText("a code is on its way").waitFor();
+      const pending = await userRow(linkedSub, "PLEX_LINK");
+      assert(pending, "no code row after a real match");
+      assert(pending.plexUserId.S === plexSub, "the code is not bound to the Plex Request user");
+      assert(pending.plexEmail.S === P.email, `code row email ${pending.plexEmail.S}`);
+      assert(/^[0-9a-f]{64}$/.test(pending.codeHash.S), "stored code is not a 32-byte hash");
+      assert(!pending.code, "a plain code is stored");
+      assert(pending.attempts.N === "0", `attempts start at ${pending.attempts.N}`);
+      const lifetime = Number(pending.expiresAt.N) - Math.floor(Date.now() / 1000);
+      assert(lifetime > 540 && lifetime <= 600, `code lives ${lifetime}s, expected 10 minutes`);
+
+      const again = await callApi(P, START_PLEX_LINK);
+      assert(again.data?.startPlexLink?.sent === true, `second send: ${JSON.stringify(again)}`);
+      const afterSecond = await userRow(linkedSub, "PLEX_LINK");
+      assert(afterSecond.salt.S === pending.salt.S, "a second send inside the minute replaced the code");
+      await plantLinkCode(linkedSub, knownCode);
+      note(`code lives ${lifetime}s; a second send inside the minute changed nothing`);
+    });
+
+    const codePending = ["Plex: real match stores a salted hash, one send a minute"];
+
+    await step("Plex: wrong codes count, and the limit stops even the right code", { requires: codePending }, async (note) => {
+      const { page } = P;
+      await page.getByLabel("6-digit code").fill("123");
+      await page.getByRole("button", { name: "Link Account" }).click();
+      await page.getByText("Enter all 6 digits").waitFor();
+      assert((await userRow(linkedSub, "PLEX_LINK")).attempts.N === "0", "a short code cost an attempt");
+
+      await expectingNoise(/ConfirmPlexLink/, async () => {
+        for (let attempt = 1; attempt <= PLEX_MAX_ATTEMPTS; attempt += 1) {
+          const reply = await submitLinkCode(P, wrongCode(attempt));
+          assert(reply.errors?.[0]?.message === PLEX_WRONG_CODE, `wrong code ${attempt}: ${JSON.stringify(reply)}`);
+          await page.getByText(PLEX_WRONG_CODE).waitFor();
+          const { attempts } = await userRow(linkedSub, "PLEX_LINK");
+          assert(attempts.N === String(attempt), `after ${attempt} wrong codes, attempts is ${attempts.N}`);
+        }
+        const blocked = await submitLinkCode(P, knownCode);
+        assert(blocked.errors?.[0]?.message === PLEX_WRONG_CODE, `right code past the limit: ${JSON.stringify(blocked)}`);
+      });
+      const pending = await userRow(linkedSub, "PLEX_LINK");
+      assert(pending.attempts.N === String(PLEX_MAX_ATTEMPTS), `attempts went to ${pending.attempts.N}`);
+      assert(!(await userRow(linkedSub, "PROFILE")).plexUserId, "linked past the attempt limit");
+      await screenshot(P, "plex-code-limit");
+      note(`${PLEX_MAX_ATTEMPTS} wrong codes counted one each; the right code was then refused with the same message`);
+    });
+
+    await step("Plex: right code links, and the roommate's filter appears live", { requires: ["Plex: wrong codes count, and the limit stops even the right code"] }, async (note) => {
+      const { page } = P;
+      const tiles = await serviceTiles(Q);
+      assert((await plexTile(tiles).count()) === 0, "Q sees Plex before the link");
+      await Q.mark();
+
+      await sleep(Math.max(0, plexSentAt + PLEX_SEND_INTERVAL_MS + 1_000 - Date.now()));
+      const resend = page.getByRole("button", { name: "Resend Code" });
+      await resend.waitFor();
+      const answer = P.waitOp("StartPlexLink");
+      await resend.click();
+      await answer;
+      const fresh = await userRow(linkedSub, "PLEX_LINK");
+      assert(fresh.attempts.N === "0", `a new code starts at ${fresh.attempts.N} attempts`);
+      await plantLinkCode(linkedSub, knownCode);
+
+      const since = Date.now();
+      const reply = await submitLinkCode(P, knownCode);
+      assert(reply.data?.confirmPlexLink?.plexLinked === true, `right code: ${JSON.stringify(reply)}`);
+      await page.getByText("Plex Request linked").waitFor();
+      await page.locator(".room-plex__linked").waitFor();
+      await Q.waitEvent("ROOM_UPDATED", since);
+      await plexTile(tiles).waitFor();
+      await Q.assertNoReload("Plex link");
+
+      assert((await userRow(linkedSub, "PLEX_LINK")) === null, "the code survived being used");
+      const profile = await userRow(linkedSub, "PROFILE");
+      assert(profile.plexUserId?.S === plexSub, "profile holds the wrong Plex Request user");
+      assert(!(await userRow(roommateSub, "PROFILE")).plexUserId, "Q was linked too");
+      note("single-use code consumed; Q's Plex tile arrived over ROOM_UPDATED with no reload");
+    });
+
+    const plexLinked = ["Plex: right code links, and the roommate's filter appears live"];
+
+    await step("Plex: the filter works for the whole room and yields library titles", { requires: plexLinked }, async (note) => {
+      await drawerTo(P, "Home");
+      await onPath(P, "/");
+      const tiles = await serviceTiles(Q);
+      await plexTile(tiles).click();
+      const qDeck = Q.waitOp("Deck");
+      const pDeck = P.waitOp("Deck");
+      await Q.page.getByRole("button", { name: "Apply", exact: true }).click();
+      await onPath(Q, "/");
+      const body = await (await qDeck).json();
+      await pDeck;
+      const cards = body.data?.deck?.cards ?? [];
+      assert(cards.length > 0, `Plex deck is empty: ${JSON.stringify(body.errors ?? body.data)}`);
+      const ids = cards.map(({ movie }) => movie.id);
+      const files = await libraryFiles(ids);
+      const outside = cards.filter(({ movie }) => files.get(movie.id) !== true).map(({ movie }) => `${movie.title} (${movie.id})`);
+      assert(outside.length === 0, `not in the library with a file: ${outside.join(", ")}`);
+      await sleep(1_000);
+      const film = await topTitle(Q);
+      assert(film === (await topTitle(P)), "P and Q have different Plex decks");
+      note(`an unlinked member applied it; all ${cards.length} cards are library titles with files; top "${film}"`);
+    });
+
+    await step("Plex: Where to Watch shows Plex to both members, the badge only to the linked one", { requires: ["Plex: the filter works for the whole room and yields library titles"] }, async (note) => {
+      const liked = await pressSwipe(P, "Like");
+      assert(!liked.match, "a lone like matched");
+      const swiped = await pressSwipe(Q, "Like");
+      assert(swiped.match, `the second like should match: ${JSON.stringify(swiped)}`);
+      await Promise.all([onMatch(P), onMatch(Q)]);
+      for (const actor of [P, Q]) {
+        await actor.page.getByRole("heading", { name: "Match Found" }).waitFor();
+        noteWatch(await readWhereToWatch(actor, actor.page), note, actor.name);
+        const tile = actor.page.locator(".where-to-watch__tile--plex");
+        assert((await tile.count()) === 1, `${actor.name}: ${await tile.count()} Plex tiles`);
+        assert((await tile.textContent()).includes("Library"), `${actor.name}: Plex tile says "${await tile.textContent()}"`);
+        assert((await actor.page.locator("a.where-to-watch__tile--plex").count()) === 0, `${actor.name}: the Plex tile is a link`);
+      }
+      const badge = P.page.locator(".plex-status__badge");
+      await badge.waitFor();
+      assert((await badge.textContent()).includes("On Plex"), `P's badge: ${await badge.textContent()}`);
+      assert((await Q.page.locator(".plex-status").count()) === 0, "Q sees a Plex status without a link");
+      for (const actor of [P, Q]) {
+        assert((await actor.page.getByRole("button", { name: "Request on Plex" }).count()) === 0, `${actor.name} can request an available title`);
+      }
+      await screenshot(P, "plex-where-to-watch");
+      await backToStart(P);
+      await backToStart(Q);
+    });
+
+    await step("Plex: a missing title offers the linked member Request on Plex", { requires: plexLinked }, async (note) => {
+      const tiles = await serviceTiles(P);
+      await plexTile(tiles).click();
+      const pDeck = P.waitOp("Deck");
+      const qDeck = Q.waitOp("Deck");
+      await P.page.getByRole("button", { name: "Apply", exact: true }).click();
+      await onPath(P, "/");
+      await Promise.all([pDeck, qDeck]);
+      await sleep(1_000);
+
+      const seen = [];
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const opened = await openPlexStatus(P);
+        seen.push(opened.badge);
+        if (await opened.sheet.getByRole("button", { name: "Request on Plex" }).count()) {
+          assert(opened.status.availability === "NOT_IN_LIBRARY" && opened.status.canRequest, `button shown for ${JSON.stringify(opened.status)}`);
+          assert(!(await libraryFiles([opened.movieId])).has(opened.movieId), `"${opened.title}" is in the library`);
+          assert((await activeRequestCount(opened.movieId)) === 0, `"${opened.title}" already has an active request`);
+          missing = opened;
+          note(`"${opened.title}" (${opened.movieId}) after ${attempt} passes; badges seen: ${seen.join(", ")}`);
+          await opened.sheet.getByRole("button", { name: "Close" }).click();
+          await opened.sheet.waitFor({ state: "hidden" });
+          return;
+        }
+        await opened.sheet.getByRole("button", { name: "Close" }).click();
+        await opened.sheet.waitFor({ state: "hidden" });
+        await pressSwipe(P, "Pass");
+      }
+      throw new Error(`no requestable title in 40 cards; badges: ${seen.join(", ")}`);
+    });
+
+    const plexTitleFound = ["Plex: a missing title offers the linked member Request on Plex"];
+
+    await step("Plex: unlinked member has no request control and can't call it", { requires: plexTitleFound }, async (note) => {
+      const { page } = Q;
+      for (let attempt = 0; attempt < 45 && !(await topTitle(Q)).startsWith(missing.title); attempt += 1) {
+        await pressSwipe(Q, "Pass");
+      }
+      assert((await topTitle(Q)).startsWith(missing.title), `Q never reached "${missing.title}"`);
+      await page.getByRole("button", { name: `Details for ${missing.title}` }).click();
+      const sheet = page.getByRole("dialog", { name: `${missing.title} details` });
+      await sheet.waitFor();
+      await sheet.locator(".deck-details__overview").waitFor();
+      await sleep(QUIET_MS);
+      assert((await sheet.locator(".plex-status").count()) === 0, "Q sees the Plex status panel");
+      assert((await page.getByRole("button", { name: "Request on Plex" }).count()) === 0, "Q sees Request on Plex");
+      await screenshot(Q, "plex-unlinked-sheet");
+      await sheet.getByRole("button", { name: "Close" }).click();
+      await sheet.waitFor({ state: "hidden" });
+
+      const refused = await callApi(Q, REQUEST_ON_PLEX, { id: missing.movieId });
+      assert(refused.errors?.length > 0 && !refused.data?.requestOnPlex, `Q's requestOnPlex: ${JSON.stringify(refused)}`);
+      assert((await activeRequestCount(missing.movieId)) === 0, "an unlinked member created a request");
+      note(`API refused Q: ${refused.errors[0].errorType} "${refused.errors[0].message}"`);
+    });
+
+    await step("Plex: Request on Plex creates exactly one request", { requires: plexTitleFound }, async (note) => {
+      const { page } = P;
+      const opened = await openPlexStatus(P);
+      assert(opened.movieId === missing.movieId, `P's top card moved to "${opened.title}"`);
+      await opened.sheet.getByRole("button", { name: "Request on Plex" }).click();
+      const confirm = page.getByRole("dialog", { name: `Request ${missing.title}?` });
+      await confirm.waitFor();
+      await screenshot(P, "plex-request-confirm");
+      await confirm.getByRole("button", { name: "Cancel" }).click();
+      await confirm.waitFor({ state: "hidden" });
+      assert((await activeRequestCount(missing.movieId)) === 0, "Cancel still sent the request");
+
+      await opened.sheet.getByRole("button", { name: "Request on Plex" }).click();
+      await confirm.waitFor();
+      const answer = P.waitOp("RequestOnPlex");
+      await confirm.getByRole("button", { name: "Request", exact: true }).click();
+      const body = await (await answer).json();
+      assert(body.data?.requestOnPlex?.availability === "REQUESTED", `requestOnPlex: ${JSON.stringify(body)}`);
+
+      // The GSI lags the write. Noted the moment it shows, so cleanup never depends on the rest.
+      let requestIds = [];
+      for (let poll = 0; poll < 30 && requestIds.length === 0; poll += 1) {
+        requestIds = await plexRequestIdsOf(plexSub);
+        if (requestIds.length === 0) await sleep(500);
+      }
+      requestIds.forEach((requestId) => remember(state.plexRequestIds, requestId));
+      assert(requestIds.length === 1, `${requestIds.length} request rows for the user`);
+
+      await opened.sheet.locator(".plex-status__badge", { hasText: "Requested on Plex" }).waitFor();
+      assert((await opened.sheet.getByRole("button", { name: "Request on Plex" }).count()) === 0, "the button survived the request");
+      await page.getByText(`Requested ${missing.title} on Plex`).waitFor();
+      await screenshot(P, "plex-requested");
+
+      const repeat = await callApi(P, REQUEST_ON_PLEX, { id: missing.movieId });
+      assert(repeat.data?.requestOnPlex?.availability === "REQUESTED", `repeat request: ${JSON.stringify(repeat)}`);
+      await sleep(1_000);
+      assert((await plexRequestIdsOf(plexSub)).length === 1, "a repeat made a second row");
+      assert((await activeRequestCount(missing.movieId)) === 1, "more than one active request for the title");
+      await opened.sheet.getByRole("button", { name: "Close" }).click();
+      await opened.sheet.waitFor({ state: "hidden" });
+      note(`one row for "${missing.title}"; a repeat answered REQUESTED with no second row`);
+    });
+
+    const plexRequested = ["Plex: Request on Plex creates exactly one request"];
+
+    await step("Plex: no Radarr add, and auto-approve stayed off", { requires: plexRequested }, async (note) => {
+      const [requestId] = state.plexRequestIds;
+      const row = await plexRequest(requestId);
+      assert(row, "the request row is gone");
+      assert(row.userId.S === plexSub, "request belongs to someone else");
+      assert(row.userName.S === P.email, `request is under ${row.userName.S}`);
+      assert(row.mediaType.S === "movie", `media type ${row.mediaType.S}`);
+      assert(Number(row.tmdbId.N) === missing.movieId, `request is for ${row.tmdbId.N}`);
+      // Auto-approve either approves or leaves an adminNote, so all four absent means it never ran.
+      assert(row.status.S === "requested", `status is ${row.status.S}`);
+      assert(!row.radarrId, "the request has a radarrId");
+      assert(!row.autoApproved, "the request was auto-approved");
+      assert(!row.adminNote, "auto-approve was tried and failed");
+      assert((await plexPreference(plexSub)) === null, "a preference row appeared for the user");
+      assert(!(await libraryFiles([missing.movieId])).has(missing.movieId), "the title reached the library");
+      note("status requested; no radarrId, autoApproved or adminNote; no preference row; not in the library");
+    });
+
+    await step("Plex: the request row is deleted", { requires: plexRequested }, async (note) => {
+      const [requestId] = state.plexRequestIds;
+      await deletePlexRequest(requestId, plexSub);
+      assert((await plexRequest(requestId)) === null, "the request row is still there");
+      assert((await activeRequestCount(missing.movieId)) === 0, "an active request remains");
+      const status = await callApi(P, PLEX_STATUS_QUERY, { id: missing.movieId });
+      assert(status.data?.plexStatus?.canRequest === true, `after delete: ${JSON.stringify(status)}`);
+      note("gone from the table and the status index; the title is requestable again");
+    });
+
+    await step("Plex: unlinking takes the filter away from the room", { requires: plexLinked }, async (note) => {
+      const { page } = P;
+      await drawerTo(P, "Profile");
+      await onPath(P, "/profile");
+      const tiles = await serviceTiles(Q);
+      await plexTile(tiles).waitFor();
+      await Q.mark();
+      const since = Date.now();
+      await page.getByRole("button", { name: "Unlink" }).click();
+      const answer = P.waitOp("UnlinkPlex");
+      await page.getByRole("dialog", { name: "Unlink Plex Request?" }).getByRole("button", { name: "Unlink" }).click();
+      const body = await (await answer).json();
+      assert(body.data?.unlinkPlex?.plexLinked === false, `unlinkPlex: ${JSON.stringify(body)}`);
+      await page.getByRole("button", { name: "Email Me a Code" }).waitFor();
+      await Q.waitEvent("ROOM_UPDATED", since);
+      await plexTile(tiles).waitFor({ state: "detached" });
+      await Q.assertNoReload("Plex unlink");
+      assert(!(await userRow(linkedSub, "PROFILE")).plexUserId, "the profile still holds the link");
+      const status = await callApi(P, PLEX_STATUS_QUERY, { id: 550 });
+      assert(status.data?.plexStatus === null, `after unlink: ${JSON.stringify(status)}`);
+      note("Q's tile left live, with no reload; plexStatus is null again");
+    });
+
+    await step("Plex: the temporary account is deleted", { requires: plexAccountReady }, async (note) => {
+      const { log, leftovers } = await cleanupPlex(state);
+      assert(leftovers.length === 0, `left behind: ${leftovers.join(", ")}`);
+      note(log.join("; "));
+    });
+
     currentStep = "wrap-up";
     const unexpected = (entries) => entries.filter((entry) => !entry.expected);
     const dedupe = (entries) => {
@@ -1446,7 +2075,8 @@ async function main() {
     });
     await step("no failed first-party requests", async () => {
       // The embedded YouTube player cancels its own telemetry; that isn't the app's traffic.
-      const firstParty = (entry) => !/youtube(-nocookie)?\.com|googlevideo|doubleclick|ggpht|ytimg/.test(entry.text);
+      const firstParty = (entry) =>
+        !/youtube(-nocookie)?\.com|googlevideo|doubleclick|ggpht|ytimg|www\.google\.com\/js\/th\//.test(entry.text);
       const failed = dedupe([...unexpected(noise.requestFailed), ...unexpected(noise.httpErrors)].filter(firstParty));
       assert(failed.length === 0, failed.map((entry) => `[${entry.step}] x${entry.count} ${entry.text}`).join(" ;; "));
     });

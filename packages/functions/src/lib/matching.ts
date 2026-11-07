@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { effectiveThreshold, findNewMatches, isMatch, type Match, type Movie } from "@movie-date/core";
+import { effectiveThreshold, findNewMatches, isMatch, movieKey, type Match, type Movie } from "@movie-date/core";
 import {
   cancellationCodes,
   getItem,
@@ -52,10 +52,10 @@ interface MatchClaim {
  */
 function matchWrites(claim: MatchClaim, matchId: string): TransactItems {
   const { roomId, round, movieId, movie, threshold, matchedAt } = claim;
-  const matchKey = keys.match(roomId, matchedAt, movieId);
+  const matchKey = keys.match(roomId, matchedAt, movieKey(movieId));
   const matchRow: MatchItem = { ...matchKey, matchId, movieId, round, matchedAt, movie };
   const sentinel: MatchedItem = {
-    ...keys.matched(roomId, round, movieId),
+    ...keys.matched(roomId, round, movieKey(movieId)),
     matchId,
     movieId,
     matchSk: matchKey.sk,
@@ -72,7 +72,7 @@ function matchWrites(claim: MatchClaim, matchId: string): TransactItems {
     {
       ConditionCheck: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, movieId),
+        Key: keys.tally(roomId, round, movieKey(movieId)),
         ConditionExpression: "likes >= :threshold",
         ExpressionAttributeValues: { ":threshold": threshold },
       },
@@ -99,7 +99,7 @@ async function claimMatch(claim: MatchClaim): Promise<Match | null> {
       if (!isTransactionCancelled(error)) throw error;
       const [sentinelCode, , tallyCode, roundCode] = cancellationCodes(error);
       if (failedCondition(sentinelCode)) {
-        const winner = await getItem<MatchedItem>(keys.matched(roomId, round, movieId), {
+        const winner = await getItem<MatchedItem>(keys.matched(roomId, round, movieKey(movieId)), {
           consistent: true,
         });
         return winner ? loadMatch(roomId, winner) : null;
@@ -128,8 +128,8 @@ export async function evaluateMovie(
   actorId: string,
 ): Promise<Match | null> {
   const [sentinel, tally, meta, memberRows] = await Promise.all([
-    getItem<MatchedItem>(keys.matched(roomId, round, movieId), { consistent: true }),
-    getItem<TallyItem>(keys.tally(roomId, round, movieId), { consistent: true }),
+    getItem<MatchedItem>(keys.matched(roomId, round, movieKey(movieId)), { consistent: true }),
+    getItem<TallyItem>(keys.tally(roomId, round, movieKey(movieId)), { consistent: true }),
     requireRoomMeta(roomId),
     loadMemberRows(roomId),
   ]);
@@ -198,7 +198,7 @@ function swipeRemovalWrites(roomId: string, round: number, row: SwipeItem): Tran
     writes.push({
       Update: {
         TableName: tableName(),
-        Key: keys.tally(roomId, round, row.movieId),
+        Key: keys.tally(roomId, round, movieKey(row.movieId)),
         UpdateExpression: "ADD likes :decrement",
         ExpressionAttributeValues: { ":decrement": -1 },
       },

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Celebration } from "../components/match/Celebration";
-import { MatchDetails } from "../components/match/MatchDetails";
+import { matchStamp } from "../components/match/historyFormat";
+import { MatchDetails, MatchDetailsSkeleton } from "../components/match/MatchDetails";
 import { Skeleton } from "../components/Skeleton";
 import { EmptyState, ErrorState } from "../components/StateMessage";
 import type { MatchRouteState } from "../context/RoomProvider";
@@ -11,6 +12,13 @@ import { useRoom } from "../hooks/useRoom";
 import { useToast } from "../hooks/useToast";
 import { api, errorMessage } from "../services/api";
 import "./MatchFound.css";
+
+const HEADLINE = "Match Found";
+const TAGLINE = "Your Movie Tonight!";
+
+function Marquee({ children }: { children: ReactNode }): JSX.Element {
+  return <header className="match-found__marquee">{children}</header>;
+}
 
 export default function MatchFound(): JSX.Element {
   const { matchId } = useParams();
@@ -44,47 +52,64 @@ export default function MatchFound(): JSX.Element {
   if (!match) {
     if (error && !loading) {
       return (
-        <div className="match-found">
-          <ErrorState message={errorMessage(error)} onRetry={() => void reload()} onGradient />
+        <div className="match-found match-found--message md-page-wide">
+          <div className="match-found__message">
+            <ErrorState message={errorMessage(error)} onRetry={() => void reload()} onGradient />
+          </div>
         </div>
       );
     }
     if (loading) {
       return (
-        <div className="match-found" role="status" aria-label="Loading your match">
-          <Skeleton shape="card" className="match-found__poster-skeleton" />
-          <Skeleton shape="title" />
-          <Skeleton className="match-found__text-skeleton" />
+        <div className="match-found md-page-wide" role="status" aria-label="Loading your match">
+          <MatchDetailsSkeleton
+            header={
+              <Marquee>
+                <Skeleton shape="title" className="match-found__headline-skeleton" />
+                <Skeleton className="match-found__tagline-skeleton" />
+              </Marquee>
+            }
+          />
         </div>
       );
     }
     return (
-      <div className="match-found">
-        <EmptyState
-          title="Match not found"
-          message="This match isn't part of your current room."
-          action={
-            <Button variant="secondary" onClick={() => navigate("/", { replace: true })}>
-              Back to Start
-            </Button>
-          }
-          onGradient
-        />
+      <div className="match-found match-found--message md-page-wide">
+        <div className="match-found__message">
+          <EmptyState
+            title="Match not found"
+            message="This match isn't part of your current room."
+            action={
+              <Button variant="secondary" onClick={() => navigate("/", { replace: true })}>
+                Back to Start
+              </Button>
+            }
+            onGradient
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="match-found">
+    <div className="match-found md-page-wide">
       <Celebration />
-      <header className="match-found__header">
-        <h1 className="match-found__title">Match Found</h1>
-        <p className="match-found__subtitle">Your Movie Tonight!</p>
-      </header>
-      <MatchDetails movie={match.movie} onGradient />
-      <Button variant="secondary" block loading={leaving} onClick={() => void backToStart()}>
-        Back to Start
-      </Button>
+      <MatchDetails
+        movie={match.movie}
+        eyebrow={matchStamp(match)}
+        onGradient
+        header={
+          <Marquee>
+            <h1 className="match-found__title">{HEADLINE}</h1>
+            <p className="match-found__subtitle">{TAGLINE}</p>
+          </Marquee>
+        }
+        footer={
+          <Button variant="secondary" block loading={leaving} onClick={() => void backToStart()}>
+            Back to Start
+          </Button>
+        }
+      />
     </div>
   );
 }

@@ -1,0 +1,86 @@
+.preview-ticket {
+  --stub-height: 5.25rem;
+  --notch: 11px;
+
+  container-type: inline-size;
+  position: sticky;
+  top: var(--space-4);
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 2 * var(--space-4));
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sheet);
+  /* Real holes, so the page's glow shows through them at any height. */
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at 0 calc(100% - var(--stub-height)), transparent 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% calc(100% - var(--stub-height)), transparent 97%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch) at 0 calc(100% - var(--stub-height)), transparent 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% calc(100% - var(--stub-height)), transparent 97%, #000) right / 51% 100% no-repeat;
+}
+
+.preview-ticket__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  /* Only once the summary is down to its minimum, on a very short window. */
+  overflow: hidden auto;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+
+.preview-ticket__eyebrow {
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: center;
+}
+
+.preview-ticket .poster-fan {
+  padding-block: var(--space-3) var(--space-4);
+}
+
+.preview-ticket__count {
+  text-align: center;
+}
+
+.preview-ticket__count .filter-count:not(.filter-count--problem) {
+  font-size: var(--font-size-xl);
+}
+
+.preview-ticket__summary {
+  flex: 0 1 auto;
+  min-height: 4rem;
+  overflow-y: auto;
+}
+
+.preview-ticket__summary .active-filters {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.preview-ticket__summary .active-filters__list {
+  flex-wrap: wrap;
+  overflow: visible;
+  -webkit-mask: none;
+  mask: none;
+}
+
+.preview-ticket__summary .active-filters__clear {
+  align-self: center;
+}
+
+.preview-ticket__summary .active-filters__empty {
+  text-align: center;
+}
+
+.preview-ticket__stub {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--stub-height);
+  padding: 0 var(--space-5);
+  border-top: 2px dashed var(--color-border);
+}

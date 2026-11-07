@@ -1,4 +1,4 @@
-import { ANY_SERVICE } from "@movie-date/core";
+import { ANY_SERVICE, selectableProviders } from "@movie-date/core";
 import type { FiltersInput } from "../../services/api";
 
 interface StashedDraft {
@@ -28,4 +28,11 @@ export function clearFilterDraft(): void {
 /** The schema says an empty list means any service, so the marker is never saved. */
 export function normaliseServices(services: readonly string[]): string[] {
   return services.includes(ANY_SERVICE) ? [] : [...services];
+}
+
+/** The specific services in force. `plex` drops out while no member has it linked. */
+export function activeServices(services: readonly string[], plexAvailable: boolean): string[] {
+  if (services.includes(ANY_SERVICE)) return [];
+  const selectable = selectableProviders(plexAvailable);
+  return services.filter((key) => selectable.some((provider) => provider.key === key));
 }

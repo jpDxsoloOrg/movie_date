@@ -1,0 +1,49 @@
+.md-segmented {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+}
+
+.md-segmented--block {
+  display: flex;
+}
+
+.md-segmented--on-gradient {
+  background: var(--color-scrim);
+  color: var(--color-on-gradient);
+}
+
+.md-segmented__option {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: calc(var(--touch-target) - 6px);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    color var(--duration-fast);
+}
+
+.md-segmented__option:hover {
+  background: var(--color-hover-wash);
+}
+
+.md-segmented__option--checked,
+.md-segmented__option--checked:hover {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}

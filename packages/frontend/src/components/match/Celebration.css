@@ -15,6 +15,13 @@
   animation: match-celebration-fall 1.8s ease-in both;
 }
 
+/* Every third piece a streamer, so the fall doesn't look like one repeated shape. */
+.match-celebration__piece:nth-child(3n) {
+  width: 0.25rem;
+  height: 1.25rem;
+  animation-duration: 2.3s;
+}
+
 .match-celebration__piece:nth-child(1) {
   left: 6%;
   background: var(--color-on-gradient);

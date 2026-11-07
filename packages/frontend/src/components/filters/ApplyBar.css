@@ -1,0 +1,21 @@
+.apply-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
+}
+
+.apply-bar__count {
+  flex: 1;
+  min-width: 0;
+}
+
+.apply-bar__count .filter-count:not(.filter-count--problem) {
+  font-size: var(--font-size-md);
+}
+
+.apply-bar__button {
+  flex: none;
+  min-width: 6.5rem;
+}

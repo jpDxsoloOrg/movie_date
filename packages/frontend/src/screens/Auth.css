@@ -1,36 +1,43 @@
 .md-auth {
+  position: relative;
   height: 100dvh;
-  overflow-y: auto;
-  background: var(--color-surface);
+  overflow: hidden;
+  background: var(--color-page);
 }
 
-.md-auth__column {
+.md-auth__layout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  overflow-y: auto;
+  padding-top: calc(var(--safe-top) + var(--space-7));
+}
+
+.md-auth__hero {
+  display: none;
+}
+
+/* On a phone this is a sheet rising off the bottom edge, with the posters above it. */
+.md-auth__panel {
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  min-height: 100%;
+  gap: var(--space-3);
   width: 100%;
-  max-width: 24rem;
-  margin: 0 auto;
-  padding: calc(var(--safe-top) + var(--space-4)) var(--space-4) calc(var(--safe-bottom) + var(--space-4));
-}
-
-.md-auth__logo {
-  height: 100px;
-  width: auto;
+  padding: var(--space-5) calc(var(--safe-right) + var(--space-4)) calc(var(--safe-bottom) + var(--space-4))
+    calc(var(--safe-left) + var(--space-4));
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--color-surface);
+  box-shadow: 0 -12px 40px rgb(0 0 0 / 45%);
+  animation: md-auth-rise var(--duration-slow) var(--ease-out);
 }
 
 .md-auth__wordmark {
-  margin-bottom: var(--space-4);
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  color: var(--color-brand-red);
-}
-
-.md-auth__wordmark-date {
-  color: var(--color-brand-green);
+  margin-bottom: var(--space-2);
+  font: inherit;
 }
 
 .md-auth__form {
@@ -38,14 +45,6 @@
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
-}
-
-.md-auth__form .md-field__label {
-  color: var(--color-brand-red);
-}
-
-.md-auth__form .md-field__input:focus {
-  border-color: var(--color-brand-red);
 }
 
 .md-auth__note {
@@ -57,7 +56,77 @@
   display: flex;
   align-items: center;
   min-height: var(--touch-target);
-  color: var(--color-brand-red);
+  border-radius: var(--radius-field);
+  padding: 0 var(--space-2);
+  color: var(--color-accent-text);
   text-decoration: none;
   font-weight: 600;
+}
+
+.md-auth__link:hover {
+  text-decoration: underline;
+}
+
+.md-auth__link + .md-auth__link {
+  margin-top: calc(-1 * var(--space-3));
+}
+
+.md-auth__attribution {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .md-auth__layout {
+    align-items: center;
+    justify-content: safe center;
+    padding: calc(var(--safe-top) + var(--space-5)) var(--space-5) calc(var(--safe-bottom) + var(--space-5));
+  }
+
+  .md-auth__panel {
+    width: 26rem;
+    padding: var(--space-6) var(--space-6) var(--space-4);
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@media (min-width: 1024px) {
+  .md-auth__layout {
+    flex-direction: row;
+    justify-content: safe center;
+    gap: clamp(var(--space-6), 7vw, 7rem);
+    /* The headline crosses bright posters, and a text shadow alone can't hold it. */
+    background: linear-gradient(to right, var(--color-page), var(--color-scrim) 40%, transparent 62%);
+  }
+
+  .md-auth__hero {
+    display: block;
+    flex: 0 1 34rem;
+    min-width: 0;
+  }
+
+  .md-auth__headline {
+    font-family: var(--font-display);
+    font-size: var(--font-size-hero);
+    font-weight: 800;
+    letter-spacing: var(--tracking-display);
+    line-height: 1.04;
+  }
+
+  .md-auth__lede {
+    margin-top: var(--space-4);
+    max-width: 28rem;
+    font-size: var(--font-size-lg);
+    line-height: 1.4;
+  }
+}
+
+@keyframes md-auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
 }

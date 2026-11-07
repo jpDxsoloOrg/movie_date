@@ -1,0 +1,108 @@
+.md-chip {
+  --chip-height: var(--touch-target);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: var(--chip-height);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition:
+    background-color var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+/* A mouse is accurate enough for a denser chip; a finger keeps the full target. */
+@media (hover: hover) and (pointer: fine) {
+  .md-chip {
+    --chip-height: 2.25rem;
+  }
+}
+
+.md-chip--button {
+  cursor: pointer;
+}
+
+.md-chip--button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-surface-raised);
+}
+
+.md-chip--button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.md-chip--button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.md-chip--selected,
+.md-chip--button.md-chip--selected:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+
+.md-chip--leading {
+  padding-left: var(--space-1);
+}
+
+.md-chip--removable {
+  padding-right: 0;
+}
+
+.md-chip__leading {
+  flex: none;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.md-chip__leading img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.md-chip__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.md-chip__remove {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--chip-height);
+  height: var(--chip-height);
+  margin-left: calc(-1 * var(--space-2));
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.md-chip__remove .md-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.md-chip__remove:hover:not(:disabled) {
+  background: var(--color-hover-wash);
+}

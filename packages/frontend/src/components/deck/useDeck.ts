@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { useRoom } from "../../hooks/useRoom";
 import { useToast } from "../../hooks/useToast";
 import { api, ApiError, errorMessage, type DeckPage, type SwipeDirection } from "../../services/api";
+import { DECK_COPY } from "./deckCopy";
 import { runInOrder, swipeSessionFor, type DeckEntry, type SwipeRecord } from "./swipeSession";
 
 /** Cards on screen at once. */
@@ -72,6 +74,8 @@ export function useDeck(): Deck {
   const queue = useRef<DeckEntry[]>([]);
   const fetchingPage = useRef(false);
   const preloaded = useRef(new Set<string>());
+  // Phones never show a backdrop, so only the details panel pays for these.
+  const showsBackdrops = useBreakpoint() === "desktop";
 
   const publish = useCallback((next: DeckEntry[]) => {
     queue.current = next;
@@ -119,14 +123,15 @@ export function useDeck(): Deck {
   }, [needsMore, nextPage, deal]);
 
   useEffect(() => {
-    for (const { card } of entries.slice(STACK_SIZE, STACK_SIZE + PRELOAD_AHEAD)) {
-      const url = card.movie.posterUrl;
+    const posters = entries.slice(STACK_SIZE, STACK_SIZE + PRELOAD_AHEAD).map(({ card }) => card.movie.posterUrl);
+    const backdrops = showsBackdrops ? entries.slice(1, STACK_SIZE).map(({ card }) => card.movie.backdropUrl) : [];
+    for (const url of [...posters, ...backdrops]) {
       if (url && !preloaded.current.has(url)) {
         preloaded.current.add(url);
         new Image().src = url;
       }
     }
-  }, [entries]);
+  }, [entries, showsBackdrops]);
 
   const finishExit = useCallback((movieId: number) => {
     setExiting((current) => current.filter(({ entry }) => movieIdOf(entry) !== movieId));
@@ -198,7 +203,7 @@ export function useDeck(): Deck {
         const { undone } = await api.undoSwipe(movieId);
         if (!undone) {
           takeOut(movieId);
-          toast.info("That movie already matched, so it can't be undone.");
+          toast.info(DECK_COPY.undoRefused);
         }
       } catch (error) {
         // If it's no longer in the deck it has been swiped again, which has its own record.

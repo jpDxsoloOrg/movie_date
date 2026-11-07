@@ -17,6 +17,7 @@ export function makeRoom(overrides: Partial<Room> = {}): Room {
     matchThreshold: 2,
     requireMajority: false,
     round: 1,
+    plexAvailable: false,
     filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
     members: [makeMember("me", "Me", true), makeMember("u2", "Sam")],
     ...overrides,
@@ -24,7 +25,14 @@ export function makeRoom(overrides: Partial<Room> = {}): Room {
 }
 
 export function makeProfile(overrides: Partial<Profile> = {}): Profile {
-  return { id: "me", email: "me@example.com", displayName: "Me", avatarUrl: null, ...overrides };
+  return {
+    id: "me",
+    email: "me@example.com",
+    displayName: "Me",
+    avatarUrl: null,
+    plexLinked: false,
+    ...overrides,
+  };
 }
 
 function Path(): JSX.Element {

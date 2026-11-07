@@ -22,22 +22,34 @@
   z-index: 3;
 }
 
+/* --deck-drag runs 0 to 1 as the top card nears a swipe, so the next one rises to meet it. */
 .deck-card--depth-1 {
   z-index: 2;
-  transform: translateY(var(--space-2)) scale(0.96);
+  transform: translateY(calc(var(--space-2) * (1 - var(--deck-drag, 0)))) scale(calc(0.96 + 0.04 * var(--deck-drag, 0)));
   pointer-events: none;
 }
 
 .deck-card--depth-2 {
   z-index: 1;
-  transform: translateY(var(--space-4)) scale(0.92);
+  transform: translateY(calc(var(--space-4) - var(--space-2) * var(--deck-drag, 0))) scale(calc(0.92 + 0.04 * var(--deck-drag, 0)));
   pointer-events: none;
   animation: deck-card-deal var(--duration-normal) ease-out;
 }
 
+.deck-card--dragging,
+.deck__stack:has(.deck-card--dragging) .deck-card--depth-1,
+.deck__stack:has(.deck-card--dragging) .deck-card--depth-2 {
+  transition: none;
+}
+
 .deck-card--dragging {
   cursor: grabbing;
-  transition: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .deck-card--depth-0:hover {
+    transform: translateY(-4px);
+  }
 }
 
 /* Out of the way at once, so the next card can be dragged while this one flies. */
@@ -94,7 +106,7 @@
   max-width: calc(100% - var(--touch-target) - var(--space-6));
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
-  background: var(--color-like);
+  background: var(--color-app-bar);
   box-shadow: var(--shadow-raised);
   font-size: var(--font-size-xs);
   font-weight: 700;
@@ -104,6 +116,7 @@
   flex: none;
   width: 1rem;
   height: 1rem;
+  color: var(--color-pass);
 }
 
 .deck-card__info.md-icon-button {
@@ -156,29 +169,54 @@
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 22%;
   pointer-events: none;
   animation: deck-card-overlay var(--duration-fast) ease-out;
 }
 
-/* The light plate is what keeps green and red legible over any poster. */
+.deck-card__overlay--like {
+  background: color-mix(in srgb, var(--color-like) 26%, transparent);
+}
+
+.deck-card__overlay--pass {
+  background: color-mix(in srgb, var(--color-pass) 26%, transparent);
+}
+
+/* A box-office stamp. The dark plate is what keeps green and red legible over any poster. */
 .deck-card__overlay-label {
   padding: var(--space-1) var(--space-4);
+  border: 3px solid currentcolor;
   border-radius: var(--radius-field);
-  background: var(--color-surface);
+  background: var(--color-page);
   box-shadow: var(--shadow-raised);
-  font-size: clamp(1.75rem, 9vw, 2.5rem);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 9cqw, 2.5rem);
   font-weight: 800;
   white-space: nowrap;
 }
 
 .deck-card__overlay--like .deck-card__overlay-label {
-  color: var(--color-like);
+  color: var(--color-toast-success);
+  transform: rotate(-7deg);
 }
 
 .deck-card__overlay--pass .deck-card__overlay-label {
-  color: var(--color-pass);
+  color: var(--color-toast-error);
+  transform: rotate(7deg);
+}
+
+/* A small phone keeps the overview from burying the poster. */
+@media (max-height: 680px) {
+  .deck-card__text {
+    padding-bottom: var(--space-3);
+  }
+
+  .deck-card__overview {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
 }
 
 /* A short phone in landscape can't fit the overview over the poster. */
@@ -191,9 +229,13 @@
     padding-top: var(--space-5);
   }
 
+  .deck-card__overlay {
+    align-items: center;
+    padding-top: 0;
+  }
+
   .deck-card__title {
     overflow: hidden;
-    padding-right: var(--touch-target);
     font-size: var(--font-size-lg);
     white-space: nowrap;
     text-overflow: ellipsis;

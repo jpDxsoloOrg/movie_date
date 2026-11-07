@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "../components/Button";
+import { Card } from "../components/Card";
 import { TextField } from "../components/TextField";
 import { AvatarPicker } from "../components/room/AvatarPicker";
 import { AVATAR_CONTENT_TYPE } from "../components/room/cropAvatar";
+import { PlexLinkCard } from "../components/room/PlexLinkCard";
 import { useRoom } from "../hooks/useRoom";
 import { useToast } from "../hooks/useToast";
 import { api, errorMessage } from "../services/api";
@@ -63,21 +65,34 @@ export default function Profile(): JSX.Element {
   };
 
   return (
-    <form className="profile" onSubmit={(event) => void save(event)} noValidate>
-      <AvatarPicker imageUrl={previewUrl ?? me.avatarUrl} disabled={saving} onPick={pickPhoto} />
-      <p className="profile__email">{me.email}</p>
-      <TextField
-        className="profile__field"
-        label="Display Name"
-        value={displayName}
-        error={nameError}
-        maxLength={MAX_DISPLAY_NAME_LENGTH}
-        autoComplete="nickname"
-        onChange={(event) => setDisplayName(event.target.value)}
-      />
-      <Button type="submit" block loading={saving}>
-        Save
-      </Button>
-    </form>
+    <div className="profile md-page-wide">
+      <Card as="section" className="profile__identity">
+        <form className="profile__form" onSubmit={(event) => void save(event)} noValidate>
+          <AvatarPicker
+            imageUrl={previewUrl ?? me.avatarUrl}
+            name={displayName}
+            disabled={saving}
+            onPick={pickPhoto}
+          />
+          <div className="profile__fields">
+            <p className="profile__email">{me.email}</p>
+            <TextField
+              label="Display Name"
+              hint="This is what your room sees."
+              value={displayName}
+              error={nameError}
+              maxLength={MAX_DISPLAY_NAME_LENGTH}
+              autoComplete="nickname"
+              onChange={(event) => setDisplayName(event.target.value)}
+            />
+            <Button type="submit" block loading={saving}>
+              Save
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <PlexLinkCard />
+    </div>
   );
 }

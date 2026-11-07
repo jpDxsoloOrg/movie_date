@@ -2,6 +2,7 @@ import { isValidRoomCode, normaliseRoomCode } from "@movie-date/core";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/Button";
+import { Ticket } from "../components/room/Ticket";
 import { EmptyState, ErrorState } from "../components/StateMessage";
 import { useRoom } from "../hooks/useRoom";
 import { useToast } from "../hooks/useToast";
@@ -46,7 +47,12 @@ export default function JoinInvite(): JSX.Element {
   if (!isValidRoomCode(code)) {
     return (
       <div className="join-invite">
-        <EmptyState title="Invalid room code" message="Check the link, or ask for a new invite." action={homeButton} />
+        <EmptyState
+          icon="door"
+          title="Invalid room code"
+          message="Check the link, or ask for a new invite."
+          action={homeButton}
+        />
       </div>
     );
   }
@@ -54,7 +60,7 @@ export default function JoinInvite(): JSX.Element {
   if (code === room.code) {
     return (
       <div className="join-invite">
-        <EmptyState title="You're already in this room" action={homeButton} />
+        <EmptyState icon="door" title="You're already in this room" action={homeButton} />
       </div>
     );
   }
@@ -79,19 +85,33 @@ export default function JoinInvite(): JSX.Element {
 
   return (
     <div className="join-invite">
-      <h1 className="join-invite__title">Join room {code}?</h1>
-      <p className="join-invite__message">
-        You're in room {room.code}
-        {company}. Joining moves you out of it and removes your swipes from this round.
-      </p>
-      <div className="join-invite__actions">
-        <Button block loading={joining} onClick={() => void join()}>
-          Join Room
-        </Button>
-        <Button variant="ghost" block disabled={joining} onClick={goHome}>
-          Stay Here
-        </Button>
-      </div>
+      <Ticket
+        className="join-invite__ticket"
+        main={
+          <div className="join-invite__main">
+            <p className="join-invite__eyebrow">You're invited</p>
+            <h1 className="join-invite__title">
+              Join room <span className="join-invite__code">{code}?</span>
+            </h1>
+          </div>
+        }
+        stub={
+          <div className="join-invite__stub">
+            <p className="join-invite__message">
+              You're in room {room.code}
+              {company}. Joining moves you out of it and removes your swipes from this round.
+            </p>
+            <div className="join-invite__actions">
+              <Button block loading={joining} onClick={() => void join()}>
+                Join Room
+              </Button>
+              <Button variant="ghost" block disabled={joining} onClick={goHome}>
+                Stay Here
+              </Button>
+            </div>
+          </div>
+        }
+      />
     </div>
   );
 }

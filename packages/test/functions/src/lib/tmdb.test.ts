@@ -6,6 +6,7 @@ import { NotFoundError, UpstreamError, ValidationError } from "@movie-date/funct
 import {
   discoverMovies,
   getGenres,
+  getLibraryDetails,
   getMovie,
   getTrailerKey,
   hydrateMovies,
@@ -207,6 +208,7 @@ describe("discoverMovies", () => {
     const fetchStub = stubFetch(() =>
       jsonResponse({
         total_pages: 7,
+        total_results: 131,
         results: [
           { id: 1, original_language: "en", poster_path: "/a.jpg" },
           { id: 2, original_language: "fr", poster_path: null },
@@ -217,6 +219,7 @@ describe("discoverMovies", () => {
     const page = await discoverMovies({ ...emptyFilters(), genreIds: [28, 35] }, 3);
     expect(page).toEqual({
       totalPages: 7,
+      totalResults: 131,
       results: [
         { id: 1, originalLanguage: "en", hasPoster: true },
         { id: 2, originalLanguage: "fr", hasPoster: false },
@@ -306,5 +309,42 @@ describe("getTrailerKey", () => {
     expect(item?.pk).toBe("CACHE#trailer#949");
     expect(item?.value).toBeNull();
     expect(item?.expiresAt - Date.now() / 1000).toBeCloseTo(7 * 86_400, -1);
+  });
+});
+
+describe("getLibraryDetails", () => {
+  it("asks for credits in the same call and keeps only what the index needs", async () => {
+    const cast = Array.from({ length: 30 }, (_, index) => ({ id: index + 1, name: `Actor ${index}` }));
+    const fetchStub = stubFetch(() =>
+      jsonResponse({ ...fullDetails, popularity: 42.5, credits: { cast, crew: [{ id: 999 }] } }),
+    );
+    const details = await getLibraryDetails(949);
+    expect(details).toEqual({
+      genreIds: [28, 80],
+      castIds: cast.slice(0, 20).map((person) => person.id),
+      releaseDate: "1995-12-15",
+      popularity: 42.5,
+    });
+    const url = new URL(fetchStub.mock.calls[0]?.[0] as URL);
+    expect(url.pathname).toBe("/3/movie/949");
+    expect(url.searchParams.get("append_to_response")).toBe("credits");
+  });
+
+  it("copes with a title TMDB knows little about", async () => {
+    stubFetch(() => jsonResponse({}));
+    expect(await getLibraryDetails(1)).toEqual({
+      genreIds: [],
+      castIds: [],
+      releaseDate: null,
+      popularity: 0,
+    });
+  });
+
+  it("reads through nothing, so a stale cache can't hide a new title", async () => {
+    stubFetch(() => jsonResponse({}));
+    dynamo.resetHistory();
+    await getLibraryDetails(1);
+    expect(dynamo.commandCalls(GetCommand)).toHaveLength(0);
+    expect(dynamo.commandCalls(PutCommand)).toHaveLength(0);
   });
 });

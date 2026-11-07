@@ -8,10 +8,18 @@ const mocks = vi.hoisted(() => ({
   watchOptions: vi.fn(),
   startNewRound: vi.fn(),
   setRoom: vi.fn(),
+  plexStatus: vi.fn(),
+  requestOnPlex: vi.fn(),
 }));
 
 vi.mock("@movie-date/frontend/services/api", () => ({
-  api: { findMatch: mocks.findMatch, watchOptions: mocks.watchOptions, startNewRound: mocks.startNewRound },
+  api: {
+    findMatch: mocks.findMatch,
+    watchOptions: mocks.watchOptions,
+    startNewRound: mocks.startNewRound,
+    plexStatus: mocks.plexStatus,
+    requestOnPlex: mocks.requestOnPlex,
+  },
   errorMessage: (error: unknown) => (error instanceof Error ? error.message : "Something went wrong."),
 }));
 vi.mock("@movie-date/frontend/services/realtime", () => ({ subscribeToRoom: vi.fn() }));
@@ -27,6 +35,7 @@ const room: Room = {
   matchThreshold: 2,
   requireMajority: false,
   round: 3,
+  plexAvailable: false,
   filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
   members: [],
 };
@@ -67,8 +76,12 @@ function Path(): JSX.Element {
   return <div data-testid="path">{useLocation().pathname}</div>;
 }
 
-function renderScreen(routerState?: { match?: Match }, currentRoom: Room = room) {
-  const context = { room: currentRoom, setRoom: mocks.setRoom } as unknown as RoomContextValue;
+function renderScreen(routerState?: { match?: Match }, currentRoom: Room = room, plexLinked = false) {
+  const context = {
+    me: { plexLinked },
+    room: currentRoom,
+    setRoom: mocks.setRoom,
+  } as unknown as RoomContextValue;
   return render(
     <MemoryRouter
       future={{ v7_startTransition: false, v7_relativeSplatPath: true }}
@@ -263,6 +276,18 @@ describe("MatchFound", () => {
       expect(await screen.findByRole("link", { name: "JustWatch" })).toBeInTheDocument();
     });
 
+    it("shows the room's Plex library as a tile with no link", async () => {
+      mocks.watchOptions.mockResolvedValue([
+        option({ serviceId: "plex", serviceName: "Plex", type: "library", link: null }),
+        option(),
+      ]);
+      renderScreen({ match: makeMatch() });
+
+      expect(await screen.findByRole("img", { name: "Plex" })).toBeInTheDocument();
+      expect(screen.getByText("Library")).toBeInTheDocument();
+      expect(screen.getAllByRole("link")).toHaveLength(1);
+    });
+
     it("says so when nothing is streaming it", async () => {
       mocks.watchOptions.mockResolvedValue([]);
       renderScreen({ match: makeMatch() });
@@ -281,6 +306,106 @@ describe("MatchFound", () => {
       await userEvent.click(screen.getByRole("button", { name: "Try again" }));
 
       expect(await screen.findByRole("link", { name: /Netflix/ })).toBeInTheDocument();
+    });
+  });
+
+  describe("Plex", () => {
+    const missing = { availability: "NOT_IN_LIBRARY", canRequest: true };
+    const requested = { availability: "REQUESTED", canRequest: false };
+
+    function renderLinked(): void {
+      renderScreen({ match: makeMatch() }, room, true);
+    }
+
+    it("stays out of the way for someone who hasn't linked", async () => {
+      renderScreen({ match: makeMatch() });
+
+      await screen.findByRole("link", { name: /Netflix/ });
+      expect(mocks.plexStatus).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
+    });
+
+    it("shows nothing if the server says the caller isn't linked", async () => {
+      mocks.plexStatus.mockResolvedValue(null);
+      renderLinked();
+
+      await waitFor(() => expect(screen.queryByRole("status", { name: "Checking Plex" })).not.toBeInTheDocument());
+      expect(screen.queryByText(/Plex/)).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ["AVAILABLE", "On Plex"],
+      ["MONITORED", "Coming to Plex"],
+      ["REQUESTED", "Requested on Plex"],
+    ])("shows %s as a badge with nothing to request", async (availability, label) => {
+      mocks.plexStatus.mockResolvedValue({ availability, canRequest: false });
+      renderLinked();
+
+      expect(await screen.findByText(label)).toBeInTheDocument();
+      expect(mocks.plexStatus).toHaveBeenCalledWith(949);
+      expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
+    });
+
+    it("says requests are down when a missing title can't be requested", async () => {
+      mocks.plexStatus.mockResolvedValue({ availability: "NOT_IN_LIBRARY", canRequest: false });
+      renderLinked();
+
+      expect(await screen.findByText("Plex requests are unavailable right now.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
+    });
+
+    it("keeps the match working when the status can't be loaded", async () => {
+      mocks.plexStatus.mockRejectedValue(new Error("Plex is down"));
+      renderLinked();
+
+      expect(await screen.findByText("Plex requests are unavailable right now.")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Heat, 1995" })).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("asks before sending, and sends nothing on Cancel", async () => {
+      mocks.plexStatus.mockResolvedValue(missing);
+      renderLinked();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Request on Plex" }));
+
+      const dialog = screen.getByRole("dialog", { name: "Request Heat?" });
+      expect(within(dialog).getByText(/download starts straight away/)).toBeInTheDocument();
+      expect(mocks.requestOnPlex).not.toHaveBeenCalled();
+
+      await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(mocks.requestOnPlex).not.toHaveBeenCalled();
+    });
+
+    it("sends the request once confirmed and moves the badge on", async () => {
+      mocks.plexStatus.mockResolvedValue(missing);
+      mocks.requestOnPlex.mockResolvedValue(requested);
+      renderLinked();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Request on Plex" }));
+      await userEvent.click(screen.getByRole("button", { name: "Request" }));
+
+      expect(await screen.findByText("Requested on Plex")).toBeInTheDocument();
+      expect(mocks.requestOnPlex).toHaveBeenCalledTimes(1);
+      expect(mocks.requestOnPlex).toHaveBeenCalledWith(949);
+      expect(screen.getByText("Requested Heat on Plex")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
+    });
+
+    it("shows a refused request and lets it be tried again", async () => {
+      mocks.plexStatus.mockResolvedValue(missing);
+      mocks.requestOnPlex.mockRejectedValue(new Error("That's today's limit for Plex requests."));
+      renderLinked();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Request on Plex" }));
+      await userEvent.click(screen.getByRole("button", { name: "Request" }));
+
+      expect(await screen.findByText("That's today's limit for Plex requests.")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Request on Plex" })).toBeEnabled();
     });
   });
 });

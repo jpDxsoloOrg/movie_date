@@ -19,6 +19,9 @@ import type {
   WatchOptionsQuery as WatchOptionsResult,
   GenresQuery as GenresResult,
   DeckQuery as DeckResult,
+  FilterPreviewQuery as FilterPreviewResult,
+  PlexAvailability,
+  PlexStatusFieldsFragment,
 } from "../gql/graphql";
 import { getIdToken, signOut } from "./auth";
 import { appConfig } from "./config";
@@ -34,8 +37,10 @@ export type Genre = GenresResult["genres"][number];
 export type WatchOption = WatchOptionsResult["watchOptions"][number];
 export type DeckPage = DeckResult["deck"];
 export type DeckCard = DeckPage["cards"][number];
+export type FilterPreview = FilterPreviewResult["filterPreview"];
+export type PlexStatus = PlexStatusFieldsFragment;
 export type RoomEvent = NonNullable<OnRoomEventSubscription["onRoomEvent"]>;
-export type { FiltersInput, RoomEventType, SwipeDirection };
+export type { FiltersInput, PlexAvailability, RoomEventType, SwipeDirection };
 
 export type ApiErrorCode =
   | "NOT_FOUND"
@@ -148,6 +153,23 @@ export async function execute<TResult, TVariables>(
 
 // --- Fragments ---
 
+export const ProfileFields = graphql(`
+  fragment ProfileFields on Profile {
+    id
+    email
+    displayName
+    avatarUrl
+    plexLinked
+  }
+`);
+
+export const PlexStatusFields = graphql(`
+  fragment PlexStatusFields on PlexStatus {
+    availability
+    canRequest
+  }
+`);
+
 export const PersonFields = graphql(`
   fragment PersonFields on Person {
     id
@@ -173,6 +195,7 @@ export const RoomFields = graphql(`
     matchThreshold
     requireMajority
     round
+    plexAvailable
     filters {
       genreIds
       services
@@ -230,10 +253,7 @@ export const HistoryEntryFields = graphql(`
 const MeQuery = graphql(`
   query Me {
     me {
-      id
-      email
-      displayName
-      avatarUrl
+      ...ProfileFields
     }
   }
 `);
@@ -260,6 +280,15 @@ const DeckQuery = graphql(`
   }
 `);
 
+const FilterPreviewQuery = graphql(`
+  query FilterPreview($filters: FiltersInput!) {
+    filterPreview(filters: $filters) {
+      totalResults
+      posterUrls
+    }
+  }
+`);
+
 const MovieQuery = graphql(`
   query Movie($id: Int!) {
     movie(id: $id) {
@@ -282,6 +311,14 @@ const WatchOptionsQuery = graphql(`
       type
       link
       logoUrl
+    }
+  }
+`);
+
+const PlexStatusQuery = graphql(`
+  query PlexStatus($movieId: Int!) {
+    plexStatus(movieId: $movieId) {
+      ...PlexStatusFields
     }
   }
 `);
@@ -399,10 +436,7 @@ const StartNewRoundMutation = graphql(`
 const UpdateProfileMutation = graphql(`
   mutation UpdateProfile($displayName: String, $avatarKey: String) {
     updateProfile(displayName: $displayName, avatarKey: $avatarKey) {
-      id
-      email
-      displayName
-      avatarUrl
+      ...ProfileFields
     }
   }
 `);
@@ -413,6 +447,38 @@ const CreateAvatarUploadMutation = graphql(`
       url
       fields
       key
+    }
+  }
+`);
+
+const StartPlexLinkMutation = graphql(`
+  mutation StartPlexLink {
+    startPlexLink {
+      sent
+    }
+  }
+`);
+
+const ConfirmPlexLinkMutation = graphql(`
+  mutation ConfirmPlexLink($code: String!) {
+    confirmPlexLink(code: $code) {
+      ...ProfileFields
+    }
+  }
+`);
+
+const UnlinkPlexMutation = graphql(`
+  mutation UnlinkPlex {
+    unlinkPlex {
+      ...ProfileFields
+    }
+  }
+`);
+
+const RequestOnPlexMutation = graphql(`
+  mutation RequestOnPlex($movieId: Int!) {
+    requestOnPlex(movieId: $movieId) {
+      ...PlexStatusFields
     }
   }
 `);
@@ -450,9 +516,12 @@ export const api = {
   me: async () => (await execute(MeQuery)).me,
   myRoom: async () => (await execute(MyRoomQuery)).myRoom,
   deck: async (page: number) => (await execute(DeckQuery, { page })).deck,
+  filterPreview: async (filters: FiltersInput) =>
+    (await execute(FilterPreviewQuery, { filters })).filterPreview,
   movie: async (id: number) => (await execute(MovieQuery, { id })).movie,
   trailer: async (movieId: number) => (await execute(TrailerQuery, { movieId })).trailer ?? null,
   watchOptions: async (movieId: number) => (await execute(WatchOptionsQuery, { movieId })).watchOptions,
+  plexStatus: async (movieId: number) => (await execute(PlexStatusQuery, { movieId })).plexStatus ?? null,
   genres: async () => (await execute(GenresQuery)).genres,
   searchPeople: async (query: string) => (await execute(SearchPeopleQuery, { query })).searchPeople,
   matches: async (page: PageRequest = {}) => (await execute(MatchesQuery, page)).matches,
@@ -477,6 +546,11 @@ export const api = {
     const { createAvatarUpload: upload } = await execute(CreateAvatarUploadMutation, { contentType });
     return { url: upload.url, key: upload.key, fields: parseUploadFields(upload.fields) };
   },
+
+  startPlexLink: async () => (await execute(StartPlexLinkMutation)).startPlexLink,
+  confirmPlexLink: async (code: string) => (await execute(ConfirmPlexLinkMutation, { code })).confirmPlexLink,
+  unlinkPlex: async () => (await execute(UnlinkPlexMutation)).unlinkPlex,
+  requestOnPlex: async (movieId: number) => (await execute(RequestOnPlexMutation, { movieId })).requestOnPlex,
 
   /**
    * Posts an already cropped image to S3 and returns the key for updateProfile.

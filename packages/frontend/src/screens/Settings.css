@@ -1,9 +1,27 @@
 .settings {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+  padding-bottom: calc(var(--space-5) + var(--safe-bottom));
+}
+
+.settings__eyebrow {
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.settings__verdict {
+  font-family: var(--font-display);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-display);
+  letter-spacing: var(--tracking-display);
+  line-height: 1.2;
+}
+
+.settings__controls {
+  gap: var(--space-5);
 }
 
 .settings__group {
@@ -17,26 +35,36 @@
   font-weight: 700;
 }
 
-.settings__slider-row {
+.settings__slider-heading {
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  justify-content: space-between;
   gap: var(--space-3);
-}
-
-.settings__slider {
-  flex: 1;
-  min-width: 0;
-  height: var(--touch-target);
-  margin: 0;
-  accent-color: var(--color-accent);
 }
 
 .settings__value {
   flex: none;
   min-width: 2ch;
+  color: var(--color-accent-text);
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  line-height: 1;
   text-align: right;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-variant-numeric: lining-nums;
+}
+
+.settings__slider {
+  width: 100%;
+  height: var(--touch-target);
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.settings__slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .settings__hint {
@@ -48,14 +76,100 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-4);
   min-height: var(--touch-target);
+}
+
+.settings__check-text {
+  min-width: 0;
+}
+
+.settings__check label {
   cursor: pointer;
 }
 
-.settings__checkbox {
-  width: 24px;
-  height: 24px;
+/* Still a checkbox to assistive tech; only the look is a switch. The 44px height is
+   the hit area, and the track is drawn inside it. */
+.settings__switch {
+  flex: none;
+  position: relative;
+  width: 3.25rem;
+  height: var(--touch-target);
   margin: 0;
-  accent-color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  appearance: none;
+  cursor: pointer;
+}
+
+.settings__switch::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 1.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  transform: translateY(-50%);
+  transition:
+    background-color var(--duration-fast),
+    border-color var(--duration-fast);
+}
+
+.settings__switch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transform: translateY(-50%);
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    background-color var(--duration-fast);
+}
+
+.settings__switch:checked::before {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.settings__switch:checked::after {
+  background: var(--color-on-accent);
+  transform: translate(calc(3.25rem - 1.375rem - 8px), -50%);
+}
+
+@media (min-width: 640px) {
+  .settings__preview,
+  .settings__controls {
+    padding: var(--space-5);
+  }
+}
+
+@media (min-width: 1024px) {
+  .settings {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-auto-flow: dense;
+    align-content: start;
+    align-items: start;
+    gap: var(--space-5);
+  }
+
+  .settings > .room-refresh {
+    grid-column: 1 / -1;
+  }
+
+  .settings__controls {
+    grid-column: 1;
+  }
+
+  .settings__preview {
+    position: sticky;
+    top: var(--space-5);
+    grid-column: 2;
+  }
 }

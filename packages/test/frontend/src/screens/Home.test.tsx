@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
   swipe: vi.fn(),
   undoSwipe: vi.fn(),
   trailer: vi.fn(),
+  watchOptions: vi.fn(),
+  plexStatus: vi.fn(),
+  requestOnPlex: vi.fn(),
+  matches: vi.fn(),
+  genres: vi.fn(),
   me: vi.fn(),
   myRoom: vi.fn(),
   pendingMatch: vi.fn(),
@@ -36,6 +41,7 @@ import {
   type RoomEvent,
 } from "@movie-date/frontend/services/api";
 import type { RoomSubscriptionOptions } from "@movie-date/frontend/services/realtime";
+import { fakeViewport } from "../support/viewport";
 
 const CARD_WIDTH = 320;
 
@@ -86,6 +92,7 @@ function makeRoom(overrides: Partial<Room> = {}): Room {
     matchThreshold: 2,
     requireMajority: false,
     round: 1,
+    plexAvailable: false,
     filters: { genreIds: [], services: [], cast: [], releaseDateGte: null, releaseDateLte: null },
     members: [
       { userId: "me", displayName: "Me", avatarUrl: null, isMe: true },
@@ -129,7 +136,7 @@ function shell(children: ReactNode): JSX.Element {
 
 function roomValue(overrides: Partial<RoomContextValue> = {}): RoomContextValue {
   return {
-    me: { id: "me", email: "me@test.dev", displayName: "Me", avatarUrl: null },
+    me: { id: "me", email: "me@test.dev", displayName: "Me", avatarUrl: null, plexLinked: false },
     room: makeRoom(),
     realtimeStatus: "live",
     deckVersion: 0,
@@ -171,6 +178,10 @@ beforeEach(() => {
   mocks.swipe.mockImplementation(async (movieId: number, direction: string) => ({ movieId, direction, match: null }));
   mocks.undoSwipe.mockImplementation(async (movieId: number) => ({ movieId, undone: true }));
   mocks.trailer.mockResolvedValue("yt-123");
+  mocks.watchOptions.mockResolvedValue([]);
+  mocks.plexStatus.mockResolvedValue({ availability: "NOT_IN_LIBRARY", canRequest: true });
+  mocks.matches.mockResolvedValue({ matches: [], nextToken: null });
+  mocks.genres.mockResolvedValue([{ id: 28, name: "Action" }]);
   mocks.pendingMatch.mockResolvedValue(null);
   mocks.subscribeToRoom.mockReturnValue(() => undefined);
 
@@ -893,5 +904,352 @@ describe("Home room code and invite", () => {
     await waitFor(() => expect(share).toHaveBeenCalled());
     expect(share.mock.calls[0]?.[0]).toMatchObject({ url: `${window.location.origin}/join/ABC234` });
     expect(screen.queryByText("Invite link copied")).not.toBeInTheDocument();
+  });
+});
+
+describe("Home on Plex", () => {
+  const linked = { me: { id: "me", email: "me@test.dev", displayName: "Me", avatarUrl: null, plexLinked: true } };
+
+  beforeEach(() => {
+    mocks.deck.mockResolvedValue(makePage([1, 2]));
+  });
+
+  const openSheet = async (overrides: Partial<RoomContextValue> = linked): Promise<ReturnType<typeof within>> => {
+    renderHome(overrides);
+    await userEvent.click(within(await topCard("Movie 1")).getByRole("button", { name: "Details for Movie 1" }));
+    return within(await screen.findByRole("dialog", { name: "Movie 1 details" }));
+  };
+
+  it("shows nothing and asks nothing for someone who hasn't linked", async () => {
+    const sheet = await openSheet({});
+    await sheet.findByTitle("Movie 1 trailer");
+    expect(mocks.plexStatus).not.toHaveBeenCalled();
+    expect(sheet.queryByText("Not on Plex")).not.toBeInTheDocument();
+    expect(sheet.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["AVAILABLE", "On Plex"],
+    ["MONITORED", "Coming to Plex"],
+    ["REQUESTED", "Requested on Plex"],
+  ])("badges %s and offers no request", async (availability, label) => {
+    mocks.plexStatus.mockResolvedValue({ availability, canRequest: false });
+    const sheet = await openSheet();
+    expect(await sheet.findByText(label)).toBeInTheDocument();
+    expect(sheet.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
+  });
+
+  it("confirms before sending, and sends nothing on Cancel", async () => {
+    const sheet = await openSheet();
+    await userEvent.click(await sheet.findByRole("button", { name: "Request on Plex" }));
+    const confirm = within(await screen.findByRole("dialog", { name: "Request Movie 1?" }));
+    expect(confirm.getByText(/the download starts straight away/)).toBeInTheDocument();
+    expect(mocks.requestOnPlex).not.toHaveBeenCalled();
+
+    await userEvent.click(confirm.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Request Movie 1?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Movie 1 details" })).toBeInTheDocument();
+    expect(mocks.requestOnPlex).not.toHaveBeenCalled();
+  });
+
+  it("sends once confirmed, then shows the new status", async () => {
+    mocks.requestOnPlex.mockResolvedValue({ availability: "REQUESTED", canRequest: false });
+    const sheet = await openSheet();
+    await userEvent.click(await sheet.findByRole("button", { name: "Request on Plex" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Request" }));
+    expect(await sheet.findByText("Requested on Plex")).toBeInTheDocument();
+    expect(mocks.requestOnPlex).toHaveBeenCalledWith(1);
+    expect(sheet.queryByRole("button", { name: "Request on Plex" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Request Movie 1?" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Requested Movie 1 on Plex")).toBeInTheDocument();
+  });
+
+  it("tells the person when a request fails and leaves the button to try again", async () => {
+    mocks.requestOnPlex.mockRejectedValue(new ApiError("That's today's limit", "VALIDATION"));
+    const sheet = await openSheet();
+    await userEvent.click(await sheet.findByRole("button", { name: "Request on Plex" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Request" }));
+    expect(await screen.findByText("That's today's limit")).toBeInTheDocument();
+    expect(sheet.getByRole("button", { name: "Request on Plex" })).toBeInTheDocument();
+  });
+
+  it("says requests are unavailable when Plex Request is down, and the sheet still works", async () => {
+    mocks.plexStatus.mockResolvedValue({ availability: "NOT_IN_LIBRARY", canRequest: false });
+    const sheet = await openSheet();
+    expect(await sheet.findByText("Plex requests are unavailable right now.")).toBeInTheDocument();
+    expect(sheet.getByText("Overview 1")).toBeInTheDocument();
+  });
+
+  it("says the same when the status call itself fails", async () => {
+    mocks.plexStatus.mockRejectedValue(new ApiError("Down", "UPSTREAM"));
+    const sheet = await openSheet();
+    expect(await sheet.findByText("Plex requests are unavailable right now.")).toBeInTheDocument();
+  });
+});
+
+describe("Home from 640px", () => {
+  let viewport: ReturnType<typeof fakeViewport>;
+
+  beforeEach(() => {
+    mocks.deck.mockResolvedValue(makePage([1, 2, 3]));
+    viewport = fakeViewport(768);
+  });
+
+  afterEach(() => viewport.restore());
+
+  const roomPanel = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Your room" }));
+
+  it("moves the room into a panel and keeps details in the sheet on a tablet", async () => {
+    renderHome();
+    await userEvent.click(within(await topCard("Movie 1")).getByRole("button", { name: "Details for Movie 1" }));
+    expect(await screen.findByRole("dialog", { name: "Movie 1 details" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "About Movie 1" })).not.toBeInTheDocument();
+  });
+
+  it("opens the invite from the ticket", async () => {
+    renderHome();
+    await userEvent.click(roomPanel().getByRole("button", { name: "Room code ABC234. Invite someone" }));
+    expect(await screen.findByRole("dialog", { name: "Invite to room" })).toBeInTheDocument();
+  });
+
+  it("lists the members and how many likes make a match", async () => {
+    renderHome();
+    expect(roomPanel().getByText("Sam")).toBeInTheDocument();
+    expect(roomPanel().getByText("2 likes make a match.")).toBeInTheDocument();
+    expect(roomPanel().getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/members");
+  });
+
+  it("nudges someone who is alone to invite", () => {
+    renderHome({ room: makeRoom({ members: [{ userId: "me", displayName: "Me", avatarUrl: null, isMe: true }] }) });
+    expect(roomPanel().getByText("It takes two. Invite someone to start matching.")).toBeInTheDocument();
+  });
+
+  it("names the active filters", async () => {
+    renderHome({
+      room: makeRoom({
+        filters: {
+          genreIds: [28],
+          services: ["netflix"],
+          cast: [{ id: 5, name: "Tom Hanks", profileUrl: null, knownForDepartment: "Acting" }],
+          releaseDateGte: "1990-01-01",
+          releaseDateLte: "1999-12-31",
+        },
+      }),
+    });
+    expect(await roomPanel().findByText("Action")).toBeInTheDocument();
+    for (const label of ["Netflix", "Tom Hanks", "1990 to 1999"]) {
+      expect(roomPanel().getByText(label)).toBeInTheDocument();
+    }
+    expect(roomPanel().getByRole("link", { name: "Change" })).toHaveAttribute("href", "/filters");
+  });
+
+  it("says when there are no filters, and doesn't fetch genres for nothing", async () => {
+    renderHome();
+    expect(await roomPanel().findByText("No filters. Everything's on the table.")).toBeInTheDocument();
+    expect(mocks.genres).not.toHaveBeenCalled();
+  });
+
+  it("shows the latest matches, and a match opens where to watch it", async () => {
+    mocks.matches.mockResolvedValue({ matches: [makeMatch(7)], nextToken: null });
+    renderHome();
+    await userEvent.click(await roomPanel().findByRole("button", { name: /Movie 7/ }));
+    expect(await screen.findByRole("dialog", { name: "Movie 7 details" })).toBeInTheDocument();
+    expect(mocks.matches).toHaveBeenCalledWith({ limit: 3 });
+  });
+
+  it("has a place for the first match, and can retry a failed load", async () => {
+    mocks.matches.mockRejectedValueOnce(new ApiError("No luck", "UPSTREAM"));
+    renderHome();
+    await userEvent.click(await roomPanel().findByRole("button", { name: /Couldn't load matches/ }));
+    expect(await roomPanel().findByText("Your first match will land here.")).toBeInTheDocument();
+  });
+
+  it("picks up a new match from the room's events", async () => {
+    let emit: (event: RoomEvent) => void = () => undefined;
+    const subscribeEvents = vi.fn((listener: (event: RoomEvent) => void) => {
+      emit = listener;
+      return () => undefined;
+    });
+    renderHome({ subscribeEvents });
+    await roomPanel().findByText("Your first match will land here.");
+    mocks.matches.mockResolvedValue({ matches: [makeMatch(9)], nextToken: null });
+    act(() =>
+      emit({ type: "MATCH_FOUND", roomId: "r", movieId: 9, matchId: "m", round: 1, actorId: "u2" }),
+    );
+    expect(await roomPanel().findByRole("button", { name: /Movie 9/ })).toBeInTheDocument();
+  });
+
+  it("keeps the deck and the undo stack through a rotation across a breakpoint", async () => {
+    renderHome();
+    await topCard("Movie 1");
+    pressKey("ArrowRight");
+    await topCard("Movie 2");
+    act(() => viewport.resize(400));
+    expect(await topCard("Movie 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    expect(mocks.deck).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Home from 1024px", () => {
+  let viewport: ReturnType<typeof fakeViewport>;
+
+  beforeEach(() => {
+    mocks.deck.mockResolvedValue(makePage([1, 2, 3]));
+    viewport = fakeViewport(1280);
+  });
+
+  afterEach(() => viewport.restore());
+
+  const panelFor = async (title: string): Promise<ReturnType<typeof within>> =>
+    within(await screen.findByRole("complementary", { name: `About ${title}` }));
+
+  it("shows the top card's details beside the deck, without a tap", async () => {
+    mocks.watchOptions.mockResolvedValue([
+      { serviceId: "netflix", serviceName: "Netflix", type: "subscription", link: null, logoUrl: null },
+    ]);
+    renderHome();
+    const panel = await panelFor("Movie 1");
+    expect(panel.getByRole("heading", { name: "Movie 1" })).toBeInTheDocument();
+    expect(panel.getByText("Overview 1")).toBeInTheDocument();
+    expect(panel.getByText("7.3/10")).toBeInTheDocument();
+    expect(panel.getByText("101 min")).toBeInTheDocument();
+    expect(await panel.findByRole("heading", { name: "Where to Watch" })).toBeInTheDocument();
+    expect(await panel.findByAltText("Netflix")).toBeInTheDocument();
+  });
+
+  it("puts Where to Watch ahead of the overview, so it isn't the part a short screen cuts", async () => {
+    renderHome();
+    const panel = await panelFor("Movie 1");
+    const heading = await panel.findByRole("heading", { name: "Where to Watch" });
+    const overview = panel.getByText("Overview 1");
+    expect(heading.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("follows the deck, including back through an undo", async () => {
+    renderHome();
+    await panelFor("Movie 1");
+    pressKey("ArrowRight");
+    await panelFor("Movie 2");
+    pressKey("Backspace");
+    await panelFor("Movie 1");
+  });
+
+  it("has no sheet to open: the card has no details button and a click does nothing", async () => {
+    renderHome();
+    const card = await topCard("Movie 1");
+    expect(within(card).queryByRole("button", { name: "Details for Movie 1" })).not.toBeInTheDocument();
+    fireEvent.click(card);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("still swipes by dragging", async () => {
+    renderHome();
+    drag(await topCard("Movie 1"), [200]);
+    await panelFor("Movie 2");
+    expect(mocks.swipe).toHaveBeenCalledWith(1, "LIKE");
+  });
+
+  it("waits for a card to settle, so a fast swiper spends no lookups on the ones skipped", async () => {
+    renderHome();
+    await panelFor("Movie 1");
+    pressKey("ArrowLeft");
+    await panelFor("Movie 2");
+    pressKey("ArrowLeft");
+    await panelFor("Movie 3");
+    await waitFor(() => expect(mocks.watchOptions).toHaveBeenCalledWith(3));
+    expect(mocks.watchOptions).toHaveBeenCalledTimes(1);
+    expect(mocks.trailer).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays the trailer only when asked, and stops it when the card leaves", async () => {
+    renderHome();
+    const panel = await panelFor("Movie 1");
+    const play = await panel.findByRole("button", { name: "Play Trailer" });
+    expect(panel.queryByTitle("Movie 1 trailer")).not.toBeInTheDocument();
+    await userEvent.click(play);
+    expect(panel.getByTitle("Movie 1 trailer")).toBeInTheDocument();
+    pressKey("ArrowRight");
+    await panelFor("Movie 2");
+    expect(screen.queryByTitle("Movie 1 trailer")).not.toBeInTheDocument();
+  });
+
+  it("offers no trailer when there isn't one", async () => {
+    mocks.trailer.mockResolvedValue(null);
+    renderHome();
+    const panel = await panelFor("Movie 1");
+    await panel.findByRole("heading", { name: "Where to Watch" });
+    await waitFor(() => expect(mocks.trailer).toHaveBeenCalled());
+    expect(panel.queryByRole("button", { name: "Play Trailer" })).not.toBeInTheDocument();
+  });
+
+  it("falls back from the backdrop to the poster", async () => {
+    renderHome();
+    await panelFor("Movie 1");
+    const hero = document.querySelector(".deck-panel__backdrop");
+    expect(hero).toHaveAttribute("src", "https://img.test/1.jpg");
+  });
+
+  it("requests on Plex from the panel, with the same confirm step", async () => {
+    mocks.requestOnPlex.mockResolvedValue({ availability: "REQUESTED", canRequest: false });
+    renderHome({ me: { id: "me", email: "me@test.dev", displayName: "Me", avatarUrl: null, plexLinked: true } });
+    const panel = await panelFor("Movie 1");
+    await userEvent.click(await panel.findByRole("button", { name: "Request on Plex" }));
+    expect(mocks.requestOnPlex).not.toHaveBeenCalled();
+    pressKey("ArrowRight");
+    await panelFor("Movie 1");
+    await userEvent.click(await screen.findByRole("button", { name: "Request" }));
+    expect(await panel.findByText("Requested on Plex")).toBeInTheDocument();
+    expect(mocks.swipe).not.toHaveBeenCalled();
+  });
+
+  it("keeps the last card's panel through a reload, so a roommate's filter change can't cut a trailer", async () => {
+    const view = renderHome();
+    const panel = await panelFor("Movie 1");
+    await userEvent.click(await panel.findByRole("button", { name: "Play Trailer" }));
+    const next = deferred<DeckPage>();
+    mocks.deck.mockReturnValue(next.promise);
+    const value = roomValue({ me: view.value.me, room: view.value.room, deckVersion: 1 });
+    view.rerender(shell(<RoomContext.Provider value={value}><Home /></RoomContext.Provider>));
+    expect(screen.getByTitle("Movie 1 trailer")).toBeInTheDocument();
+    await act(async () => next.resolve(makePage([1, 2])));
+    expect(await screen.findByTitle("Movie 1 trailer")).toBeInTheDocument();
+  });
+
+  it("clears the panel when the deck runs out", async () => {
+    mocks.deck.mockResolvedValue(makePage([]));
+    renderHome();
+    await screen.findByRole("heading", { name: "No more movies" });
+    expect(await screen.findByText("Details for the top card show up here while you swipe.")).toBeInTheDocument();
+  });
+
+  it("names the shortcuts on the buttons and in a hint", async () => {
+    renderHome();
+    await topCard("Movie 1");
+    expect(screen.getByRole("button", { name: "Pass" })).toHaveAttribute("aria-keyshortcuts", "ArrowLeft");
+    expect(screen.getByRole("button", { name: "Like" })).toHaveAttribute("aria-keyshortcuts", "ArrowRight");
+    expect(screen.getByRole("button", { name: "Undo" })).toHaveAttribute("aria-keyshortcuts", "Backspace");
+    expect(screen.getByText("→").closest("p")).toHaveTextContent("Like");
+  });
+
+  it("preloads the next cards' backdrops here, and not on a phone", async () => {
+    const preloaded: string[] = [];
+    vi.stubGlobal(
+      "Image",
+      class {
+        set src(url: string) {
+          preloaded.push(url);
+        }
+      },
+    );
+    const withBackdrop = (id: number): DeckCard => {
+      const card = makeCard(id);
+      return { ...card, movie: { ...card.movie, backdropUrl: `https://img.test/back-${id}.jpg` } };
+    };
+    mocks.deck.mockResolvedValue({ cards: [withBackdrop(1), withBackdrop(2)], nextPage: null });
+    renderHome();
+    await topCard("Movie 1");
+    await waitFor(() => expect(preloaded).toContain("https://img.test/back-2.jpg"));
+    expect(preloaded).not.toContain("https://img.test/back-1.jpg");
   });
 });

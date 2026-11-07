@@ -1,23 +1,24 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "../hooks/useFocusTrap";
-import { revokeSessions, signOut } from "../services/auth";
-import { Icon, type IconName } from "./Icon";
+import { useLogOut } from "../hooks/useLogOut";
+import { Icon } from "./Icon";
+import {
+  APP_VERSION,
+  NAV_HISTORY,
+  NAV_HOME,
+  NAV_MEMBERS,
+  NAV_PROFILE,
+  NAV_SETTINGS,
+  NAV_TUTORIAL,
+  TMDB_ATTRIBUTION,
+  type NavItem,
+} from "./navigation";
+import { Wordmark } from "./Wordmark";
 import "./Drawer.css";
 
-const PRIMARY_LINKS: readonly { to: string; label: string; icon: IconName }[] = [
-  { to: "/", label: "Home", icon: "home" },
-  { to: "/profile", label: "Profile", icon: "person" },
-  { to: "/members", label: "Room Members", icon: "movie" },
-  { to: "/history", label: "History", icon: "history" },
-];
-
-const SECONDARY_LINKS: readonly { to: string; label: string; icon: IconName }[] = [
-  { to: "/tutorial", label: "Tutorial", icon: "info" },
-  { to: "/settings", label: "Settings", icon: "settings" },
-];
-
-const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? "dev";
+const PRIMARY_LINKS: readonly NavItem[] = [NAV_HOME, NAV_PROFILE, NAV_MEMBERS, NAV_HISTORY];
+const SECONDARY_LINKS: readonly NavItem[] = [NAV_TUTORIAL, NAV_SETTINGS];
 
 export interface DrawerProps {
   open: boolean;
@@ -25,19 +26,16 @@ export interface DrawerProps {
 }
 
 export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
-  const navigate = useNavigate();
+  const logOut = useLogOut();
   const trap = useFocusTrap<HTMLElement>(open, onClose);
   if (!open) return null;
 
-  const logOut = async (): Promise<void> => {
+  const closeAndLogOut = async (): Promise<void> => {
     onClose();
-    await revokeSessions();
-    signOut();
-    // Before the auth guard sees the sign-out, or it saves this page as the return path.
-    navigate("/login", { replace: true });
+    await logOut();
   };
 
-  const renderLink = ({ to, label, icon }: (typeof PRIMARY_LINKS)[number]): JSX.Element => (
+  const renderLink = ({ to, label, icon }: NavItem): JSX.Element => (
     <li key={to}>
       <NavLink to={to} end className="md-drawer__item" onClick={onClose}>
         <Icon name={icon} />
@@ -58,10 +56,12 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
         onKeyDown={trap.onKeyDown}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="md-drawer__header">Movie Date</div>
+        <div className="md-drawer__header">
+          <Wordmark />
+        </div>
         <ul className="md-drawer__list">
           <li>
-            <button type="button" className="md-drawer__item" onClick={() => void logOut()}>
+            <button type="button" className="md-drawer__item" onClick={() => void closeAndLogOut()}>
               <Icon name="logout" />
               Log Out
             </button>
@@ -73,9 +73,7 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
         </ul>
         <footer className="md-drawer__footer">
           <p className="md-drawer__version">Version v{APP_VERSION}</p>
-          <p className="md-drawer__attribution">
-            This product uses the TMDB API but is not endorsed or certified by TMDB
-          </p>
+          <p className="md-drawer__attribution">{TMDB_ATTRIBUTION}</p>
         </footer>
       </nav>
     </div>,

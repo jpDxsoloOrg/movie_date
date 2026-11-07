@@ -1,0 +1,102 @@
+.release-range__picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.release-range__tip {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Columns only appear when each gets its minimum, measured against this element and
+   not the viewport. iOS sizes a date input from its own content, so two squeezed
+   side by side would spill into each other; here they stack first. */
+.release-range__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.release-range__fields--dates {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  padding-top: var(--space-3);
+}
+
+.release-range__fields .md-field {
+  min-width: 0;
+}
+
+.release-range__fields .md-field__control {
+  min-width: 0;
+}
+
+.release-range__fields .md-field__input {
+  display: block;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  /* Without this iOS keeps its native control width and ignores the column. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.release-range__fields .md-field__input::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+.release-range__select .md-field__input {
+  padding-right: calc(var(--space-3) + var(--space-5));
+  cursor: pointer;
+}
+
+.release-range__select::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  margin-top: -3px;
+  border-top: 6px solid var(--color-text-muted);
+  border-right: 5px solid transparent;
+  border-left: 5px solid transparent;
+  pointer-events: none;
+}
+
+.release-range__error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}
+
+.release-range__exact-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  min-height: var(--touch-target);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.release-range__exact-toggle:hover {
+  text-decoration: underline;
+}
+
+.release-range__exact-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.release-range__exact-toggle::before {
+  content: "";
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 6px solid currentcolor;
+  transition: transform var(--duration-fast);
+}
+
+.release-range__exact[open] .release-range__exact-toggle::before {
+  transform: rotate(90deg);
+}

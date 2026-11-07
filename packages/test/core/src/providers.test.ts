@@ -1,4 +1,12 @@
-import { findProvider, isServiceKey, PROVIDERS, providerIdsForServices } from "@movie-date/core";
+import {
+  buildDiscoverQuery,
+  emptyFilters,
+  findProvider,
+  isServiceKey,
+  PROVIDERS,
+  providerIdsForServices,
+  selectableProviders,
+} from "@movie-date/core";
 import { describe, expect, it } from "vitest";
 
 describe("provider catalogue", () => {
@@ -17,6 +25,7 @@ describe("provider catalogue", () => {
       disney: [337],
       paramount: [531, 1770, 1853],
       peacock: [386],
+      plex: [],
     });
   });
 
@@ -28,5 +37,21 @@ describe("provider catalogue", () => {
 
   it("removes duplicate provider ids", () => {
     expect(providerIdsForServices(["hulu", "hulu"])).toEqual([15]);
+  });
+
+  it("offers Plex only to a room that has it", () => {
+    const keys = (plexAvailable: boolean) =>
+      selectableProviders(plexAvailable).map((provider) => provider.key);
+    expect(keys(true)).toContain("plex");
+    expect(keys(false)).not.toContain("plex");
+    expect(keys(false)).toContain("netflix");
+  });
+
+  it("never sends Plex to TMDB", () => {
+    const query = buildDiscoverQuery({ ...emptyFilters(), services: ["plex", "netflix"] }, 1);
+    expect(query.with_watch_providers).toBe("8");
+    expect(buildDiscoverQuery({ ...emptyFilters(), services: ["plex"] }, 1)).not.toHaveProperty(
+      "with_watch_providers",
+    );
   });
 });

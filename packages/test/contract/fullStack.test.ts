@@ -519,6 +519,21 @@ describe("the client against the real backend", () => {
     expect(published).toContainEqual(expect.objectContaining({ roomId, type: "MEMBERS_CHANGED" }));
   });
 
+  it("serves the Plex and filter preview fields through the real client", async () => {
+    await api.me();
+    expect(await api.plexStatus(FULL_MOVIE_ID)).toBeNull();
+    const preview = await api.filterPreview({ genreIds: [], cast: [], services: [] });
+    expect(preview).toHaveProperty("totalResults");
+    expect(preview.posterUrls).toEqual(expect.any(Array));
+    // Linking is out of reach here (no Plex Request in this harness); each only has to route.
+    await Promise.allSettled([
+      api.startPlexLink(),
+      api.confirmPlexLink("123456"),
+      api.unlinkPlex(),
+      api.requestOnPlex(FULL_MOVIE_ID),
+    ]);
+  });
+
   it("surfaces the backend's message and code to the client", async () => {
     await api.me();
     const failure = await api.joinRoom("ZZZZZZ").catch((error: unknown) => error);

@@ -8,18 +8,21 @@ export type ServiceKey =
   | "apple"
   | "disney"
   | "paramount"
-  | "peacock";
+  | "peacock"
+  | "plex";
 
 export interface StreamingProvider {
   key: ServiceKey;
   label: string;
-  /** TMDB watch-provider ids. Paramount+ has several; `any` has none. */
+  /** TMDB watch-provider ids. Paramount+ has several; `any` and `plex` have none. */
   tmdbProviderIds: number[];
   /** Path under the frontend's public root. */
   icon: string;
 }
 
 export const ANY_SERVICE: ServiceKey = "any";
+/** Filtered from the room's library index, never by TMDB. */
+export const PLEX_SERVICE: ServiceKey = "plex";
 
 export const PROVIDERS: readonly StreamingProvider[] = [
   { key: "any", label: "Any", tmdbProviderIds: [], icon: "/movieDate.png" },
@@ -37,7 +40,13 @@ export const PROVIDERS: readonly StreamingProvider[] = [
     icon: "/icons/paramount.png",
   },
   { key: "peacock", label: "Peacock", tmdbProviderIds: [386], icon: "/icons/peacock.png" },
+  { key: "plex", label: "Plex", tmdbProviderIds: [], icon: "/icons/plex.svg" },
 ];
+
+/** What a room can pick from: Plex only applies once a member has linked it. */
+export function selectableProviders(plexAvailable: boolean): readonly StreamingProvider[] {
+  return PROVIDERS.filter((provider) => plexAvailable || provider.key !== PLEX_SERVICE);
+}
 
 export function findProvider(key: string): StreamingProvider | undefined {
   return PROVIDERS.find((provider) => provider.key === key);

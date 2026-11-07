@@ -11,8 +11,14 @@ import { usePagedList } from "./usePagedList";
 function SwipeRow({ entry }: { entry: HistoryEntry }): JSX.Element {
   const liked = entry.direction === "LIKE";
   return (
-    <div className="history-row">
-      <MoviePoster className="history-row__poster" posterUrl={entry.movie.posterUrl} alt="" thumbnail />
+    <div className={`history-row history-row--${liked ? "like" : "pass"}`}>
+      <MoviePoster
+        className="history-row__poster"
+        posterUrl={entry.movie.posterUrl}
+        alt=""
+        thumbnail
+        sizes="3.5rem"
+      />
       <span className="history-row__text">
         <span className="history-row__title">{movieLabel(entry.movie)}</span>
         <span className="history-row__detail">
@@ -20,7 +26,7 @@ function SwipeRow({ entry }: { entry: HistoryEntry }): JSX.Element {
             <Icon name={liked ? "heart" : "close"} />
             {liked ? "Liked" : "Passed"}
           </span>
-          <span>
+          <span className="history-row__stamp">
             {formatHistoryDate(entry.swipedAt)} · Round&nbsp;{entry.round}
           </span>
         </span>
@@ -40,11 +46,13 @@ export function SwipeHistory(): JSX.Element {
     <HistoryList
       list={list}
       label="Your swipes"
+      layout="rows"
       itemKey={(entry) => `${entry.round}-${entry.movie.id}`}
       empty={
         <EmptyState
           title="No swipes yet"
           message="Movies you like or pass on in this room will show up here."
+          icon="history"
           action={<Button onClick={() => navigate("/")}>Start swiping</Button>}
         />
       }

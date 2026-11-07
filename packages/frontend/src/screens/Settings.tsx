@@ -1,7 +1,9 @@
 import { effectiveThreshold, maxThreshold, MIN_MATCH_THRESHOLD, type ThresholdSettings } from "@movie-date/core";
 import { useState, type FormEvent } from "react";
 import { Button } from "../components/Button";
+import { Card } from "../components/Card";
 import { RoomRefresh } from "../components/room/RoomRefresh";
+import { SeatRow } from "../components/room/SeatRow";
 import { useRoom } from "../hooks/useRoom";
 import { useToast } from "../hooks/useToast";
 import { api, errorMessage } from "../services/api";
@@ -39,17 +41,35 @@ export default function Settings(): JSX.Element {
     ? "Half the room, rounded up, and it follows as people join or leave."
     : sliderMax === MIN_MATCH_THRESHOLD
       ? "Invite more people to raise this."
-      : "How many people must like a movie for it to match.";
+      : "How many people must say yes for it to be a match.";
+
+  const verdict =
+    memberCount < MIN_MATCH_THRESHOLD
+      ? `Once someone joins, ${threshold} yeses will make a match.`
+      : threshold === memberCount
+        ? "Everyone in the room has to say yes."
+        : `${threshold} of the ${memberCount} people in the room have to say yes.`;
 
   return (
-    <form className="settings" onSubmit={(event) => void save(event)}>
+    <form className="settings md-page-wide" onSubmit={(event) => void save(event)}>
       <RoomRefresh />
 
-      <div className="settings__group">
-        <label className="settings__heading" htmlFor="settings-threshold">
-          Matches Required
-        </label>
-        <div className="settings__slider-row">
+      <Card variant="raised" className="settings__preview">
+        <p className="settings__eyebrow">What makes a match</p>
+        <SeatRow seats={sliderMax} taken={threshold} />
+        <p className="settings__verdict">{verdict}</p>
+      </Card>
+
+      <Card className="settings__controls">
+        <div className="settings__group">
+          <div className="settings__slider-heading">
+            <label className="settings__heading" htmlFor="settings-threshold">
+              Matches Required
+            </label>
+            <output className="settings__value" htmlFor="settings-threshold">
+              {threshold}
+            </output>
+          </div>
           <input
             id="settings-threshold"
             className="settings__slider"
@@ -64,30 +84,36 @@ export default function Settings(): JSX.Element {
               setDraft({ matchThreshold: Number(event.target.value), requireMajority })
             }
           />
-          <output className="settings__value" htmlFor="settings-threshold">
-            {threshold}
-          </output>
+          <p id="settings-threshold-hint" className="settings__hint">
+            {hint}
+          </p>
         </div>
-        <p id="settings-threshold-hint" className="settings__hint">
-          {hint}
-        </p>
-      </div>
 
-      <label className="settings__check">
-        <span>Require Majority</span>
-        <input
-          className="settings__checkbox"
-          type="checkbox"
-          checked={requireMajority}
-          onChange={(event) =>
-            setDraft({ matchThreshold: threshold, requireMajority: event.target.checked })
-          }
-        />
-      </label>
+        <div className="settings__check">
+          <div className="settings__check-text">
+            <label className="settings__heading" htmlFor="settings-majority">
+              Require Majority
+            </label>
+            <p id="settings-majority-hint" className="settings__hint">
+              Keeps the number at half the room.
+            </p>
+          </div>
+          <input
+            id="settings-majority"
+            className="settings__switch"
+            type="checkbox"
+            checked={requireMajority}
+            aria-describedby="settings-majority-hint"
+            onChange={(event) =>
+              setDraft({ matchThreshold: threshold, requireMajority: event.target.checked })
+            }
+          />
+        </div>
 
-      <Button type="submit" block loading={saving} disabled={!changed}>
-        Save Settings
-      </Button>
+        <Button type="submit" block loading={saving} disabled={!changed}>
+          Save Settings
+        </Button>
+      </Card>
     </form>
   );
 }

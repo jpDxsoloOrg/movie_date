@@ -12,6 +12,22 @@ enum SwipeDirection {
   PASS
 }
 
+"TMDB numbers movies and shows separately, so an id alone can't identify a title."
+enum MediaType {
+  MOVIE
+  TV
+}
+
+enum PlexAvailability {
+  "In the library with a file."
+  AVAILABLE
+  "In the library, waiting on a file."
+  MONITORED
+  "An active request exists."
+  REQUESTED
+  NOT_IN_LIBRARY
+}
+
 enum RoomEventType {
   "A swipe completed a match. movieId and matchId are set."
   MATCH_FOUND
@@ -28,6 +44,7 @@ type Profile {
   email: String!
   displayName: String!
   avatarUrl: String
+  plexLinked: Boolean!
 }
 
 "What other room members may see. Never includes an email."
@@ -53,7 +70,7 @@ type Genre {
 type Filters {
   genreIds: [Int!]!
   cast: [Person!]!
-  "Keys from the provider catalogue, e.g. netflix. Empty means any service."
+  "Keys from the provider catalogue, e.g. netflix. Empty means any service. plex is ignored unless Room.plexAvailable."
   services: [String!]!
   "YYYY-MM-DD"
   releaseDateGte: String
@@ -85,6 +102,8 @@ type Room {
   "Increments on Back to Start. Swipes and tallies belong to one round."
   round: Int!
   members: [Member!]!
+  "True when any member has linked Plex Request. Unlocks the plex filter for the whole room."
+  plexAvailable: Boolean!
 }
 
 type Movie {
@@ -111,6 +130,14 @@ type DeckPage {
   nextPage: Int
 }
 
+"What a set of filters would deal, before they are saved."
+type FilterPreview {
+  "About how many titles match. Null when no count is available."
+  totalResults: Int
+  "The first few matching posters, for a preview strip."
+  posterUrls: [String!]!
+}
+
 type SwipeResult {
   movieId: Int!
   direction: SwipeDirection!
@@ -127,7 +154,7 @@ type UndoResult {
 type WatchOption {
   serviceId: String!
   serviceName: String!
-  "subscription, free, rent, buy or addon"
+  "subscription, free, rent, buy, addon or library. library is the room's Plex, which has no link."
   type: String!
   "Deep link to the title when the provider gives one."
   link: String
@@ -158,6 +185,16 @@ type HistoryPage {
 type MatchPage {
   matches: [Match!]!
   nextToken: String
+}
+
+type PlexStatus {
+  availability: PlexAvailability!
+  canRequest: Boolean!
+}
+
+type PlexLinkStart {
+  "Always true, so this can't be used to discover who has a Plex Request account."
+  sent: Boolean!
 }
 
 type AvatarUpload {
@@ -195,10 +232,14 @@ type Query {
   myRoom: Room!
   "Unswiped movies for the caller. page starts at 1."
   deck(page: Int!): DeckPage!
+  "Takes draft filters because deck() only reads the saved ones. Call it debounced."
+  filterPreview(filters: FiltersInput!): FilterPreview!
   movie(id: Int!): Movie!
   "YouTube id of the best trailer, or null."
   trailer(movieId: Int!): String
   watchOptions(movieId: Int!): [WatchOption!]!
+  "Null when the caller hasn't linked Plex Request."
+  plexStatus(movieId: Int!): PlexStatus
   genres: [Genre!]!
   searchPeople(query: String!): [Person!]!
   "Matches in the caller's room, newest first, across all rounds."
@@ -222,6 +263,12 @@ type Mutation {
   startNewRound(expectedRound: Int!): Room!
   updateProfile(displayName: String, avatarKey: String): Profile!
   createAvatarUpload(contentType: String!): AvatarUpload!
+  "Emails a code to the caller's own profile address if it has a Plex Request account."
+  startPlexLink: PlexLinkStart!
+  confirmPlexLink(code: String!): Profile!
+  unlinkPlex: Profile!
+  "Acts only as the caller's linked account. A duplicate comes back as REQUESTED."
+  requestOnPlex(movieId: Int!): PlexStatus!
 
   "Backend only. Pass-through that fans out to onRoomEvent subscribers."
   publishRoomEvent(input: RoomEventInput!): RoomEvent! @aws_iam

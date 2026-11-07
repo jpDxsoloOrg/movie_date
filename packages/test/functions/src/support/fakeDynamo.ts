@@ -93,11 +93,16 @@ function applyAdd(clause: string, row: Row, names: Names, values: Values): void 
 }
 
 function applyUpdate(expression: string, row: Row, names: Names, values: Values): void {
-  const sections = expression.split(/\b(?=SET |ADD )/).filter((section) => section.trim());
+  const sections = expression.split(/\b(?=SET |ADD |REMOVE )/).filter((section) => section.trim());
   for (const section of sections) {
     const body = section.slice(4);
     if (section.startsWith("SET ")) applySet(body, row, names, values);
     else if (section.startsWith("ADD ")) applyAdd(body, row, names, values);
+    else if (section.startsWith("REMOVE ")) {
+      for (const target of section.slice("REMOVE ".length).split(/,\s*/)) {
+        delete row[attribute(target.trim(), names)];
+      }
+    }
     else throw new Error(`Unsupported update: ${expression}`);
   }
 }

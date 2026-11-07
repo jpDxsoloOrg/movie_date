@@ -59,6 +59,7 @@ describe("me", () => {
       email: "ann@example.com",
       displayName: "ann",
       avatarUrl: null,
+      plexLinked: false,
     });
     const profile = table.row("USER#sub-ann", "PROFILE");
     const meta = table.row(`ROOM#${String(profile?.roomId)}`, "META");
