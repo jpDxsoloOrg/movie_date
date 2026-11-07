@@ -86,6 +86,8 @@ interface ClientArgs {
 interface SiteArgs {
   path: string;
   errorPage?: string;
+  domain?: { name: string; dns: false; cert: string };
+  edge?: { viewerRequest?: { injection: string } };
   environment: Record<string, string>;
   transform: { cdn: (args: { defaultCacheBehavior: Record<string, unknown> }) => void };
 }
@@ -207,6 +209,11 @@ function fakeAws(recorded: Recorded) {
   return {
     getCallerIdentityOutput: () => ({ accountId: "123456789012" }),
     kms: { getKeyOutput: () => ({ arn: "arn:aws:kms:us-east-1:123456789012:key/ssm" }) },
+    acm: {
+      getCertificateOutput: (args: { domain: string }) => ({
+        arn: `arn:aws:acm:us-east-1:123456789012:certificate/${args.domain}`,
+      }),
+    },
     iam: {
       RolePolicy: class {
         constructor(_name: string, args: { role: string; policy: string }) {
@@ -553,7 +560,62 @@ describe("sst.config.ts", () => {
     });
   });
 
+  describe("old cloudfront.net address", () => {
+    interface EdgeResponse {
+      statusCode: number;
+      headers: Record<string, { value: string }>;
+      body?: { data: string };
+    }
+    type Query = Record<string, { value: string; multiValue?: { value: string }[] }>;
+
+    function viewerRequest(host: string, uri: string, querystring: Query = {}): EdgeResponse | undefined {
+      const injection = production.site?.edge?.viewerRequest?.injection ?? "";
+      const handler = new Function("event", injection) as (event: unknown) => EdgeResponse | undefined;
+      return handler({ request: { uri, querystring, headers: { host: { value: host } } } });
+    }
+
+    it("redirects to the custom domain, keeping the path and query", () => {
+      const response = viewerRequest("d19oka7lgeykfv.cloudfront.net", "/join/ABC234", {
+        ref: { value: "share" },
+        tag: { value: "a", multiValue: [{ value: "a" }, { value: "b" }] },
+      });
+      expect(response?.statusCode).toBe(301);
+      expect(response?.headers.location.value).toBe(
+        "https://moviedate.jpdxsolo.com/join/ABC234?ref=share&tag=a&tag=b",
+      );
+    });
+
+    it("redirects a bare path without a stray question mark", () => {
+      expect(viewerRequest("d19oka7lgeykfv.cloudfront.net", "/")?.headers.location.value).toBe(
+        "https://moviedate.jpdxsolo.com/",
+      );
+    });
+
+    it("serves a worker that retires installed copies instead of redirecting sw.js", () => {
+      const response = viewerRequest("d19oka7lgeykfv.cloudfront.net", "/sw.js");
+      expect(response?.statusCode).toBe(200);
+      expect(response?.headers["content-type"].value).toBe("text/javascript");
+      const script = response?.body?.data ?? "";
+      expect(script).toContain("registration.unregister()");
+      expect(script).toContain("caches.delete");
+      expect(() => new Function(script)).not.toThrow();
+    });
+
+    it("leaves the custom domain alone", () => {
+      expect(viewerRequest("moviedate.jpdxsolo.com", "/sw.js")).toBeUndefined();
+      expect(viewerRequest("moviedate.jpdxsolo.com", "/")).toBeUndefined();
+    });
+  });
+
   describe("site", () => {
+    it("serves the custom domain on the wildcard certificate, leaving DNS to the owner", () => {
+      expect(production.site?.domain).toEqual({
+        name: "moviedate.jpdxsolo.com",
+        dns: false,
+        cert: "arn:aws:acm:us-east-1:123456789012:certificate/*.jpdxsolo.com",
+      });
+    });
+
     it("builds with everything the frontend reads", () => {
       expect(production.site?.path).toBe("packages/frontend");
       expect(production.site?.environment).toEqual({

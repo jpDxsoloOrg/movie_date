@@ -49,7 +49,7 @@ import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
-const BASE_URL = (process.env.E2E_BASE_URL ?? "https://d19oka7lgeykfv.cloudfront.net").replace(/\/$/, "");
+const BASE_URL = (process.env.E2E_BASE_URL ?? "https://moviedate.jpdxsolo.com").replace(/\/$/, "");
 const GRAPHQL_URL = "https://nti4vfrsszdl3okpzctqiffsoy.appsync-api.us-east-1.amazonaws.com/graphql";
 const USER_POOL_ID = "us-east-1_TEy3ICBCA";
 const AVATAR_BUCKET = "movie-date-production-avatarsbucket-bbbbcwzc";
