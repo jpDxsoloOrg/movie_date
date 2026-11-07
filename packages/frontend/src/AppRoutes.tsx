@@ -6,6 +6,7 @@ import ActorSearch from "./screens/ActorSearch";
 import Filters from "./screens/Filters";
 import ForgotPassword from "./screens/ForgotPassword";
 import History from "./screens/History";
+import Install from "./screens/Install";
 import Home from "./screens/Home";
 import JoinInvite from "./screens/JoinInvite";
 import Login from "./screens/Login";
@@ -62,6 +63,9 @@ export function AppRoutes(): JSX.Element {
           </Route>
           <Route element={<PageLayout title="Settings" />}>
             <Route path="/settings" element={<Settings />} />
+          </Route>
+          <Route element={<PageLayout title="Install the App" />}>
+            <Route path="/install" element={<Install />} />
           </Route>
           <Route element={<PageLayout />}>
             <Route path="/join/:code" element={<JoinInvite />} />

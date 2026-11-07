@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useLogOut } from "../hooks/useLogOut";
+import { useInstallApp } from "../install/useInstallApp";
 import { useMode } from "../mode/ModeProvider";
 import { Icon } from "./Icon";
 import {
@@ -31,7 +32,13 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
   const { mode } = useMode();
   const logOut = useLogOut();
   const trap = useFocusTrap<HTMLDivElement>(open, onClose);
+  const installApp = useInstallApp();
   if (!open) return null;
+
+  const closeAndInstall = async (): Promise<void> => {
+    onClose();
+    await installApp.install();
+  };
 
   const closeAndLogOut = async (): Promise<void> => {
     onClose();
@@ -74,6 +81,14 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
             {[navHome(mode), NAV_GOING_STEADY, ...ROOM_LINKS].map(renderLink)}
             <li className="md-drawer__divider" aria-hidden="true" />
             {SECONDARY_LINKS.map(renderLink)}
+            {!installApp.installed && (
+              <li>
+                <button type="button" className="md-drawer__item" onClick={() => void closeAndInstall()}>
+                  <Icon name="install" />
+                  Install App
+                </button>
+              </li>
+            )}
           </ul>
         </nav>
         <footer className="md-drawer__footer">

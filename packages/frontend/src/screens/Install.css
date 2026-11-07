@@ -1,0 +1,59 @@
+.install {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.install__lead {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.install__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.install__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.install__step-number {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}
+
+.install__step-icon {
+  flex: none;
+  color: var(--color-accent-text);
+}
+
+.install__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* The code is dark on transparent, so it needs the logo plate behind it on the dark page. */
+.install__qr {
+  display: block;
+  width: 180px;
+  height: 180px;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-field);
+  background: var(--color-logo-plate);
+}

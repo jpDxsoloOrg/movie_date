@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useLogOut } from "../hooks/useLogOut";
+import { useInstallApp } from "../install/useInstallApp";
 import { useMode } from "../mode/ModeProvider";
 import { SHOWS_HOME } from "../mode/modeRoutes";
 import { Icon, type IconName } from "./Icon";
@@ -63,6 +64,7 @@ export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
   const { mode, copy } = useMode();
   const logOut = useLogOut();
   const [joinOpen, setJoinOpen] = useState(false);
+  const installApp = useInstallApp();
 
   const renderLink = ({ to, label, railLabel, icon, state }: NavItem): JSX.Element => (
     <li key={to}>
@@ -94,6 +96,9 @@ export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
           {!rail && (
             <ul className="md-side-nav__list md-side-nav__list--end">
               {ACCOUNT_LINKS.map(renderLink)}
+              {!installApp.installed && (
+                <SideNavButton icon="install" label="Install App" rail={false} onClick={() => void installApp.install()} />
+              )}
               <SideNavButton icon="logout" label="Log Out" rail={false} onClick={() => void logOut()} />
             </ul>
           )}
