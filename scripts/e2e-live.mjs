@@ -2916,7 +2916,7 @@ async function main() {
     await step("no failed first-party requests", async () => {
       // The embedded YouTube player cancels its own telemetry; that isn't the app's traffic.
       const firstParty = (entry) =>
-        !/youtube(-nocookie)?\.com|googlevideo|doubleclick|ggpht|ytimg|www\.google\.com\/js\/th\/|jnn-pa\.googleapis\.com|gstatic\.com/.test(entry.text);
+        !/youtube(-nocookie)?\.com|googlevideo|doubleclick|ggpht|ytimg|www\.google\.com\/js\/th\/|csp\.withgoogle\.com|jnn-pa\.googleapis\.com|gstatic\.com/.test(entry.text);
       const failed = dedupe([...unexpected(noise.requestFailed), ...unexpected(noise.httpErrors)].filter(firstParty));
       assert(failed.length === 0, failed.map((entry) => `[${entry.step}] x${entry.count} ${entry.text}`).join(" ;; "));
     });
