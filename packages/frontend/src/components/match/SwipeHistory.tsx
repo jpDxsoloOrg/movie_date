@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { useRoom } from "../../hooks/useRoom";
 import { api, type HistoryEntry, type MediaType, type SwipeDirection } from "../../services/api";
 import { Button } from "../Button";
 import { Icon } from "../Icon";
@@ -59,6 +60,8 @@ interface SwipeListProps {
 /** Remounted for each filter, so a page still loading can't land in the next list. */
 function SwipeList({ mediaType, search, direction, onCleared, onLoaded }: SwipeListProps): JSX.Element {
   const navigate = useNavigate();
+  const { room } = useRoom();
+  const solo = room.members.length === 1;
   const filtered = search !== "" || direction !== "ALL";
   const list = usePagedList<HistoryEntry>(async (nextToken) => {
     const page = await api.swipeHistory(
@@ -98,7 +101,10 @@ function SwipeList({ mediaType, search, direction, onCleared, onLoaded }: SwipeL
         }
         renderItem={(entry) => <SwipeRow entry={entry} />}
       />
-      {!filtered && (count ?? 0) > 0 && <ClearHistory kind="SWIPES" mediaType={mediaType} onCleared={onCleared} />}
+      {/* Alone, an empty list can still hide swipes an earlier clear left in force, so the reset stays on offer. */}
+      {!filtered && ((count ?? 0) > 0 || (solo && count !== undefined)) && (
+        <ClearHistory kind="SWIPES" mediaType={mediaType} solo={solo} onCleared={onCleared} />
+      )}
     </>
   );
 }

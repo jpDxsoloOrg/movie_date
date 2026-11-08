@@ -437,6 +437,20 @@ describe("Home details sheet", () => {
     expect(screen.queryByTitle("Movie 1 trailer")).not.toBeInTheDocument();
   });
 
+  it("shows where to watch under the trailer", async () => {
+    mocks.watchOptions.mockResolvedValue([
+      { serviceId: "netflix", serviceName: "Netflix", type: "subscription", link: "https://n.example/1", logoUrl: null },
+    ]);
+    renderHome();
+    tap(await topCard("Movie 1"));
+    const sheet = within(await screen.findByRole("dialog", { name: "Movie 1 details" }));
+    expect(await sheet.findByRole("link", { name: /Watch Movie 1 on Netflix/ })).toHaveAttribute(
+      "href",
+      "https://n.example/1",
+    );
+    expect(mocks.watchOptions).toHaveBeenCalledWith(1, "MOVIE");
+  });
+
   it("opens from the keyboard through the details button", async () => {
     renderHome();
     await userEvent.click(within(await topCard("Movie 1")).getByRole("button", { name: "Details for Movie 1" }));

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   clearHistory: vi.fn(),
+  resetSwipes: vi.fn(),
   matches: vi.fn(),
   swipeHistory: vi.fn(),
   watchOptions: vi.fn(),
@@ -22,7 +23,8 @@ import { RoomContext } from "@movie-date/frontend/context/RoomProvider";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
 import History from "@movie-date/frontend/screens/History";
 import type { HistoryEntry, Match, Movie } from "@movie-date/frontend/services/api";
-import { fakeRoomContext, makeProfile } from "../support/roomHarness";
+import type { RoomContextValue } from "@movie-date/frontend/context/RoomProvider";
+import { fakeRoomContext, makeMember, makeProfile, makeRoom } from "../support/roomHarness";
 import { fakeViewport } from "../support/viewport";
 
 function makeMovie(id: number, title: string): Movie {
@@ -68,8 +70,13 @@ function Location(): JSX.Element {
   return <div data-testid="location">{`${pathname}${search}`}</div>;
 }
 
-function renderScreen(entry = "/history", plexLinked = false, container?: HTMLElement) {
-  const context = fakeRoomContext({ me: makeProfile({ plexLinked }) });
+function renderScreen(
+  entry = "/history",
+  plexLinked = false,
+  container?: HTMLElement,
+  overrides: Partial<RoomContextValue> = {},
+) {
+  const context = fakeRoomContext({ me: makeProfile({ plexLinked }), ...overrides });
   return render(
     <MemoryRouter
       future={{ v7_startTransition: false, v7_relativeSplatPath: true }}
@@ -236,6 +243,45 @@ describe("Clearing", () => {
 
     expect(await screen.findByText("Nope")).toBeInTheDocument();
     expect(within(matchesPanel()).getByRole("button", { name: /Heat \(1995\)/ })).toBeInTheDocument();
+  });
+});
+
+describe("Resetting swipes alone", () => {
+  const soloRoom = () => makeRoom({ members: [makeMember("me", "Me", true)] });
+
+  it("resets for real when you're the only one in the room, and updates the room", async () => {
+    const reset = makeRoom({ members: [makeMember("me", "Me", true)], tvRound: 4 });
+    mocks.resetSwipes.mockResolvedValue(reset);
+    const setRoom = vi.fn();
+    renderScreen("/history?tab=swipes&media=shows", false, undefined, { room: soloRoom(), setRoom });
+    const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
+    expect(within(panel).queryByRole("button", { name: "Clear swipe history" })).not.toBeInTheDocument();
+    await userEvent.click(await within(panel).findByRole("button", { name: "Reset your swipes" }));
+    const dialog = screen.getByRole("dialog", { name: "Reset your swipes?" });
+    expect(dialog).toHaveTextContent("goes back into your deck");
+    expect(dialog).toHaveTextContent("Shows only");
+    mocks.swipeHistory.mockResolvedValue({ entries: [], nextToken: null });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Reset" }));
+
+    await waitFor(() => expect(setRoom).toHaveBeenCalledWith(reset));
+    expect(mocks.resetSwipes).toHaveBeenCalledWith("TV");
+    expect(mocks.clearHistory).not.toHaveBeenCalled();
+    expect(await within(panel).findByText("No swipes yet")).toBeInTheDocument();
+  });
+
+  it("stays on offer with an empty list, since an earlier clear can hide swipes that still count", async () => {
+    mocks.swipeHistory.mockResolvedValue({ entries: [], nextToken: null });
+    renderScreen("/history?tab=swipes", false, undefined, { room: soloRoom() });
+    const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
+    expect(await within(panel).findByRole("button", { name: "Reset your swipes" })).toBeInTheDocument();
+  });
+
+  it("isn't offered to a room with others in it, whose round it would reset", async () => {
+    mocks.swipeHistory.mockResolvedValue({ entries: [], nextToken: null });
+    renderScreen("/history?tab=swipes");
+    const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
+    expect(await within(panel).findByText("No swipes yet")).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Reset your swipes|Clear swipe history/ })).not.toBeInTheDocument();
   });
 });
 

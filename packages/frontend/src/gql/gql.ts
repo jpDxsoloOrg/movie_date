@@ -51,6 +51,7 @@ type Documents = {
     "\n  mutation ConfirmPlexLink($code: String!) {\n    confirmPlexLink(code: $code) {\n      ...ProfileFields\n    }\n  }\n": typeof types.ConfirmPlexLinkDocument,
     "\n  mutation UnlinkPlex {\n    unlinkPlex {\n      ...ProfileFields\n    }\n  }\n": typeof types.UnlinkPlexDocument,
     "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.RequestOnPlexDocument,
+    "\n  mutation ResetSwipes($mediaType: MediaType) {\n    resetSwipes(mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n": typeof types.ResetSwipesDocument,
     "\n  mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {\n    clearHistory(kind: $kind, mediaType: $mediaType)\n  }\n": typeof types.ClearHistoryDocument,
     "\n  mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {\n    clearMatch(matchId: $matchId, mediaType: $mediaType)\n  }\n": typeof types.ClearMatchDocument,
     "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      mediaType\n      matchId\n      round\n      actorId\n    }\n  }\n": typeof types.OnRoomEventDocument,
@@ -92,6 +93,7 @@ const documents: Documents = {
     "\n  mutation ConfirmPlexLink($code: String!) {\n    confirmPlexLink(code: $code) {\n      ...ProfileFields\n    }\n  }\n": types.ConfirmPlexLinkDocument,
     "\n  mutation UnlinkPlex {\n    unlinkPlex {\n      ...ProfileFields\n    }\n  }\n": types.UnlinkPlexDocument,
     "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {\n      ...PlexStatusFields\n    }\n  }\n": types.RequestOnPlexDocument,
+    "\n  mutation ResetSwipes($mediaType: MediaType) {\n    resetSwipes(mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n": types.ResetSwipesDocument,
     "\n  mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {\n    clearHistory(kind: $kind, mediaType: $mediaType)\n  }\n": types.ClearHistoryDocument,
     "\n  mutation ClearMatch($matchId: ID!, $mediaType: MediaType) {\n    clearMatch(matchId: $matchId, mediaType: $mediaType)\n  }\n": types.ClearMatchDocument,
     "\n  subscription OnRoomEvent($roomId: ID!) {\n    onRoomEvent(roomId: $roomId) {\n      roomId\n      type\n      movieId\n      mediaType\n      matchId\n      round\n      actorId\n    }\n  }\n": types.OnRoomEventDocument,
@@ -241,6 +243,10 @@ export function graphql(source: "\n  mutation UnlinkPlex {\n    unlinkPlex {\n  
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  mutation RequestOnPlex($movieId: Int!, $mediaType: MediaType, $seasons: [Int!]) {\n    requestOnPlex(movieId: $movieId, mediaType: $mediaType, seasons: $seasons) {\n      ...PlexStatusFields\n    }\n  }\n"): typeof import('./graphql').RequestOnPlexDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation ResetSwipes($mediaType: MediaType) {\n    resetSwipes(mediaType: $mediaType) {\n      ...RoomFields\n    }\n  }\n"): typeof import('./graphql').ResetSwipesDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

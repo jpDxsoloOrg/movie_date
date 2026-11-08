@@ -20,6 +20,7 @@ import { updateProfile } from "./handlers/updateProfile.js";
 import { createAvatarUpload } from "./handlers/createAvatarUpload.js";
 import { filterPreview } from "./handlers/filterPreview.js";
 import { clearHistory } from "./handlers/clearHistory.js";
+import { resetSwipes } from "./handlers/resetSwipes.js";
 import { clearMatch } from "./handlers/clearMatch.js";
 import { plexStatus } from "./handlers/plexStatus.js";
 import { startPlexLink } from "./handlers/startPlexLink.js";
@@ -72,6 +73,7 @@ const handlers: HandlerTable = {
   requestOnPlex,
   clearMatch,
   clearHistory,
+  resetSwipes,
   publishRoomEvent,
   revokeRoomSubscriptions,
   onRoomEvent,

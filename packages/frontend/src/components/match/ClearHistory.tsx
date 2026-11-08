@@ -1,11 +1,18 @@
 import { useState } from "react";
+import { useRoom } from "../../hooks/useRoom";
 import { useToast } from "../../hooks/useToast";
 import { MODE_COPY } from "../../mode/modeCopy";
 import { api, errorMessage, type HistoryKind, type MediaType } from "../../services/api";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 
-const COPY: Record<HistoryKind, { title: string; button: string; body: string }> = {
+interface ClearCopy {
+  title: string;
+  button: string;
+  body: string;
+}
+
+const COPY: Record<HistoryKind, ClearCopy> = {
   MATCHES: {
     title: "Clear your match history?",
     button: "Clear match history",
@@ -18,23 +25,42 @@ const COPY: Record<HistoryKind, { title: string; button: string; body: string }>
   },
 };
 
+/** Alone in a room nobody else's round is at stake, so swipes can be taken back for real. */
+function resetCopy(mediaType: MediaType): ClearCopy {
+  const copy = MODE_COPY[mediaType];
+  return {
+    title: "Reset your swipes?",
+    button: "Reset your swipes",
+    body: `Every ${copy.noun.one} you swiped ${copy.likedLabel} or ${copy.passedLabel} goes back into your deck, and this list starts empty. Your matches stay.`,
+  };
+}
+
 export interface ClearHistoryProps {
   kind: HistoryKind;
   mediaType: MediaType;
+  /** The caller is the only one in the room, so clearing swipes resets them. */
+  solo?: boolean;
   onCleared: () => void;
 }
 
-export function ClearHistory({ kind, mediaType, onCleared }: ClearHistoryProps): JSX.Element {
+export function ClearHistory({ kind, mediaType, solo = false, onCleared }: ClearHistoryProps): JSX.Element {
   const toast = useToast();
+  const { setRoom } = useRoom();
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const copy = COPY[kind];
+  const resetting = solo && kind === "SWIPES";
+  const copy = resetting ? resetCopy(mediaType) : COPY[kind];
 
   async function clear(): Promise<void> {
     setClearing(true);
     try {
-      await api.clearHistory(kind, mediaType);
-      toast.success("History cleared");
+      if (resetting) {
+        setRoom(await api.resetSwipes(mediaType));
+        toast.success("Swipes reset");
+      } else {
+        await api.clearHistory(kind, mediaType);
+        toast.success("History cleared");
+      }
       onCleared();
     } catch (caught) {
       toast.error(errorMessage(caught));
@@ -60,7 +86,7 @@ export function ClearHistory({ kind, mediaType, onCleared }: ClearHistoryProps):
               Cancel
             </Button>
             <Button loading={clearing} onClick={() => void clear()}>
-              Clear
+              {resetting ? "Reset" : "Clear"}
             </Button>
           </>
         }
