@@ -101,15 +101,17 @@ function SwipeList({ mediaType, search, direction, onCleared, onLoaded }: SwipeL
         }
         renderItem={(entry) => <SwipeRow entry={entry} />}
       />
-      {/* Alone, an empty list can still hide swipes an earlier clear left in force, so the reset stays on offer. */}
-      {!filtered && ((count ?? 0) > 0 || (solo && count !== undefined)) && (
-        <ClearHistory kind="SWIPES" mediaType={mediaType} solo={solo} onCleared={onCleared} />
+      {/* Alone, the reset sits above the list instead, where nobody has to scroll for it. */}
+      {!solo && !filtered && (count ?? 0) > 0 && (
+        <ClearHistory kind="SWIPES" mediaType={mediaType} onCleared={onCleared} />
       )}
     </>
   );
 }
 
 export function SwipeHistory({ mediaType = "MOVIE" }: { mediaType?: MediaType }): JSX.Element {
+  const { room } = useRoom();
+  const solo = room.members.length === 1;
   const [search, setSearch] = useState("");
   const [direction, setDirection] = useState<DirectionFilter>("ALL");
   const [version, setVersion] = useState(0);
@@ -128,6 +130,16 @@ export function SwipeHistory({ mediaType = "MOVIE" }: { mediaType?: MediaType })
 
   return (
     <>
+      {/* Always on offer alone, even with an empty list: an earlier clear can hide swipes that still count. */}
+      {solo && (
+        <ClearHistory
+          kind="SWIPES"
+          mediaType={mediaType}
+          solo
+          placement="top"
+          onCleared={() => setVersion((current) => current + 1)}
+        />
+      )}
       <div ref={filters} className="history-filters" tabIndex={-1}>
         <HistorySearch value={search} onChange={setSearch} />
         <HistoryStatus count={settled || direction !== "ALL" ? loaded : null} />

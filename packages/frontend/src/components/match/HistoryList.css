@@ -303,3 +303,7 @@
 .history-clear {
   margin-top: var(--space-4);
 }
+
+.history-reset {
+  margin-bottom: var(--space-3);
+}
