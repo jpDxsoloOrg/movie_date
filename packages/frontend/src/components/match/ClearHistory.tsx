@@ -40,10 +40,18 @@ export interface ClearHistoryProps {
   mediaType: MediaType;
   /** The caller is the only one in the room, so clearing swipes resets them. */
   solo?: boolean;
+  /** "top" is a compact button above the list, for an action people shouldn't have to scroll to. */
+  placement?: "top" | "bottom";
   onCleared: () => void;
 }
 
-export function ClearHistory({ kind, mediaType, solo = false, onCleared }: ClearHistoryProps): JSX.Element {
+export function ClearHistory({
+  kind,
+  mediaType,
+  solo = false,
+  placement = "bottom",
+  onCleared,
+}: ClearHistoryProps): JSX.Element {
   const toast = useToast();
   const { setRoom } = useRoom();
   const [confirming, setConfirming] = useState(false);
@@ -71,9 +79,15 @@ export function ClearHistory({ kind, mediaType, solo = false, onCleared }: Clear
 
   return (
     <>
-      <Button className="history-clear" variant="ghost" block onClick={() => setConfirming(true)}>
-        {copy.button}
-      </Button>
+      {placement === "top" ? (
+        <Button className="history-reset" variant="secondary" onClick={() => setConfirming(true)}>
+          {copy.button}
+        </Button>
+      ) : (
+        <Button className="history-clear" variant="ghost" block onClick={() => setConfirming(true)}>
+          {copy.button}
+        </Button>
+      )}
       <Modal
         open={confirming}
         onClose={() => {

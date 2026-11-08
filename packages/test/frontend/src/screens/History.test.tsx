@@ -256,7 +256,11 @@ describe("Resetting swipes alone", () => {
     renderScreen("/history?tab=swipes&media=shows", false, undefined, { room: soloRoom(), setRoom });
     const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
     expect(within(panel).queryByRole("button", { name: "Clear swipe history" })).not.toBeInTheDocument();
-    await userEvent.click(await within(panel).findByRole("button", { name: "Reset your swipes" }));
+    const resetButton = await within(panel).findByRole("button", { name: "Reset your swipes" });
+    // Above the search and the list, so nobody has to scroll for it.
+    const search = within(panel).getByRole("searchbox", { name: "Search by title" });
+    expect(resetButton.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(resetButton);
     const dialog = screen.getByRole("dialog", { name: "Reset your swipes?" });
     expect(dialog).toHaveTextContent("goes back into your deck");
     expect(dialog).toHaveTextContent("Shows only");
@@ -267,6 +271,13 @@ describe("Resetting swipes alone", () => {
     expect(mocks.resetSwipes).toHaveBeenCalledWith("TV");
     expect(mocks.clearHistory).not.toHaveBeenCalled();
     expect(await within(panel).findByText("No swipes yet")).toBeInTheDocument();
+  });
+
+  it("stays on offer with a filter on, since it sits above the list rather than ending it", async () => {
+    renderScreen("/history?tab=swipes", false, undefined, { room: soloRoom() });
+    const panel = screen.getByRole("tabpanel", { name: "My Swipes" });
+    await userEvent.click(await within(panel).findByRole("radio", { name: "Liked" }));
+    expect(within(panel).getByRole("button", { name: "Reset your swipes" })).toBeInTheDocument();
   });
 
   it("stays on offer with an empty list, since an earlier clear can hide swipes that still count", async () => {
