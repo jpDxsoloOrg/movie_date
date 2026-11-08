@@ -174,6 +174,8 @@ export type Mutation = {
   publishRoomEvent: RoomEvent;
   /** Acts only as the caller's linked account. A duplicate comes back as REQUESTED. seasons is for shows, and null means all of them. */
   requestOnPlex: PlexStatus;
+  /** Only for someone alone in their room: starts the mode's deck over, so every title they swiped comes back, and empties their swipe list. */
+  resetSwipes: Room;
   /** Backend only. Closes a departed member's open onRoomEvent subscriptions to that room. */
   revokeRoomSubscriptions?: Maybe<Scalars['Boolean']['output']>;
   /** Back to Start for one mode. expectedRound makes a double press from two members a no-op. */
@@ -225,6 +227,11 @@ export type MutationRequestOnPlexArgs = {
   mediaType?: InputMaybe<MediaType>;
   movieId: Scalars['Int']['input'];
   seasons?: InputMaybe<Array<Scalars['Int']['input']>>;
+};
+
+
+export type MutationResetSwipesArgs = {
+  mediaType?: InputMaybe<MediaType>;
 };
 
 
@@ -738,6 +745,13 @@ export type RequestOnPlexMutationVariables = Exact<{
 
 
 export type RequestOnPlexMutation = { requestOnPlex: { availability: PlexAvailability, canRequest: boolean, missingSeasons?: Array<number> | null, seasonCount?: number | null } };
+
+export type ResetSwipesMutationVariables = Exact<{
+  mediaType?: InputMaybe<MediaType>;
+}>;
+
+
+export type ResetSwipesMutation = { resetSwipes: { id: string, code: string, matchThreshold: number, requireMajority: boolean, round: number, tvRound: number, plexAvailable: boolean, filters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, showStatus?: ShowStatusFilter | null, commitment?: CommitmentLevel | null, firstAirDateGte?: string | null, firstAirDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, tvFilters: { genreIds: Array<number>, services: Array<string>, releaseDateGte?: string | null, releaseDateLte?: string | null, showStatus?: ShowStatusFilter | null, commitment?: CommitmentLevel | null, firstAirDateGte?: string | null, firstAirDateLte?: string | null, cast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> }, members: Array<{ userId: string, displayName: string, avatarUrl?: string | null, isMe: boolean }> } };
 
 export type ClearHistoryMutationVariables = Exact<{
   kind: HistoryKind;
@@ -1700,6 +1714,55 @@ export const RequestOnPlexDocument = new TypedDocumentString(`
   missingSeasons
   seasonCount
 }`) as unknown as TypedDocumentString<RequestOnPlexMutation, RequestOnPlexMutationVariables>;
+export const ResetSwipesDocument = new TypedDocumentString(`
+    mutation ResetSwipes($mediaType: MediaType) {
+  resetSwipes(mediaType: $mediaType) {
+    ...RoomFields
+  }
+}
+    fragment PersonFields on Person {
+  id
+  name
+  profileUrl
+  knownForDepartment
+}
+fragment MemberFields on Member {
+  userId
+  displayName
+  avatarUrl
+  isMe
+}
+fragment FiltersFields on Filters {
+  genreIds
+  services
+  releaseDateGte
+  releaseDateLte
+  showStatus
+  commitment
+  firstAirDateGte
+  firstAirDateLte
+  cast {
+    ...PersonFields
+  }
+}
+fragment RoomFields on Room {
+  id
+  code
+  matchThreshold
+  requireMajority
+  round
+  tvRound
+  plexAvailable
+  filters {
+    ...FiltersFields
+  }
+  tvFilters {
+    ...FiltersFields
+  }
+  members {
+    ...MemberFields
+  }
+}`) as unknown as TypedDocumentString<ResetSwipesMutation, ResetSwipesMutationVariables>;
 export const ClearHistoryDocument = new TypedDocumentString(`
     mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {
   clearHistory(kind: $kind, mediaType: $mediaType)

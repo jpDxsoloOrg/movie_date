@@ -353,6 +353,8 @@ type Mutation {
   clearMatch(matchId: ID!, mediaType: MediaType = MOVIE): Boolean!
   "Hides one list from the caller's own history. Nobody else's history, the deck, swipes and matches are unaffected."
   clearHistory(kind: HistoryKind!, mediaType: MediaType = MOVIE): Boolean!
+  "Only for someone alone in their room: starts the mode's deck over, so every title they swiped comes back, and empties their swipe list."
+  resetSwipes(mediaType: MediaType = MOVIE): Room!
   updateProfile(displayName: String, avatarKey: String): Profile!
   createAvatarUpload(contentType: String!): AvatarUpload!
   "Emails a code to the caller's own profile address if it has a Plex Request account."

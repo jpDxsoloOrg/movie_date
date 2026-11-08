@@ -7,6 +7,7 @@ import { api, errorMessage, type MediaType, type Movie } from "../../services/ap
 import { MODE_COPY } from "../../mode/modeCopy";
 import { useMode } from "../../mode/ModeProvider";
 import { PlexStatusPanel } from "../match/PlexStatusPanel";
+import { WhereToWatch } from "../match/WhereToWatch";
 import { networkAndRating, runtimeAndRating, showSummary, type MediaItem } from "./movieFacts";
 import "./MovieDetailsSheet.css";
 
@@ -68,6 +69,7 @@ function MovieDetails({ item }: { item: MediaItem }): JSX.Element {
           {movie.releaseYear && !show && <p className="deck-details__year">{movie.releaseYear}</p>}
         </div>
       </div>
+      <WhereToWatch movieId={movie.id} movieTitle={movie.title} mediaType={mediaType} />
       <PlexStatusPanel movieId={movie.id} movieTitle={movie.title} mediaType={mediaType} />
       <p className="deck-details__overview">{movie.overview}</p>
     </div>

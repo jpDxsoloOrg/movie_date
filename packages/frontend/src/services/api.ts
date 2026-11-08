@@ -554,6 +554,14 @@ const RequestOnPlexMutation = graphql(`
   }
 `);
 
+const ResetSwipesMutation = graphql(`
+  mutation ResetSwipes($mediaType: MediaType) {
+    resetSwipes(mediaType: $mediaType) {
+      ...RoomFields
+    }
+  }
+`);
+
 const ClearHistoryMutation = graphql(`
   mutation ClearHistory($kind: HistoryKind!, $mediaType: MediaType) {
     clearHistory(kind: $kind, mediaType: $mediaType)
@@ -655,6 +663,8 @@ export const api = {
     (await execute(RequestOnPlexMutation, { movieId, mediaType, seasons })).requestOnPlex,
   clearHistory: async (kind: HistoryKind, mediaType: MediaType = "MOVIE") =>
     (await execute(ClearHistoryMutation, { kind, mediaType })).clearHistory,
+  resetSwipes: async (mediaType: MediaType = "MOVIE") =>
+    (await execute(ResetSwipesMutation, { mediaType })).resetSwipes,
   clearMatch: async (matchId: string, mediaType: MediaType = "MOVIE") =>
     (await execute(ClearMatchMutation, { matchId, mediaType })).clearMatch,
 

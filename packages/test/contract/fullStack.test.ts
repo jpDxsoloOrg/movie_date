@@ -425,6 +425,8 @@ describe("the client against the real backend", () => {
     expect((await api.matches()).matches).toEqual([match]);
     expect(await api.clearMatch("not-a-match")).toBe(false);
     expect(await api.clearHistory("SWIPES", "TV")).toBe(true);
+    // Bob is in the room too, so a reset would throw away his round.
+    await expect(api.resetSwipes("TV")).rejects.toThrow("only one in the room");
     expect(await api.undoSwipe(SPARSE_MOVIE_ID)).toEqual({
       movieId: SPARSE_MOVIE_ID,
       mediaType: "MOVIE",

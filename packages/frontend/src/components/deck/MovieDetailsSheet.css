@@ -60,3 +60,46 @@
 .deck-details__year {
   font-size: var(--font-size-sm);
 }
+
+/* WhereToWatch centres itself for the match screen; on a card's details it lines up with the text.
+   The desktop panel imports this file too, by way of TrailerPlayer. */
+.deck-panel .where-to-watch,
+.deck-details .where-to-watch {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.deck-panel .where-to-watch__title,
+.deck-details .where-to-watch__title {
+  font-size: var(--font-size-lg);
+}
+
+.deck-panel .where-to-watch__list,
+.deck-details .where-to-watch__list {
+  justify-content: flex-start;
+}
+
+.deck-panel .where-to-watch__tile,
+.deck-details .where-to-watch__tile {
+  align-items: flex-start;
+  width: auto;
+}
+
+.deck-panel .where-to-watch .md-state,
+.deck-details .where-to-watch .md-state {
+  align-items: flex-start;
+  min-height: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.deck-panel .where-to-watch .md-state__icon,
+.deck-details .where-to-watch .md-state__icon {
+  display: none;
+}
+
+.deck-panel .where-to-watch .md-state__title,
+.deck-details .where-to-watch .md-state__title {
+  font-size: var(--font-size-md);
+}

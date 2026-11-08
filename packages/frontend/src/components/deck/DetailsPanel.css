@@ -126,41 +126,6 @@
   line-height: 1.55;
 }
 
-/* WhereToWatch centres itself for the match screen; here it lines up with the text. */
-.deck-panel .where-to-watch {
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
-  text-align: left;
-}
-
-.deck-panel .where-to-watch__title {
-  font-size: var(--font-size-lg);
-}
-
-.deck-panel .where-to-watch__list {
-  justify-content: flex-start;
-}
-
-.deck-panel .where-to-watch__tile {
-  align-items: flex-start;
-  width: auto;
-}
-
-.deck-panel .where-to-watch .md-state {
-  align-items: flex-start;
-  min-height: 0;
-  padding: 0;
-  text-align: left;
-}
-
-.deck-panel .where-to-watch .md-state__icon {
-  display: none;
-}
-
-.deck-panel .where-to-watch .md-state__title {
-  font-size: var(--font-size-md);
-}
-
 .deck-panel__watch-placeholder {
   display: flex;
   flex-direction: column;

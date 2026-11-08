@@ -251,6 +251,7 @@ export interface FieldArguments {
   startNewRound: { expectedRound: number } & MediaTypeArgument;
   clearMatch: { matchId: string } & MediaTypeArgument;
   clearHistory: { kind: HistoryKind } & MediaTypeArgument;
+  resetSwipes: MediaTypeArgument;
   updateProfile: { displayName?: string | null; avatarKey?: string | null };
   createAvatarUpload: { contentType: string };
   startPlexLink: Record<string, never>;
