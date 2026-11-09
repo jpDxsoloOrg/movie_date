@@ -27,10 +27,10 @@ Screens use `--color-*`. Only the aliases read `--theme-*`, and nothing outside
 
 ## Going Steady
 
-Switching mode is one attribute: `document.documentElement.dataset.theme = "shows"`. The
-`shows` block is already in `themes.css`, using the colours in the plan, and nothing in
-the UI sets it yet. It has been checked in the browser on the login, Home and primitive
-pages. `[data-theme]` works on a subtree too, which suits the other-mode match banner.
+Switching mode is one attribute: `document.documentElement.dataset.theme = "shows"`.
+`ModeProvider` sets it from the current mode, and `public/mode-boot.js` sets it before the
+app loads so `/shows` doesn't flash the Movies colours. `[data-theme]` works on a subtree
+too, which is how the match banner shows a match from the other mode.
 
 For the TV build:
 
@@ -97,7 +97,7 @@ rather than editing across a line.
 | Filters | `src/screens/Filters.*`, `src/screens/ActorSearch.*`, `src/components/filters/**` |
 | Match and History | `src/screens/MatchFound.*`, `src/screens/History.*`, `src/components/match/**` |
 | Room and account | `src/screens/Members.*`, `src/screens/Profile.*`, `src/screens/Settings.*`, `src/screens/JoinInvite.*`, `src/components/room/**` |
-| Tutorial | `src/screens/Tutorial.*` |
+| Tutorial | `src/screens/Tutorial.*`, `src/screens/tutorial/**` (the steps in `steps.ts` and their screenshots) |
 | Auth forms | `src/screens/Login.tsx`, `src/screens/Register.tsx`, `src/screens/ForgotPassword.tsx`: logic only, the look is `Auth.css` |
 | API and generated code | `src/services/**`, `src/gql/**`, `src/context/RoomProvider.tsx` |
 

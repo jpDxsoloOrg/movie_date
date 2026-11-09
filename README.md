@@ -24,7 +24,8 @@ app.
 - **Plex:** link a Plex Request account to see what's in the library, filter to it, and
   request a missing movie. Requesting shows isn't available yet.
 - **Accounts:** sign up with an email, set a display name and avatar, and reset a forgotten
-  password. A first-run tutorial can be reopened from the menu.
+  password. A first-run tutorial walks through 12 real screenshots of the app, matched to the
+  mode and screen size. It can be skipped at any step and reopened from the menu.
 - **Layouts:** separate navigation and layouts for phone, tablet and desktop.
 
 ## How it's built

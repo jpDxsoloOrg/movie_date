@@ -44,8 +44,28 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,woff2}"],
         navigateFallback: "/index.html",
         cleanupOutdatedCaches: true,
-        // No runtimeCaching on purpose: the API is cross-origin POST and websocket
-        // traffic, so with no route for it the worker leaves it on the network.
+        // 44 tutorial screenshots would add megabytes to every install and update, and a
+        // device only ever shows one theme at one size. Ignored here even though webp isn't
+        // in globPatterns, so adding it there later can't pull them in.
+        globIgnores: ["**/tutorial-*.webp"],
+        // Only the tutorial's own images get a route. The API is cross-origin POST and
+        // websocket traffic, so with no route for it the worker leaves it on the network.
+        // The shots are hashed into /assets/, so CacheFirst never serves a stale one, and a
+        // step seen once works offline when the tutorial is reopened from the menu.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url, request, sameOrigin }) =>
+              sameOrigin &&
+              request.method === "GET" &&
+              request.destination === "image" &&
+              url.pathname.startsWith("/assets/tutorial-"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "tutorial-images",
+              expiration: { maxEntries: 60 },
+            },
+          },
+        ],
       },
     }),
   ],

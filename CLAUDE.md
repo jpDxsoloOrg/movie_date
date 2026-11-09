@@ -21,6 +21,7 @@ The site replaced a Flutter + Supabase mobile app.
 graphql/schema.graphql     API contract
 sst.config.ts              All infrastructure, including resolver wiring and the CSP
 scripts/e2e-live.mjs       End-to-end run against the live site
+scripts/capture-tutorial.mjs  Retakes the tutorial screenshots from the live site
 docs/                      Specs, decisions and screenshots
 packages/
   core/                    Types and rules shared by frontend and functions
@@ -60,6 +61,7 @@ AWS_PROFILE=<profile> npx sst deploy --stage production
   doesn't deploy. To typecheck `sst.config.ts` yourself, run `npx sst install --stage production`
   and then `npx tsc -p packages/test/infra/tsconfig.json`.
 - After changing the schema or an operation, run `npm run codegen -w @movie-date/frontend`.
+- After a UI change that a tutorial step shows, retake its screenshots with `scripts/capture-tutorial.mjs` (see `packages/frontend/README.md`).
 - For local UI work, run `npm run dev -w @movie-date/frontend`. It needs `VITE_GRAPHQL_URL`,
   `VITE_USER_POOL_ID` and `VITE_USER_POOL_CLIENT_ID` in `packages/frontend/.env.local`, and
   optionally `VITE_GRAPHQL_REALTIME_URL`. There is no local backend, so these point at a deployed stage.

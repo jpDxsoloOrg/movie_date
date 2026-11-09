@@ -181,6 +181,18 @@ The provider catalogue and other shared logic are in `@movie-date/core` (`PROVID
 finishes with `markTutorialSeen()` then `navigate(useReturnPath(), { replace: true })`, or an
 invite link visitor would lose their place. Reopened from the drawer, the return path is `/`.
 
+The tutorial is 12 steps of real screenshots, listed in `screens/tutorial/steps.ts`. Each
+step has an image per mode and size (`tutorial-<movies|shows>-<step>-<phone|desktop>.webp`).
+Tablets use the phone shot, and the mode step shows the other mode's deck. Skip works on
+every step. After a UI change that a step shows, retake them against the live site:
+
+```bash
+AWS_PROFILE=<profile> PLAYWRIGHT_MODULE=/path/to/node_modules/playwright node scripts/capture-tutorial.mjs
+```
+
+It writes `src/screens/tutorial/*.webp` and removes its throwaway accounts with
+`e2e-live.mjs --cleanup`. A shot must never show anyone's likes but the viewer's own.
+
 ## Primitives (`src/components`)
 
 ```tsx

@@ -1185,20 +1185,49 @@ async function main() {
       note("sign-up logged straight in and went to the tutorial");
     });
 
-    await step("tutorial walkthrough", { requires: ["register A"] }, async () => {
+    await step("tutorial walkthrough", { requires: ["register A"] }, async (note) => {
       const { page } = A;
-      for (let index = 1; index <= 6; index += 1) {
-        await page.getByRole("heading", { name: `Tutorial, step ${index} of 7` }).waitFor();
-        await page.getByRole("button", { name: "Next" }).click();
+      // Read the step count from the first heading, so adding or dropping a step
+      // doesn't break this run.
+      const first = page.getByRole("heading", { name: /^Tutorial, step 1 of \d+$/ });
+      await first.waitFor();
+      const total = Number(/of (\d+)$/.exec((await first.textContent()) ?? "")?.[1]);
+      assert(total >= 2, `tutorial step total looks wrong: ${total}`);
+      const dialog = page.getByRole("dialog");
+      for (let index = 1; index <= total; index += 1) {
+        await page.getByRole("heading", { name: `Tutorial, step ${index} of ${total}` }).waitFor();
+        // The screenshots are static files, so a missing or renamed one only shows
+        // up as a broken image here.
+        const image = dialog.locator("img").first();
+        if ((await image.count()) > 0) {
+          const handle = await image.elementHandle();
+          let loaded = true;
+          try {
+            await page.waitForFunction(
+              (element) => element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0,
+              handle,
+              { timeout: TIMEOUT_MS },
+            );
+          } catch {
+            loaded = false;
+          }
+          const source = await image.getAttribute("src");
+          assert(loaded, `tutorial step ${index} image didn't load: ${source}`);
+        }
+        // Skip must be there on every step, the last included.
+        const skips = await dialog.getByRole("button", { name: "Skip" }).count();
+        assert(skips > 0, `tutorial step ${index} has no Skip button`);
+        if (index < total) await page.getByRole("button", { name: "Next" }).click();
       }
-      await page.getByRole("heading", { name: "Tutorial, step 7 of 7" }).waitFor();
       await page.getByRole("button", { name: "Prev" }).click();
-      await page.getByRole("heading", { name: "Tutorial, step 6 of 7" }).waitFor();
+      await page.getByRole("heading", { name: `Tutorial, step ${total - 1} of ${total}` }).waitFor();
       await page.getByRole("button", { name: "Next" }).click();
+      await page.getByRole("heading", { name: `Tutorial, step ${total} of ${total}` }).waitFor();
       await page.getByRole("button", { name: "Finish" }).click();
       await onPath(A, "/");
       const seen = await page.evaluate(() => localStorage.getItem("hasSeenTutorial"));
       assert(seen === "true", `hasSeenTutorial is ${seen}`);
+      note(`walked ${total} steps, every image loaded and Skip on each`);
     });
 
     await step("real deck renders posters", { requires: ["tutorial walkthrough"] }, async (note) => {
