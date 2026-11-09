@@ -18,7 +18,7 @@ export const NAV_SEARCH: NavItem = { to: "/filters", label: "Search", icon: "sea
 export const NAV_HISTORY: NavItem = { to: "/history", label: "History", icon: "history" };
 export const NAV_MEMBERS: NavItem = { to: "/members", label: "Room Members", railLabel: "Members", icon: "movie" };
 export const NAV_PROFILE: NavItem = { to: "/profile", label: "Profile", icon: "person" };
-export const NAV_TUTORIAL: NavItem = { to: "/tutorial", label: "Tutorial", icon: "info" };
+export const NAV_TUTORIAL: NavItem = { to: "/", label: "Tutorial", icon: "info" }; // Redirects to /, where tour starts
 export const NAV_SETTINGS: NavItem = { to: "/settings", label: "Settings", icon: "settings" };
 
 /** Going Steady has its own entry, so from there this one is the way back to Movies. */

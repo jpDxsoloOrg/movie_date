@@ -60,6 +60,7 @@ export default function Members(): JSX.Element {
           }
         >
           <ul className="members__list">
+              <li key={member.userId} className="members__row member-row">
             {room.members.map((member) => (
               <li key={member.userId} className="members__row">
                 <Avatar url={member.avatarUrl} name={member.displayName} />

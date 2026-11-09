@@ -70,6 +70,8 @@ function ModeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.Element {
   }, [swipe, undo]);
 
   return (
+    <section className="deck room-deck" aria-label={copy.deckLabel}>
+  return (
     <section className="deck" aria-label={copy.deckLabel}>
       <div className="deck__stack">
         {status === "loading" && (

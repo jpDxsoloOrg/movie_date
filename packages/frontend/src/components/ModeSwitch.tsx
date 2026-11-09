@@ -31,8 +31,9 @@ export function ModeSwitch({ className }: { className?: string }): JSX.Element {
   };
 
   return (
-    <div ref={wrapper} className={className}>
+    <div ref={wrapper} className={className + " md-switch-modes"}>
       <SegmentedControl label="Movies or shows" options={OPTIONS} value={mode} onChange={change} onGradient />
     </div>
   );
 }
+

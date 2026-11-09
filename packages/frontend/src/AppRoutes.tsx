@@ -15,7 +15,6 @@ import Members from "./screens/Members";
 import Profile from "./screens/Profile";
 import Register from "./screens/Register";
 import Settings from "./screens/Settings";
-import Tutorial from "./screens/Tutorial";
 
 export function AppRoutes(): JSX.Element {
   return (
@@ -27,7 +26,6 @@ export function AppRoutes(): JSX.Element {
       </Route>
 
       <Route element={<RequireAuth />}>
-        <Route path="/tutorial" element={<Tutorial />} />
         <Route element={<TutorialGate />}>
           <Route element={<PageLayout gradient bottomNav fill />}>
             <Route

@@ -238,7 +238,7 @@ export function SwipeCard({
   };
 
   const classes = [
-    "deck-card",
+    "deck-card card",
     exitDirection ? "deck-card--exiting" : `deck-card--depth-${depth}`,
     dragging && "deck-card--dragging",
     !exitDirection && returningFrom === "LIKE" && "deck-card--return-like",

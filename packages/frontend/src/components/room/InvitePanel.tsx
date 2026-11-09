@@ -23,7 +23,7 @@ function InviteQr({ link }: { link: string }): JSX.Element {
       </div>
     );
   }
-  return <img className="room-invite__qr" src={data} alt={`QR code for ${link}`} />;
+  return <img className="room-invite__qr room-qr-code" src={data} alt={`QR code for ${link}`} />;
 }
 
 export interface InvitePanelProps {
@@ -67,6 +67,8 @@ export function InvitePanel({ code, qr = "auto" }: InvitePanelProps): JSX.Elemen
     }
   };
 
+  return (
+    <section className="room-invite room-invite-panel" aria-labelledby="room-invite-title">
   return (
     <section className="room-invite" aria-labelledby="room-invite-title">
       <Ticket

@@ -22,6 +22,8 @@ const TYPE_LABELS: Record<string, string> = {
 /** Plex has no deep link: it's a sign the room already owns the title, not a way out. */
 function PlexTile({ option }: { option: WatchOption }): JSX.Element {
   return (
+  return (
+    <div className="where-to-watch__tile where-to-watch__tile--plex watch-button-plex">
     <div className="where-to-watch__tile where-to-watch__tile--plex">
       <span className="where-to-watch__plate">
         <PlexMark className="where-to-watch__plex-mark" label={option.serviceName} />

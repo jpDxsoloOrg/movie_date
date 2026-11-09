@@ -84,6 +84,12 @@ function MatchList({ mediaType, search, onCleared, onOpen, onLoaded }: MatchList
   }, [count, onLoaded]);
 
   return (
+      <HistoryList
+        list={list}
+        label="Past matches"
+        layout="wall"
+        className="match-history-list"
+        itemKey={(match) => match.id}
     <>
       <HistoryList
         list={list}

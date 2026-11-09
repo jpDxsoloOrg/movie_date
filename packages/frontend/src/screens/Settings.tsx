@@ -51,6 +51,8 @@ export default function Settings(): JSX.Element {
         : `${threshold} of the ${memberCount} people in the room have to say yes.`;
 
   return (
+    <form className="settings room-settings md-page-wide" onSubmit={(event) => void save(event)}>\n
+  return (
     <form className="settings md-page-wide" onSubmit={(event) => void save(event)}>
       <RoomRefresh />
 

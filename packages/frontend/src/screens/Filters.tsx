@@ -184,6 +184,8 @@ function ModeFilters(): JSX.Element {
   );
 
   const fields = (
+    <form className="filters__form md-filters-form" onSubmit={onSubmit}>
+  const fields = (
     <form className="filters__form" onSubmit={onSubmit}>
       <GenrePicker
         genres={genres.data}

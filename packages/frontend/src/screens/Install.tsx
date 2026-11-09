@@ -81,6 +81,8 @@ export default function Install(): JSX.Element {
         store.
       </p>
 
+        <Card variant="raised">
+          <Button block className="md-install-app-button" onClick={() => void install()}>
       {canPrompt && (
         <Card variant="raised">
           <Button block onClick={() => void install()}>
