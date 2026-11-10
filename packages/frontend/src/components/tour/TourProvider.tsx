@@ -32,6 +32,7 @@ export function TourProvider({ children }: { children: React.ReactNode }): JSX.E
   const [stepIndex, setStepIndex] = useState<number>(0);
   const activeStep = useMemo(() => TUTORIAL_STEPS[stepIndex], [stepIndex]);
 
+  // Track tour step index externally for interactive steps
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem("tourStepIndex");
@@ -58,6 +59,7 @@ export function TourProvider({ children }: { children: React.ReactNode }): JSX.E
     if (hasSeenTutorial()) return false;
     try {
       sessionStorage.setItem("tourStepIndex", "0");
+      document.body.dataset.tourStep = "interactive";
     } catch {
       // Ignore.
     }
@@ -71,6 +73,7 @@ export function TourProvider({ children }: { children: React.ReactNode }): JSX.E
   const skipTour = useCallback(async () => {
     try {
       sessionStorage.removeItem("tourStepIndex");
+      document.body.dataset.tourStep = null;
     } catch {
       // Ignore.
     }
@@ -90,7 +93,9 @@ export function TourProvider({ children }: { children: React.ReactNode }): JSX.E
   const [isTourRunning, setIsTourRunning] = useState(() => startNewTour());
 
   if (activeStep && isTourRunning) {
-    return <TourOverlay anchorId={activeStep.anchor}>{children}</TourOverlay>;
+    // Enable interactive mode for deck and details steps to allow try-it actions
+    const isInteractive = activeStep.id === "deck" || activeStep.id === "details";
+    return <TourOverlay anchorId={activeStep.anchor} children={children} onNext={goToNext} interactive={isInteractive} />;
   }
 
   return <Outlet />;

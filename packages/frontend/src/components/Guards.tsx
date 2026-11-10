@@ -41,6 +41,11 @@ export function RequireAuth(): JSX.Element {
   );
 }
 
+/** Check if tour is currently active by reading from document body dataset. */
+export function useTourDisabled(): boolean {
+  return document.body.dataset?.tourStep === "interactive";
+}
+
 /** Login screens. Signing in lands here, which is what returns someone to where they were. */
 export function PublicOnly(): JSX.Element {
   const { status } = useAuth();
