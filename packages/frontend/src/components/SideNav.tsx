@@ -83,14 +83,14 @@ export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
 
   return (
     <>
-      <nav className={rail ? "md-side-nav md-side-nav--rail" : "md-side-nav"} aria-label="Main">
+      <nav className={rail ? "md-side-nav md-side-nav--rail" : "md-side-nav"} aria-label="Main" data-tour="nav-search-desktop">
         <Link to="/" className="md-side-nav__brand" aria-label={`${copy.appTitle} home`}>
           {rail ? <BrandMark /> : <Wordmark />}
         </Link>
         <div className="md-side-nav__scroll">
           <ul className="md-side-nav__list">
             {[navHome(mode), NAV_GOING_STEADY, navSearch(mode)].map(renderLink)}
-            <SideNavButton icon="door" label="Join Room" railLabel="Join" rail={rail} onClick={() => setJoinOpen(true)} />
+            <SideNavButton icon="door" label="Join Room" railLabel="Join" rail={rail} onClick={() => setJoinOpen(true)} /> data-tour="nav-join-desktop" data-tour="nav-join-desktop"
           </ul>
           <ul className="md-side-nav__list">{ROOM_LINKS.map(renderLink)}</ul>
           {!rail && (

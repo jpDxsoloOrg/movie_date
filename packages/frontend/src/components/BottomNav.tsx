@@ -12,7 +12,7 @@ export function BottomNav(): JSX.Element {
 
   return (
     <>
-      <nav className="md-bottom-nav" aria-label="Main">
+      <nav className="md-bottom-nav" aria-label="Main" data-tour="nav-search">
         <NavLink to={homePath(mode)} end className="md-bottom-nav__item">
           <Icon name="home" />
           Home

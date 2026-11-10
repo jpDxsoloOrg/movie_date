@@ -20,7 +20,7 @@ export function RoomTicket({
   onInvite: () => void;
 }): JSX.Element {
   return (
-    <button type="button" className="deck-ticket" aria-label={inviteLabel(code)} onClick={onInvite}>
+    <button type="button" className="deck-ticket" data-tour="room-code" aria-label={inviteLabel(code)} onClick={onInvite}>
       <span className="deck-ticket__paper">
         <span className="deck-ticket__main">
           <span className="deck-ticket__eyebrow">Room code</span>

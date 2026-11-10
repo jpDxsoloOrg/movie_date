@@ -50,7 +50,7 @@ function MovieDetails({ item }: { item: MediaItem }): JSX.Element {
     ? [showSummary(show), networkAndRating(show), movie.runtime ? `${movie.runtime} min an episode` : ""]
     : [runtimeAndRating(movie)];
   return (
-    <div className="deck-details">
+    <div className="deck-details" data-tour="details">
       <Trailer movie={movie} mediaType={mediaType} />
       <div className="deck-details__summary">
         {movie.posterUrl ? (

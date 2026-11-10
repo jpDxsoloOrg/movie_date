@@ -147,7 +147,7 @@ export function WhereToWatch({
   }
 
   return (
-    <section className={onGradient ? "where-to-watch where-to-watch--on-gradient" : "where-to-watch"}>
+    <section className={onGradient ? "where-to-watch where-to-watch--on-gradient" : "where-to-watch"} data-tour="where-to-watch">
       <h3 className="where-to-watch__title">Where to Watch</h3>
       {renderBody()}
     </section>

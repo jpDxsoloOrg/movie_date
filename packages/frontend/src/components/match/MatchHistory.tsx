@@ -130,7 +130,7 @@ export function MatchHistory({ mediaType = "MOVIE" }: { mediaType?: MediaType })
   }, [version]);
 
   return (
-    <>
+    <div className="match-history-list" data-tour="match-history-list">
       <div ref={filters} className="history-filters" tabIndex={-1}>
         <HistorySearch value={search} onChange={setSearch} />
         <HistoryStatus count={settled ? loaded : null} />

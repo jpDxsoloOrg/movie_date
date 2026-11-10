@@ -78,7 +78,7 @@ export default function History(): JSX.Element {
       <div className="history__media">
         <SegmentedControl label="Show history for" options={MEDIA_OPTIONS} value={mediaType} onChange={selectMedia} block />
       </div>
-      <div className="history__tabs" role="tablist" aria-label="History" onKeyDown={handleKeyDown}>
+      <div className="history__tabs" data-tour="history-tabs" role="tablist" aria-label="History" onKeyDown={handleKeyDown}>
         {TABS.map((tab) => (
           <button
             key={tab.id}

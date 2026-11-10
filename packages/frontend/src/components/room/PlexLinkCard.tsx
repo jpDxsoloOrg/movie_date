@@ -151,7 +151,7 @@ function LinkFlow(): JSX.Element {
 
   if (!enteringCode) {
     return (
-      <div ref={flow} className="room-plex__step">
+      <div ref={flow} className="room-plex__step" data-tour="plex-link">
         <p className="room-plex__copy">
           {room.plexAvailable
             ? "Someone in your room already linked theirs, so the Plex filter is on. Link yours to request what's missing too."

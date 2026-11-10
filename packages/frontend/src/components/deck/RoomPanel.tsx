@@ -36,7 +36,7 @@ function Members(): JSX.Element {
   return (
     <section className="deck-room__section" aria-label="Members">
       <SectionHeading title="In the room" to="/members" linkLabel="Manage" />
-      <ul className="deck-room__members">
+      <ul className="deck-room__members" data-tour="members-list">
         {room.members.map((member) => (
           <li key={member.userId} className="deck-room__member">
             <Avatar url={member.avatarUrl} />
@@ -84,7 +84,7 @@ function ActiveFilters(): JSX.Element {
   );
 }
 
-function LatestMatches(): JSX.Element {
+function LatestMatches({ dataTour }: { dataTour?: string }): JSX.Element {
   const { room } = useRoom();
   const { mode: mediaType } = useMode();
   const [selected, setSelected] = useState<Match | null>(null);
@@ -98,7 +98,7 @@ function LatestMatches(): JSX.Element {
   const matches = data?.matches;
 
   return (
-    <section className="deck-room__section" aria-label="Latest matches">
+    <section className="deck-room__section" aria-label="Latest matches" data-tour={dataTour}>
       <SectionHeading title="Latest matches" to="/history" linkLabel="See all" />
       {!matches && !error && (
         <div className="deck-room__matches" role="status" aria-label="Loading matches">
@@ -146,7 +146,7 @@ export function RoomPanel({ onInvite }: { onInvite: () => void }): JSX.Element {
       <RoomTicket code={room.code} admits={room.members.length} onInvite={onInvite} />
       <Members />
       <ActiveFilters />
-      <LatestMatches />
+      <LatestMatches data-tour="latest-matches" />
     </aside>
   );
 }

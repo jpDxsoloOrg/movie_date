@@ -76,7 +76,7 @@ export interface InviteSheetProps {
 
 export function InviteSheet({ open, onClose, code }: InviteSheetProps): JSX.Element {
   return (
-    <BottomSheet open={open} onClose={onClose} label="Invite to room">
+    <BottomSheet open={open} onClose={onClose} label="Invite to room" data-tour="invite-sheet">
       <InviteBody code={code} />
     </BottomSheet>
   );

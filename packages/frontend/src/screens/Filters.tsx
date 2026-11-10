@@ -237,7 +237,7 @@ function ModeFilters(): JSX.Element {
           actions={<ApplyBar {...applyControl} />}
         >
           <div className="filters__sheet-summary">{summary}</div>
-          <div ref={fieldsSlot} className="filters__fields-slot" />
+          <div ref={fieldsSlot} className="filters__fields-slot" data-tour="filter-fields" />
         </Sheet>
       ) : (
         <div className="filters md-page-wide">
@@ -245,7 +245,7 @@ function ModeFilters(): JSX.Element {
           <div className="filters__layout">
             <PageHeader title="Filters" subtitle="Everyone in the room swipes the same deck." />
             {breakpoint === "tablet" && <div className="filters__tablet-summary">{summary}</div>}
-            <div ref={fieldsSlot} className="filters__fields-slot" />
+            <div ref={fieldsSlot} className="filters__fields-slot" data-tour="filter-fields" />
             {breakpoint === "tablet" ? (
               <div className="filters__sticky-bar">
                 <ApplyBar {...applyControl} />

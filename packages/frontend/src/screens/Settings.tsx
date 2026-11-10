@@ -53,7 +53,7 @@ export default function Settings(): JSX.Element {
   return (
     <form className="settings room-settings md-page-wide" onSubmit={(event) => void save(event)}>\n
   return (
-    <form className="settings md-page-wide" onSubmit={(event) => void save(event)}>
+    <form className="settings md-page-wide" onSubmit={(event) => void save(event)} data-tour="match-rules">
       <RoomRefresh />
 
       <Card variant="raised" className="settings__preview">

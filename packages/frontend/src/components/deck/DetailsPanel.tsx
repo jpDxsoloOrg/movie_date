@@ -176,7 +176,7 @@ export interface DetailsPanelProps {
 export function DetailsPanel({ item }: DetailsPanelProps): JSX.Element {
   const { copy } = useMode();
   return (
-    <aside className="deck-panel" aria-label={item ? `About ${item.movie.title}` : "About this card"}>
+    <aside className="deck-panel" aria-label data-tour="details"={item ? `About ${item.movie.title}` : "About this card"} data-tour="details">
       {item === undefined && <PanelLoading />}
       {item === null && <p className="deck-panel__empty">{copy.emptyPanel}</p>}
       {item && <PanelContent key={`${item.mediaType}:${item.movie.id}`} item={item} />}
