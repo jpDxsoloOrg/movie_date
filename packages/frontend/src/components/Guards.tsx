@@ -1,14 +1,11 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { RoomProvider } from "../context/RoomProvider";
-import { InviteProvider } from "../context/InviteProvider";
-import { SheetProvider } from "../context/SheetProvider";
-import { DrawerProvider } from "../context/DrawerProvider";
 import { useAuth } from "../hooks/useAuth";
 import { currentPath, returnPathFrom, type ReturnState } from "../hooks/useReturnPath";
 import { ModeProvider } from "../mode/ModeProvider";
 import { hasSeenTutorial } from "../services/tutorial";
 import { SkeletonPage } from "./Skeleton";
-import { TourProvider } from "./tour/TourProvider";
+import { TourProvider, useTour } from "./tour/TourProvider";
 
 /** Everything behind login. Screens under it can rely on useRoom() having a room. */
 export function RequireAuth(): JSX.Element {
@@ -25,25 +22,14 @@ export function RequireAuth(): JSX.Element {
       {status === "loading" ? (
         <SkeletonPage />
       ) : (
-        <DrawerProvider>
-          <SheetProvider>
-            <InviteProvider>
-              <RoomProvider>
-                <TourProvider>
-                  <Outlet />
-                </TourProvider>
-              </RoomProvider>
-            </InviteProvider>
-          </SheetProvider>
-        </DrawerProvider>
+        <RoomProvider>
+          <TourProvider>
+            <Outlet />
+          </TourProvider>
+        </RoomProvider>
       )}
     </ModeProvider>
   );
-}
-
-/** Check if tour is currently active by reading from document body dataset. */
-export function useTourDisabled(): boolean {
-  return document.body.dataset?.tourStep === "interactive";
 }
 
 /** Login screens. Signing in lands here, which is what returns someone to where they were. */
@@ -56,12 +42,11 @@ export function PublicOnly(): JSX.Element {
   return <Outlet />;
 }
 
-/** TutorialGate: on first run, start the tour; otherwise pass through. */
+/** First run starts the live tour, which then walks through the screens behind this gate. */
 export function TutorialGate(): JSX.Element {
   const location = useLocation();
-  if (hasSeenTutorial()) return <Outlet />;
-  // Start the tour on first run instead of redirecting to /tutorial.
+  const { active } = useTour();
+  if (active || hasSeenTutorial()) return <Outlet />;
   const state: ReturnState = { from: currentPath(location) };
-  return <Navigate to="/" replace state={state} />;
+  return <Navigate to="/tour" replace state={state} />;
 }
-

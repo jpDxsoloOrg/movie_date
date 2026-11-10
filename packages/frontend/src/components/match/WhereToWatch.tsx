@@ -22,8 +22,6 @@ const TYPE_LABELS: Record<string, string> = {
 /** Plex has no deep link: it's a sign the room already owns the title, not a way out. */
 function PlexTile({ option }: { option: WatchOption }): JSX.Element {
   return (
-  return (
-    <div className="where-to-watch__tile where-to-watch__tile--plex watch-button-plex">
     <div className="where-to-watch__tile where-to-watch__tile--plex">
       <span className="where-to-watch__plate">
         <PlexMark className="where-to-watch__plex-mark" label={option.serviceName} />
@@ -147,7 +145,7 @@ export function WhereToWatch({
   }
 
   return (
-    <section className={onGradient ? "where-to-watch where-to-watch--on-gradient" : "where-to-watch"} data-tour="where-to-watch">
+    <section className={onGradient ? "where-to-watch where-to-watch--on-gradient" : "where-to-watch"}>
       <h3 className="where-to-watch__title">Where to Watch</h3>
       {renderBody()}
     </section>

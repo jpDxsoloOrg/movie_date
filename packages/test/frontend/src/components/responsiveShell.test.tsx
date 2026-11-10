@@ -62,7 +62,7 @@ describe("desktop shell", () => {
       ["Room Members", "/members"],
       ["Profile", "/profile"],
       ["Settings", "/settings"],
-      ["Tutorial", "/tutorial"],
+      ["Tutorial", "/tour"],
     ] as const) {
       expect(nav.getByRole("link", { name })).toHaveAttribute("href", href);
     }

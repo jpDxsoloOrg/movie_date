@@ -651,6 +651,13 @@ async function register(actor) {
   await page.getByRole("button", { name: "Register" }).click();
 }
 
+/** A new account starts the live tour on the deck; Skip leaves it there, or at an invite. */
+async function skipTour(actor) {
+  const tour = actor.page.getByRole("dialog", { name: /^Tour, step 1 of \d+$/ });
+  await tour.waitFor();
+  await tour.getByRole("button", { name: "Skip" }).click();
+}
+
 async function logIn(actor, password = actor.password) {
   const { page } = actor;
   await page.getByLabel("EMAIL", { exact: true }).fill(actor.email);
@@ -1181,23 +1188,32 @@ async function main() {
       await A.page.getByRole("link", { name: /Sign up/ }).click();
       await onPath(A, "/register");
       await register(A);
-      await onPath(A, "/tutorial");
-      note("sign-up logged straight in and went to the tutorial");
+      await A.page.getByRole("dialog", { name: /^Tour, step 1 of \d+$/ }).waitFor();
+      await onPath(A, "/");
+      note("sign-up logged straight in and started the tour on the deck");
     });
 
     await step("tutorial walkthrough", { requires: ["register A"] }, async (note) => {
       const { page } = A;
       // Read the step count from the first heading, so adding or dropping a step
       // doesn't break this run.
-      const first = page.getByRole("heading", { name: /^Tutorial, step 1 of \d+$/ });
+      const first = page.getByRole("heading", { name: /^Tour, step 1 of \d+$/ });
       await first.waitFor();
       const total = Number(/of (\d+)$/.exec((await first.textContent()) ?? "")?.[1]);
-      assert(total >= 2, `tutorial step total looks wrong: ${total}`);
-      const dialog = page.getByRole("dialog");
+      assert(total >= 2, `tour step total looks wrong: ${total}`);
+      const dialog = page.getByRole("dialog", { name: /^Tour, step/ });
+      const visited = [];
       for (let index = 1; index <= total; index += 1) {
-        await page.getByRole("heading", { name: `Tutorial, step ${index} of ${total}` }).waitFor();
-        // The screenshots are static files, so a missing or renamed one only shows
-        // up as a broken image here.
+        await page.getByRole("heading", { name: `Tour, step ${index} of ${total}` }).waitFor();
+        // Every step's element is on a new user's screen, so the ring must find it: a
+        // renamed or dropped data-tour anchor shows up here as a missing ring.
+        try {
+          await page.locator(".tour__ring").waitFor({ timeout: 8_000 });
+        } catch {
+          throw new Error(`tour step ${index} (${new URL(page.url()).pathname}) never found its element`);
+        }
+        visited.push(new URL(page.url()).pathname);
+        // Insets are static files, so a missing or renamed one only shows up as a broken image.
         const image = dialog.locator("img").first();
         if ((await image.count()) > 0) {
           const handle = await image.elementHandle();
@@ -1211,23 +1227,25 @@ async function main() {
           } catch {
             loaded = false;
           }
-          const source = await image.getAttribute("src");
-          assert(loaded, `tutorial step ${index} image didn't load: ${source}`);
+          assert(loaded, `tour step ${index} picture didn't load: ${await image.getAttribute("src")}`);
         }
-        // Skip must be there on every step, the last included.
-        const skips = await dialog.getByRole("button", { name: "Skip" }).count();
-        assert(skips > 0, `tutorial step ${index} has no Skip button`);
-        if (index < total) await page.getByRole("button", { name: "Next" }).click();
+        assert((await dialog.getByRole("button", { name: "Skip" }).count()) > 0, `tour step ${index} has no Skip button`);
+        if (index < total) await dialog.getByRole("button", { name: "Next" }).click();
       }
-      await page.getByRole("button", { name: "Prev" }).click();
-      await page.getByRole("heading", { name: `Tutorial, step ${total - 1} of ${total}` }).waitFor();
-      await page.getByRole("button", { name: "Next" }).click();
-      await page.getByRole("heading", { name: `Tutorial, step ${total} of ${total}` }).waitFor();
-      await page.getByRole("button", { name: "Finish" }).click();
+      await dialog.getByRole("button", { name: "Prev" }).click();
+      await page.getByRole("heading", { name: `Tour, step ${total - 1} of ${total}` }).waitFor();
+      await dialog.getByRole("button", { name: "Next" }).click();
+      await page.getByRole("heading", { name: `Tour, step ${total} of ${total}` }).waitFor();
+      await dialog.getByRole("button", { name: "Finish" }).click();
       await onPath(A, "/");
       const seen = await page.evaluate(() => localStorage.getItem("hasSeenTutorial"));
       assert(seen === "true", `hasSeenTutorial is ${seen}`);
-      note(`walked ${total} steps, every image loaded and Skip on each`);
+      // The screenshot tutorial is the offline stand-in, so it has to keep opening.
+      await page.goto(`${BASE_URL}/tutorial`);
+      await page.getByRole("heading", { name: /^Tutorial, step 1 of \d+$/ }).waitFor();
+      await page.getByRole("button", { name: "Skip" }).click();
+      await onPath(A, "/");
+      note(`walked ${total} steps through ${[...new Set(visited)].join(", ")}, each ringed its element`);
     });
 
     await step("real deck renders posters", { requires: ["tutorial walkthrough"] }, async (note) => {
@@ -1256,8 +1274,7 @@ async function main() {
     await step("register B and skip tutorial", async () => {
       await B.page.goto(`${BASE_URL}/register`);
       await register(B);
-      await onPath(B, "/tutorial");
-      await B.page.getByRole("button", { name: "Skip" }).click();
+      await skipTour(B);
       await onPath(B, "/");
       await assertPosterLoaded(B);
       assert((await roomCode(B)) !== code, "B was given A's room");
@@ -1773,8 +1790,7 @@ async function main() {
       await C.page.getByRole("link", { name: /Sign up/ }).click();
       await onPath(C, "/register");
       await register(C);
-      await onPath(C, "/tutorial");
-      await C.page.getByRole("button", { name: "Skip" }).click();
+      await skipTour(C);
       await onPath(C, `/join/${code}`);
       await C.page.getByRole("button", { name: "Join Room" }).first().click();
       await onPath(C, "/");
@@ -1917,8 +1933,7 @@ async function main() {
       for (const actor of [G, H]) {
         await actor.page.goto(`${BASE_URL}/register`);
         await register(actor);
-        await onPath(actor, "/tutorial");
-        await actor.page.getByRole("button", { name: "Skip" }).click();
+        await skipTour(actor);
         await onPath(actor, "/");
         await topCard(actor).waitFor();
       }
@@ -2473,8 +2488,7 @@ async function main() {
       for (const actor of [P, Q]) {
         await actor.page.goto(`${BASE_URL}/register`);
         await register(actor);
-        await onPath(actor, "/tutorial");
-        await actor.page.getByRole("button", { name: "Skip" }).click();
+        await skipTour(actor);
         await onPath(actor, "/");
         await topCard(actor).waitFor();
       }

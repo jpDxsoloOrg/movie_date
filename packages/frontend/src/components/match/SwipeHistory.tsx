@@ -140,7 +140,7 @@ export function SwipeHistory({ mediaType = "MOVIE" }: { mediaType?: MediaType })
           onCleared={() => setVersion((current) => current + 1)}
         />
       )}
-      <div ref={filters} className="history-filters" data-tour="history-reset" tabIndex={-1}>
+      <div ref={filters} className="history-filters" tabIndex={-1}>
         <HistorySearch value={search} onChange={setSearch} />
         <HistoryStatus count={settled || direction !== "ALL" ? loaded : null} />
         <SegmentedControl label="Show swipes" options={directions} value={direction} onChange={setDirection} block />

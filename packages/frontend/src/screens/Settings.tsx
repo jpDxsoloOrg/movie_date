@@ -51,9 +51,7 @@ export default function Settings(): JSX.Element {
         : `${threshold} of the ${memberCount} people in the room have to say yes.`;
 
   return (
-    <form className="settings room-settings md-page-wide" onSubmit={(event) => void save(event)}>\n
-  return (
-    <form className="settings md-page-wide" onSubmit={(event) => void save(event)} data-tour="match-rules">
+    <form className="settings md-page-wide" onSubmit={(event) => void save(event)}>
       <RoomRefresh />
 
       <Card variant="raised" className="settings__preview">
@@ -62,7 +60,7 @@ export default function Settings(): JSX.Element {
         <p className="settings__verdict">{verdict}</p>
       </Card>
 
-      <Card className="settings__controls">
+      <Card className="settings__controls" data-tour="match-rules">
         <div className="settings__group">
           <div className="settings__slider-heading">
             <label className="settings__heading" htmlFor="settings-threshold">

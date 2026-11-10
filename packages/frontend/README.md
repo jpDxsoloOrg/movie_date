@@ -177,11 +177,19 @@ The provider catalogue and other shared logic are in `@movie-date/core` (`PROVID
 - `useBreakpoint()` returns `"mobile" | "tablet" | "desktop"`, live and right on first render.
 - `useLogOut()` returns the async log out used by the drawer and sidebar.
 
-`services/tutorial.ts` has `hasSeenTutorial()` and `markTutorialSeen()`. The Tutorial screen
-finishes with `markTutorialSeen()` then `navigate(useReturnPath(), { replace: true })`, or an
-invite link visitor would lose their place. Reopened from the drawer, the return path is `/`.
+`services/tutorial.ts` has `hasSeenTutorial()` and `markTutorialSeen()`.
 
-The tutorial is 12 steps of real screenshots, listed in `screens/tutorial/steps.ts`. Each
+First run, and the menu's Tutorial (`/tour`), start the live tour (`components/tour/`). It
+moves through the real screens and rings one element per step, found by its
+`data-tour="<anchor>"` attribute; the steps are in `components/tour/tourSteps.ts`. Keep the
+anchor when you change a component it's on: a test checks each anchor still exists in the
+source, and the live e2e run checks every step finds its element. A step whose element
+doesn't appear within 4s shows its screenshot instead. While the tour runs the app is inert,
+so it can't swipe or change anything. Finish and Skip call `markTutorialSeen()` and return to
+where the tour began, so an invite link visitor keeps their place.
+
+The screenshot tutorial at `/tutorial` is the offline stand-in, and the tour's pictures for
+screens a new user has nothing on yet. It is 12 steps of real screenshots, listed in `screens/tutorial/steps.ts`. Each
 step has an image per mode and size (`tutorial-<movies|shows>-<step>-<phone|desktop>.webp`).
 Tablets use the phone shot, and the mode step shows the other mode's deck. Skip works on
 every step. After a UI change that a step shows, retake them against the live site:

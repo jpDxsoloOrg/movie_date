@@ -83,7 +83,7 @@ export function Drawer({ open, onClose }: DrawerProps): JSX.Element | null {
             {SECONDARY_LINKS.map(renderLink)}
             {!installApp.installed && (
               <li>
-                <button type="button" className="md-drawer__item" data-tour="nav-install" onClick={() => void closeAndInstall()}>
+                <button type="button" className="md-drawer__item" onClick={() => void closeAndInstall()}>
                   <Icon name="install" />
                   Install App
                 </button>

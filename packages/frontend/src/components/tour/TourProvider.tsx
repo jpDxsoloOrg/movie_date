@@ -1,106 +1,119 @@
-/** Tour Provider component that manages the tour lifecycle. */
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { useLocation, Navigate, Outlet, useNavigate } from "react-router-dom";
-import { hasSeenTutorial } from "../../services/tutorial";
-import { useReturnPath } from "../../hooks/useReturnPath";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useInstallApp } from "../../install/useInstallApp";
+import { useMode } from "../../mode/ModeProvider";
+import { markTutorialSeen } from "../../services/tutorial";
 import { TourOverlay } from "./TourOverlay";
-import type { TutorialStep } from "./types";
+import { stepsFor, tourText, tourTitle } from "./tourSteps";
 
-export interface TourConfig extends Omit<TutorialStep, "route"> {
-  route: string;
+/** Survives a reload mid-tour, and goes with the tab. */
+export const TOUR_STORAGE_KEY = "movieDateTour";
+
+interface TourProgress {
+  index: number;
+  /** Where Finish and Skip return to, such as an invite link someone arrived on. */
+  returnTo: string;
 }
 
-export const TUTORIAL_STEPS: readonly TourConfig[] = [
-  { id: "deck", route: "/", anchor: ".room-deck", caption: { text: ({ noun }) => `Tap a ${noun.one} to see its details, trailer, and where to watch.`, alt: ({ noun }, device) => device === "desktop" ? `The Movies deck with a poster on top` : `The Movie Date app showing a movie poster in the deck`, } },
-  { id: "details", route: "/shows/filters/actors", anchor: ".card", caption: { text: () => "Tap a poster to see the trailer, full story, and where to watch.", alt: ({ noun }, device) => device === "desktop" ? `Clicking a ${noun.one}'s poster opens its details` : `A ${noun.one}'s details opening over the deck`, } },
-  { id: "filters", route: "/shows/filters/actors", anchor: ".md-filters-form", caption: { text: ({ tutorial }) => `Tap Search to narrow the deck by ${tutorial.searchFields}. Everyone in the room swipes the same deck.`, alt: () => "The Search page, with genres and actors to filter by.", } },
-  { id: "match", route: "/", anchor: ".latest-matches[data-tour]", caption: { text: () => "You'll see your latest match here with a preview of the title, when it happened, and where to watch. Tap to reopen its details later.", alt: () => "The Latest matches section showing recent matches on Home.", } },
-  { id: "invite", route: "/members", anchor: ".room-invite-panel", caption: { text: () => `Invite someone to your room. They can join with this code or QR code.`, alt: () => "Room Members page showing who's in the room and invite options.", } },
-  { id: "join", route: "/join/:code", anchor: ".room-qr-code", caption: { text: () => "Got an invite code? Type it in to join this room.", alt: () => "Join Room dialog asking for a room code.", } },
-  { id: "members", route: "/members", anchor: ".deck-room__member[data-tour]", caption: { text: () => "See who's in the room. The list will grow as people join, and you'll see how many yeses make a match.", alt: () => "The Members section listing people in your room.", } },
-  { id: "settings", route: "/settings", anchor: ".room-settings", caption: { text: () => "In Settings, choose how many yeses make a match, or require a majority of the room. The slider is disabled if there are two or fewer people.", alt: () => "Settings with number of yeses for match and majority switch.", } },
-  { id: "history", route: "/history", anchor: ".match-history-list[data-tour]", caption: { text: ({ noun }) => `Your matches will show up here. Reset your swipes puts every ${noun.one} back in your deck, or clear swipe history to wipe what you've seen so far.`, alt: () => "The History page showing matches and swipes.", } },
-  { id: "mode", route: "/shows", anchor: ".md-switch-modes", caption: { text: ({ noun }) => "Switch between Movies and Going Steady. Each has its own deck, filters, matches, in its own colours.", alt: () => `The ${noun.one} switch at the top of the app`, } },
-  { id: "plex", route: "/shows/filters/actors", anchor: ".watch-button-plex", caption: { text: () => "Link your Plex on Profile to see what's already on Plex and filter by it.", alt: () => "Details page showing whether a title is on Plex.", } },
-  { id: "install", route: "/install", anchor: ".md-install-app-button", caption: { text: () => "Install App keeps Movie Date on your home screen. It opens like any other app, or in a separate window on desktop.", alt: () => "Install App button near the bottom of the menu/sidebar.", } },
-];
-
-export function TourProvider({ children }: { children: React.ReactNode }): JSX.Element {
-  const location = useLocation();
-  const returnPath = useReturnPath();
-  const navigate = useNavigate();
-  const [stepIndex, setStepIndex] = useState<number>(0);
-  const activeStep = useMemo(() => TUTORIAL_STEPS[stepIndex], [stepIndex]);
-
-  // Track tour step index externally for interactive steps
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem("tourStepIndex");
-      if (stored) {
-        const index = parseInt(stored, 10);
-        if (!isNaN(index) && index < TUTORIAL_STEPS.length) {
-          setStepIndex(index);
-        }
-      }
-    } catch {
-      // Ignore storage errors.
+function readProgress(): TourProgress | null {
+  try {
+    const raw = sessionStorage.getItem(TOUR_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "index" in parsed &&
+      "returnTo" in parsed &&
+      typeof parsed.index === "number" &&
+      typeof parsed.returnTo === "string" &&
+      parsed.returnTo.startsWith("/")
+    ) {
+      return { index: parsed.index, returnTo: parsed.returnTo };
     }
-  }, []);
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem("tourStepIndex", String(stepIndex));
-    } catch {
-      // Ignore.
-    }
-  }, [stepIndex]);
-
-  const startNewTour = useCallback(() => {
-    if (hasSeenTutorial()) return false;
-    try {
-      sessionStorage.setItem("tourStepIndex", "0");
-      document.body.dataset.tourStep = "interactive";
-    } catch {
-      // Ignore.
-    }
-    return true;
-  }, []);
-
-  const goToNext = useCallback(() => {
-    setStepIndex((prev) => Math.min(prev + 1, TUTORIAL_STEPS.length - 1));
-  }, []);
-
-  const skipTour = useCallback(async () => {
-    try {
-      sessionStorage.removeItem("tourStepIndex");
-      document.body.dataset.tourStep = null;
-    } catch {
-      // Ignore.
-    }
-    await markTutorialSeen();
-    navigate(returnPath, { replace: true });
-  }, [returnPath]);
-
-  async function markTutorialSeen(): Promise<void> {
-    try {
-      sessionStorage.setItem("hasSeenTutorial", "true");
-      localStorage.setItem("hasSeenTutorial", "true");
-    } catch {
-      // Ignore.
-    }
+  } catch {
+    // Unreadable or blocked storage: the tour just starts fresh.
   }
-
-  const [isTourRunning, setIsTourRunning] = useState(() => startNewTour());
-
-  if (activeStep && isTourRunning) {
-    // Enable interactive mode for deck and details steps to allow try-it actions
-    const isInteractive = activeStep.id === "deck" || activeStep.id === "details";
-    return <TourOverlay anchorId={activeStep.anchor} children={children} onNext={goToNext} interactive={isInteractive} />;
-  }
-
-  return <Outlet />;
-}
-
-export function TourOverlay({ children }: { children?: React.ReactNode }): JSX.Element {
   return null;
+}
+
+function writeProgress(progress: TourProgress | null): void {
+  try {
+    if (progress) sessionStorage.setItem(TOUR_STORAGE_KEY, JSON.stringify(progress));
+    else sessionStorage.removeItem(TOUR_STORAGE_KEY);
+  } catch {
+    // Without storage a reload ends the tour, which is all that's lost.
+  }
+}
+
+export interface TourContextValue {
+  active: boolean;
+  start: (returnTo: string) => void;
+}
+
+const TourContext = createContext<TourContextValue | null>(null);
+
+export function useTour(): TourContextValue {
+  const value = useContext(TourContext);
+  if (!value) throw new Error("useTour must be used inside TourProvider");
+  return value;
+}
+
+/**
+ * Runs the live tour over the signed-in app: each step opens its real screen, and the
+ * overlay points at the part it's about. Inside RoomProvider, so screens have their room.
+ */
+export function TourProvider({ children }: { children: ReactNode }): JSX.Element {
+  const [progress, setProgress] = useState<TourProgress | null>(readProgress);
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { mode, copy } = useMode();
+  const breakpoint = useBreakpoint();
+  const { installed } = useInstallApp();
+  const steps = useMemo(() => stepsFor({ installed }), [installed]);
+
+  const update = useCallback((next: TourProgress | null) => {
+    writeProgress(next);
+    setProgress(next);
+  }, []);
+
+  const start = useCallback((returnTo: string) => update({ index: 0, returnTo }), [update]);
+
+  const index = progress ? Math.min(progress.index, steps.length - 1) : 0;
+  const step = progress ? steps[index] : undefined;
+  const route = step?.route(mode);
+
+  // The tour drives the route, so Back in the browser lands on the step's screen again.
+  useEffect(() => {
+    if (route && pathname !== route) navigate(route);
+  }, [route, pathname, navigate]);
+
+  const finish = useCallback(() => {
+    if (!progress) return;
+    markTutorialSeen();
+    update(null);
+    navigate(progress.returnTo, { replace: true });
+  }, [progress, update, navigate]);
+
+  const value = useMemo(() => ({ active: progress !== null, start }), [progress, start]);
+
+  return (
+    <TourContext.Provider value={value}>
+      {children}
+      {progress && step && route === pathname && (
+        <TourOverlay
+          key={step.id}
+          step={step}
+          stepNumber={index + 1}
+          total={steps.length}
+          title={tourTitle(step, copy)}
+          text={tourText(step, copy, breakpoint)}
+          onPrev={index > 0 ? () => update({ ...progress, index: index - 1 }) : undefined}
+          onNext={index < steps.length - 1 ? () => update({ ...progress, index: index + 1 }) : finish}
+          onSkip={finish}
+        />
+      )}
+    </TourContext.Provider>
+  );
 }

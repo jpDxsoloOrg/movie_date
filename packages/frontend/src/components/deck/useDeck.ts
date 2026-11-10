@@ -28,83 +28,55 @@ export interface ExitingEntry {
   direction: SwipeDirection;
 }
 
-  const movieIdOf = (entry: DeckEntry): number => entry.card.movie.id;
+export interface Deck {
+  status: DeckStatus;
+  error: unknown;
+  retry: () => void;
+  /** Search on after `paused`. */
+  keepWalking: () => void;
+  entries: DeckEntry[];
+  /** Cards already swiped and still flying off. */
+  exiting: ExitingEntry[];
+  swipe: (direction: SwipeDirection) => void;
+  undo: () => void;
+  canUndo: boolean;
+  finishExit: (movieId: number) => void;
+}
 
-  function pause(milliseconds: number): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(resolve, milliseconds);
-    });
-  }
+const movieIdOf = (entry: DeckEntry): number => entry.card.movie.id;
 
-  /** Repeating a swipe is a no-op on the server, so a blip is safe to retry before giving up on it. */
-  async function deliverSwipe(
-    movieId: number,
-    direction: SwipeDirection,
-    mediaType: MediaType,
-  ): ReturnType<typeof api.swipe> {
-    for (const delay of SWIPE_RETRY_DELAYS_MS) {
-      try {
-        return await api.swipe(movieId, direction, mediaType);
-      } catch (error) {
-        if (!(error instanceof ApiError && error.isTransient)) throw error;
-        await pause(delay);
-      }
+function pause(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+/** Repeating a swipe is a no-op on the server, so a blip is safe to retry before giving up on it. */
+async function deliverSwipe(
+  movieId: number,
+  direction: SwipeDirection,
+  mediaType: MediaType,
+): ReturnType<typeof api.swipe> {
+  for (const delay of SWIPE_RETRY_DELAYS_MS) {
+    try {
+      return await api.swipe(movieId, direction, mediaType);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.isTransient)) throw error;
+      await pause(delay);
     }
-    return api.swipe(movieId, direction, mediaType);
   }
+  return api.swipe(movieId, direction, mediaType);
+}
 
-  /** Mount under a `key` of `deckVersion`: a reset is then just a fresh instance. */
-  export function useDeck(): Deck {
+/** Mount under a `key` of `deckVersion`: a reset is then just a fresh instance. */
+export function useDeck(): Deck {
   const { me, room, goToMatch } = useRoom();
   const toast = useToast();
   const { mode: mediaType, copy } = useMode();
   const round = mediaType === "TV" ? room.tvRound : room.round;
   const [session] = useState(() => swipeSessionFor(`${me.id}:${room.id}:${round}`, mediaType));
 
-  // Read tour interactive mode from document body dataset (set by TourProvider)
-  const isInteractive = document.body.dataset?.tourStep === "interactive";
-
-  /** Track the last movie swiped during an interactive step for undo tracking. */
-  const [lastSwipedId, setLastSwipedId] = useState<number | null>(null);
-
   const firstPage = useAsyncData(() => api.deck(1, mediaType), []);
-  const [entries, setEntries] = useState<DeckEntry[]>([]);
-  const [exiting, setExiting] = useState<ExitingEntry[]>([]);
-
-  /** When leaving interactive mode, auto-undo the last swipe if it wasn't a match. */
-  useEffect(() => {
-    if (!isInteractive) return;
-
-    // Don't undo if there's no matching record in session
-    const record = session.records.find((r) => movieIdOf(r.entry) === lastSwipedId);
-    if (record && !record.match) {
-      runInOrder(session, record.entry.card.movie.id, async () => {
-        try {
-          await api.undoSwipe(record.entry.card.movie.id, mediaType);
-          putBack(record.entry, record.direction);
-        } catch (error) {
-          // Already swiped or network error - ignore
-        } finally {
-          setLastSwipedId(null);
-        }
-      });
-    } else if (!record && lastSwipedId) {
-      // Record was removed, reset tracking
-      setLastSwipedId(null);
-    }
-  }, [isInteractive]);
-
-  /** When a swipe lands during interactive mode, track it. */
-  useEffect(() => {
-    if (!isInteractive || exiting.length === 0) return;
-
-    const top = queue.current[0];
-    if (top) {
-      setLastSwipedId(movieIdOf(top));
-    } else {
-      setLastSwipedId(null);
-    }
-  }, [isInteractive, exiting, queue.current]);st firstPage = useAsyncData(() => api.deck(1, mediaType), []);
   const [entries, setEntries] = useState<DeckEntry[]>([]);
   const [exiting, setExiting] = useState<ExitingEntry[]>([]);
   /** undefined until the first page is dealt; null when TMDB has no more. */
@@ -112,39 +84,6 @@ export interface ExitingEntry {
   const [pageError, setPageError] = useState<unknown>(null);
   const [emptyWalks, setEmptyWalks] = useState(0);
   const [undoDepth, setUndoDepth] = useState(session.records.length);
-
-  /** When leaving an interactive step, undo the last non-match swipe. */
-  useEffect(() => {
-    if (!isTourStep) return;
-
-    async function performAutoUndo() {
-      // Don't undo if there's no last swipe recorded
-      if (!lastSwipedMovieId || !session.records.some((r) => movieIdOf(r.entry) === lastSwipedMovieId)) {
-        return;
-      }
-
-      const record = session.records.find((r) => movieIdOf(r.entry) === lastSwipedMovieId);
-      if (record && !record.match) {
-        await api.undoSwipe(lastSwipedMovieId, mediaType);
-        putBack(record.entry, record.direction);
-        setLastSwipedMovieId(null);
-      }
-    }
-
-    performAutoUndo();
-  }, [isTourStep, lastSwipedMovieId]);
-
-  /** When a swipe lands during a tour step, track it for potential undo. */
-  useEffect(() => {
-    if (!isTourStep) return;
-
-    const top = queue.current[0];
-    if (top && exiting.length > 0) {
-      setLastSwipedMovieId(movieIdOf(top));
-    } else {
-      setLastSwipedMovieId(null);
-    }
-  }, [isTourStep, exiting, queue.current]);
 
   // Two swipes can land before React re-renders, and each must take a different
   // card, so the source of truth can't be the state from the last render.
@@ -307,7 +246,7 @@ export interface ExitingEntry {
 
   const firstPageError = nextPage === undefined ? firstPage.error : null;
   const error = firstPageError || pageError;
-  const status: DeckStatus = "loading";
+  let status: DeckStatus = "loading";
   if (entries.length > 0) status = "ready";
   else if (error) status = "error";
   else if (nextPage === null) status = "end";

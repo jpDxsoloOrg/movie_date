@@ -1,50 +1,227 @@
-/* Tour Overlay Ring - highlighted hole around anchor element */
-.tour-overlay__ring {
-  position: absolute;
+/* The tour sits above every sheet and dialog in the app, but under toasts. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-toast) - 1);
   pointer-events: none;
-  border-radius: 999px;
+}
+
+/* The ring's huge shadow is the dimming, so the ringed element stays bright. Its
+   position is set from JS as the page moves. */
+.tour__ring {
+  position: fixed;
+  border: 3px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  box-shadow: 0 0 0 100vmax var(--color-scrim);
+  transition:
+    top var(--duration-normal) var(--ease-out),
+    left var(--duration-normal) var(--ease-out),
+    width var(--duration-normal) var(--ease-out),
+    height var(--duration-normal) var(--ease-out);
+}
+
+/* No element to ring: the whole app dims and the card comes to the middle. */
+.tour__scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--color-scrim);
+}
+
+/* Text never sits on the gradient: the card is its own surface. */
+.tour__card {
+  position: fixed;
   box-sizing: border-box;
-  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow-y: auto;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--color-text);
+  pointer-events: auto;
+  animation: tour-card-in var(--duration-normal) var(--ease-out);
 }
 
-/* Scrim shadow for dimming */
-.tour-overlay__scrim {
-  box-shadow: 0 0 60px 20px rgba(0, 0, 0, 0.6);
-  pointer-events: none;
+.tour__card:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-raised);
 }
 
-/* Caption card base styles */
-.tour-overlay__card {
-  position: absolute;
-  background: var(--theme-surface-raised);
-  border: 1px solid var(--theme-border);
-  border-radius: 8px;
-  padding: calc(var(--space-2) - 2px) var(--space-3);
-  color: var(--theme-text);
-  font-size: 1rem;
-  line-height: 1.4;
-  z-index: 101;
-  will-change: left, top;
+.tour__card--dock-bottom,
+.tour__card--dock-top {
+  left: calc(var(--safe-left) + var(--space-4));
+  right: calc(var(--safe-right) + var(--space-4));
+  margin-inline: auto;
+  max-width: 28rem;
+  max-height: 55dvh;
 }
 
-.tour-overlay__body {
-  max-width: calc(90vw - var(--space-8));
+.tour__card--dock-bottom {
+  bottom: calc(var(--safe-bottom) + var(--space-4));
 }
 
-/* Animation disabled for reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .tour-overlay__card {
-    will-change: auto;
-    transition: none;
+.tour__card--dock-top {
+  top: calc(var(--safe-top) + var(--space-4));
+}
+
+.tour__card--side {
+  width: 22rem;
+}
+
+.tour__card--center {
+  top: 50%;
+  left: 50%;
+  width: min(28rem, calc(100vw - 2 * var(--space-4)));
+  transform: translate(-50%, -50%);
+}
+
+.tour__progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tour__progress {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.tour__dots {
+  flex: none;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.tour__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+}
+
+.tour__dot--done {
+  background: var(--color-accent);
+}
+
+.tour__body--inset {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* A picture of what a new user's screen can't show yet: a match, a full history. */
+.tour__inset {
+  flex: none;
+  display: block;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-field);
+  object-fit: cover;
+  object-position: top;
+}
+
+.tour__inset--phone {
+  width: 6rem;
+  aspect-ratio: 390 / 844;
+}
+
+.tour__inset--desktop {
+  width: 9rem;
+  aspect-ratio: 1280 / 800;
+}
+
+/* Centred, the card has room for the full picture above the words. */
+.tour__card--center .tour__body--inset {
+  flex-direction: column;
+  align-items: center;
+}
+
+.tour__card--center .tour__inset--phone {
+  width: auto;
+  height: min(40dvh, 22rem);
+}
+
+.tour__card--center .tour__inset--desktop {
+  width: 100%;
+  height: auto;
+}
+
+.tour__caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tour__title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+.tour__text {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.tour__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-1) 0 0;
+}
+
+.tour__key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tour__key dt,
+.tour__key dd {
+  margin: 0;
+}
+
+.tour__key dd {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Wraps rather than pushing the card sideways at 360px. */
+.tour__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.tour__actions .md-button {
+  padding-inline: var(--space-4);
+}
+
+.tour__card .tour__skip {
+  margin-right: auto;
+}
+
+@keyframes tour-card-in {
+  from {
+    opacity: 0;
   }
 }
 
-/* Mobile docked positioning */
-@media (max-width: 640px) {
-  .tour-overlay__card.tour-overlay__docked {
-    bottom: env(safe-area-inset-bottom, 20px);
-    left: var(--space-2);
-    right: var(--space-2);
-    top: auto !important;
+@media (prefers-reduced-motion: reduce) {
+  .tour__ring {
+    transition: none;
+  }
+
+  .tour__card {
+    animation: none;
   }
 }

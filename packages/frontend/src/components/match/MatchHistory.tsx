@@ -84,12 +84,6 @@ function MatchList({ mediaType, search, onCleared, onOpen, onLoaded }: MatchList
   }, [count, onLoaded]);
 
   return (
-      <HistoryList
-        list={list}
-        label="Past matches"
-        layout="wall"
-        className="match-history-list"
-        itemKey={(match) => match.id}
     <>
       <HistoryList
         list={list}
@@ -130,7 +124,7 @@ export function MatchHistory({ mediaType = "MOVIE" }: { mediaType?: MediaType })
   }, [version]);
 
   return (
-    <div className="match-history-list" data-tour="match-history-list">
+    <>
       <div ref={filters} className="history-filters" tabIndex={-1}>
         <HistorySearch value={search} onChange={setSearch} />
         <HistoryStatus count={settled ? loaded : null} />

@@ -66,7 +66,7 @@ export default function Install(): JSX.Element {
 
   if (installed) {
     return (
-      <div className="install">
+      <div className="install" data-tour="install">
         <Card variant="raised" title="You're all set">
           <p>Movie Date is installed. Open it from your home screen any time.</p>
         </Card>
@@ -75,14 +75,12 @@ export default function Install(): JSX.Element {
   }
 
   return (
-    <div className="install">
+    <div className="install" data-tour="install">
       <p className="install__lead">
         Put Movie Date on your home screen and it opens full screen, like any other app. Nothing to download from an app
         store.
       </p>
 
-        <Card variant="raised">
-          <Button block className="md-install-app-button" onClick={() => void install()}>
       {canPrompt && (
         <Card variant="raised">
           <Button block onClick={() => void install()}>

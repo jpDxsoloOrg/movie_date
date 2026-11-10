@@ -5,19 +5,9 @@ import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useReturnPath } from "../hooks/useReturnPath";
 import { useMode } from "../mode/ModeProvider";
-import type { ModeCopy } from "../mode/modeCopy";
 import { markTutorialSeen } from "../services/tutorial";
-import { TUTORIAL_IMAGE_SIZE, TUTORIAL_STEPS, tutorialImage, type TutorialDevice } from "./tutorial/steps";
+import { swipeKeys, TUTORIAL_IMAGE_SIZE, TUTORIAL_STEPS, tutorialImage, type TutorialDevice } from "./tutorial/steps";
 import "./Tutorial.css";
-
-/** Stays in step with the handler in SwipeDeck, which is what the keys do for real. */
-function swipeKeys({ passAction, likeAction }: ModeCopy): readonly { key: string; keyLabel: string; action: string }[] {
-  return [
-    { key: "ArrowLeft", keyLabel: "←", action: passAction },
-    { key: "ArrowRight", keyLabel: "→", action: likeAction },
-    { key: "Backspace", keyLabel: "Backspace", action: "Undo" },
-  ];
-}
 
 export default function Tutorial(): JSX.Element {
   const navigate = useNavigate();

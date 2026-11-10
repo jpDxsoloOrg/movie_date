@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
@@ -92,6 +92,7 @@ beforeEach(() => {
   localStorage.removeItem("movieDateMode");
   resetTutorialSeen();
   markTutorialSeen();
+  sessionStorage.clear();
 });
 
 describe("routes", () => {
@@ -261,21 +262,39 @@ describe("public screens", () => {
 });
 
 describe("first run", () => {
-  it("redirects to the tutorial, remembering the destination", async () => {
+  it("starts the live tour on the deck, and Skip returns to the destination", async () => {
     resetTutorialSeen();
     renderAt("/join/ABC234");
 
-    expect(await screen.findByText("screen:tutorial")).toBeInTheDocument();
-    expect(screen.getByTestId("from")).toHaveTextContent("/join/ABC234");
+    const tour = await screen.findByRole("dialog", { name: /^Tour, step 1 of \d+$/ });
+    expect(path()).toBe("/");
+    expect(screen.getByText("screen:home")).toBeInTheDocument();
+
+    await userEvent.click(within(tour).getByRole("button", { name: "Skip" }));
+    expect(await screen.findByText("screen:join")).toBeInTheDocument();
+    expect(path()).toBe("/join/ABC234");
+    expect(localStorage.getItem("hasSeenTutorial")).toBe("true");
   });
 
-  it("doesn't redirect once the tutorial has been seen", async () => {
+  it("doesn't start the tour once it has been seen", async () => {
     renderAt("/");
     expect(await screen.findByText("screen:home")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /^Tour,/ })).not.toBeInTheDocument();
   });
 
-  it("the tutorial stays reachable afterwards", async () => {
+  it("starts again from the menu's /tour, and the screenshot tutorial stays reachable", async () => {
+    const { unmount } = renderAt("/tour");
+    expect(await screen.findByRole("dialog", { name: /^Tour, step 1 of/ })).toBeInTheDocument();
+    unmount();
+    sessionStorage.clear();
     renderAt("/tutorial");
     expect(await screen.findByText("screen:tutorial")).toBeInTheDocument();
+  });
+
+  it("falls back to the screenshot tutorial offline", async () => {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    renderAt("/tour");
+    expect(await screen.findByText("screen:tutorial")).toBeInTheDocument();
+    online.mockRestore();
   });
 });

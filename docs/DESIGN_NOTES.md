@@ -97,7 +97,7 @@ rather than editing across a line.
 | Filters | `src/screens/Filters.*`, `src/screens/ActorSearch.*`, `src/components/filters/**` |
 | Match and History | `src/screens/MatchFound.*`, `src/screens/History.*`, `src/components/match/**` |
 | Room and account | `src/screens/Members.*`, `src/screens/Profile.*`, `src/screens/Settings.*`, `src/screens/JoinInvite.*`, `src/components/room/**` |
-| Tutorial | `src/screens/Tutorial.*`, `src/screens/tutorial/**` (the steps in `steps.ts` and their screenshots) |
+| Tutorial | `src/screens/Tutorial.*`, `src/screens/tutorial/**` (the steps in `steps.ts` and their screenshots), `src/screens/TourStart.tsx`, `src/components/tour/**` (the live tour) |
 | Auth forms | `src/screens/Login.tsx`, `src/screens/Register.tsx`, `src/screens/ForgotPassword.tsx`: logic only, the look is `Auth.css` |
 | API and generated code | `src/services/**`, `src/gql/**`, `src/context/RoomProvider.tsx` |
 

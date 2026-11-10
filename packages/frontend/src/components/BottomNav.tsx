@@ -12,16 +12,16 @@ export function BottomNav(): JSX.Element {
 
   return (
     <>
-      <nav className="md-bottom-nav" aria-label="Main" data-tour="nav-search">
+      <nav className="md-bottom-nav" aria-label="Main">
         <NavLink to={homePath(mode)} end className="md-bottom-nav__item">
           <Icon name="home" />
           Home
         </NavLink>
-        <button type="button" className="md-bottom-nav__item" onClick={() => setJoinOpen(true)}>
+        <button type="button" className="md-bottom-nav__item" data-tour="nav-join" onClick={() => setJoinOpen(true)}>
           <Icon name="door" />
           Join Room
         </button>
-        <NavLink to={filtersPath(mode)} className="md-bottom-nav__item">
+        <NavLink to={filtersPath(mode)} className="md-bottom-nav__item" data-tour="nav-search">
           <Icon name="search" />
           Search
         </NavLink>
