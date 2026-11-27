@@ -333,6 +333,8 @@ export type Query = {
   /** Creates the profile and a first room on first call, so sign-up needs no extra step. */
   me: Profile;
   movie: Movie;
+  /** A movie's top-billed actors, in billing order, at most 5. Back to Start fills Search with them. */
+  movieCast: Array<Person>;
   /** The caller's current room. */
   myRoom: Room;
   /** The current round's earliest uncleared match made since the caller joined, for clients that were offline when it happened. */
@@ -376,6 +378,11 @@ export type QueryMatchesArgs = {
 
 export type QueryMovieArgs = {
   id: Scalars['Int']['input'];
+};
+
+
+export type QueryMovieCastArgs = {
+  movieId: Scalars['Int']['input'];
 };
 
 
@@ -622,6 +629,13 @@ export type SearchPeopleQueryVariables = Exact<{
 
 
 export type SearchPeopleQuery = { searchPeople: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> };
+
+export type MovieCastQueryVariables = Exact<{
+  movieId: Scalars['Int']['input'];
+}>;
+
+
+export type MovieCastQuery = { movieCast: Array<{ id: number, name: string, profileUrl?: string | null, knownForDepartment?: string | null }> };
 
 export type MatchesQueryVariables = Exact<{
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -1181,6 +1195,18 @@ export const SearchPeopleDocument = new TypedDocumentString(`
   profileUrl
   knownForDepartment
 }`) as unknown as TypedDocumentString<SearchPeopleQuery, SearchPeopleQueryVariables>;
+export const MovieCastDocument = new TypedDocumentString(`
+    query MovieCast($movieId: Int!) {
+  movieCast(movieId: $movieId) {
+    ...PersonFields
+  }
+}
+    fragment PersonFields on Person {
+  id
+  name
+  profileUrl
+  knownForDepartment
+}`) as unknown as TypedDocumentString<MovieCastQuery, MovieCastQueryVariables>;
 export const MatchesDocument = new TypedDocumentString(`
     query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {
   matches(

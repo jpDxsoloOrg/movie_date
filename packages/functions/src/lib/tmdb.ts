@@ -215,14 +215,8 @@ export function getGenres(): Promise<Genre[]> {
   });
 }
 
-export async function searchPeople(query: string): Promise<Person[]> {
-  const body = await tmdbGet("search/person", {
-    query,
-    include_adult: "false",
-    language: "en",
-    page: "1",
-  });
-  return asRecords(body.results).flatMap((person) => {
+function toPeople(records: readonly JsonRecord[]): Person[] {
+  return records.flatMap((person) => {
     const id = asNumber(person.id);
     const name = asText(person.name);
     if (id === null || name === null) return [];
@@ -234,6 +228,34 @@ export async function searchPeople(query: string): Promise<Person[]> {
         knownForDepartment: asText(person.known_for_department),
       },
     ];
+  });
+}
+
+export async function searchPeople(query: string): Promise<Person[]> {
+  const body = await tmdbGet("search/person", {
+    query,
+    include_adult: "false",
+    language: "en",
+    page: "1",
+  });
+  return toPeople(asRecords(body.results));
+}
+
+/** How many of a matched movie's actors Back to Start searches for. */
+export const TOP_CAST = 5;
+
+/**
+ * TMDB's `order` is the billing order. The list usually arrives sorted by it, but that
+ * isn't promised, and a bit-part player first would make a poor search.
+ */
+export function getTopCast(movieId: number): Promise<Person[]> {
+  return cached("topCast", String(movieId), DETAILS_TTL_SECONDS, async () => {
+    const body = await tmdbGet(`${moviePath(movieId)}/credits`, { language: "en-US" });
+    const billed = asRecords(body.cast)
+      .map((person, index) => ({ person, order: asNumber(person.order) ?? Number.MAX_SAFE_INTEGER, index }))
+      .sort((left, right) => left.order - right.order || left.index - right.index)
+      .map(({ person }) => person);
+    return toPeople(billed).slice(0, TOP_CAST);
   });
 }
 

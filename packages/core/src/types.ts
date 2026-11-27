@@ -229,6 +229,7 @@ export interface FieldArguments {
   plexStatus: { movieId: number } & MediaTypeArgument;
   genres: MediaTypeArgument;
   searchPeople: { query: string };
+  movieCast: { movieId: number };
   matches: {
     limit?: number | null;
     nextToken?: string | null;

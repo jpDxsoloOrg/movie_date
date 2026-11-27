@@ -37,6 +37,7 @@
     "./gql/graphql": "./src/gql/graphql.ts",
     "./screens/*": "./src/screens/*.tsx",
     "./components/filters/filterDraft": "./src/components/filters/filterDraft.ts",
+    "./components/filters/castSearch": "./src/components/filters/castSearch.ts",
     "./components/*": "./src/components/*.tsx",
     "./src/*": "./src/*",
     "./context/*": "./src/context/*.tsx",
