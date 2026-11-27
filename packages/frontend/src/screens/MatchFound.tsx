@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/Button";
+import { castSearchDraft } from "../components/filters/castSearch";
+import { stashFilterDraft } from "../components/filters/filterDraft";
 import { Celebration } from "../components/match/Celebration";
 import { matchStamp } from "../components/match/historyFormat";
 import { MatchDetails, MatchDetailsSkeleton } from "../components/match/MatchDetails";
@@ -12,9 +14,18 @@ import { useRoom, useRoomEvents } from "../hooks/useRoom";
 import { useToast } from "../hooks/useToast";
 import { useMode } from "../mode/ModeProvider";
 import { MODE_COPY } from "../mode/modeCopy";
-import { homePath } from "../mode/modeRoutes";
-import { api, errorMessage } from "../services/api";
+import { filtersPath, homePath } from "../mode/modeRoutes";
+import { api, errorMessage, type Person } from "../services/api";
 import "./MatchFound.css";
+
+/** The cast only decides where Back to Start lands, so failing to load it mustn't stop anyone leaving. */
+async function castOf(movieId: number): Promise<Person[]> {
+  try {
+    return await api.movieCast(movieId);
+  } catch {
+    return [];
+  }
+}
 
 function Marquee({ children }: { children: ReactNode }): JSX.Element {
   return <header className="match-found__marquee">{children}</header>;
@@ -59,10 +70,22 @@ export default function MatchFound(): JSX.Element {
     setLeaving(true);
     try {
       // Router state outlives a room change, and the new room's round can be the
-      // same number, so this match must not be able to reset that room.
+      // same number, so this match must not be able to reset that room, or fill in its search.
+      const inThisRoom = match.roomId === room.id;
       // A cleared match keeps the round going, so leaving it mustn't restart everyone's deck.
-      if (match.roomId === room.id && !cleared) setRoom(await api.startNewRound(match.round, match.mediaType));
-      navigate(home, { replace: true });
+      const [nextRoom, cast] = await Promise.all([
+        inThisRoom && !cleared ? api.startNewRound(match.round, match.mediaType) : null,
+        inThisRoom && match.mediaType === "MOVIE" ? castOf(match.movie.id) : [],
+      ]);
+      if (nextRoom) setRoom(nextRoom);
+      if (cast.length === 0) {
+        navigate(home, { replace: true });
+        return;
+      }
+      // Search opens with the cast filled in rather than saving it, because filters are
+      // the whole room's: the deck only changes when someone presses Apply.
+      stashFilterDraft(room.id, castSearchDraft((nextRoom ?? room).filters, cast, new Date()), "MOVIE");
+      navigate(filtersPath("MOVIE"), { replace: true });
     } catch (caught) {
       toast.error(errorMessage(caught));
       setLeaving(false);

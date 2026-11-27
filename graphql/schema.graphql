@@ -324,6 +324,8 @@ type Query {
   plexStatus(movieId: Int!, mediaType: MediaType = MOVIE): PlexStatus
   genres(mediaType: MediaType = MOVIE): [Genre!]!
   searchPeople(query: String!): [Person!]!
+  "A movie's top-billed actors, in billing order, at most 5. Back to Start fills Search with them."
+  movieCast(movieId: Int!): [Person!]!
   "One mode's matches in the caller's room, newest first, across all rounds, from when the caller joined. search matches on title. ignoreCleared also returns what the caller cleared from their history, for finding one match."
   matches(limit: Int, nextToken: String, mediaType: MediaType = MOVIE, search: String, ignoreCleared: Boolean): MatchPage!
   "The caller's own swipes in one mode in the current room, newest first."

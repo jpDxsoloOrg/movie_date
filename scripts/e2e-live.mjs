@@ -862,8 +862,21 @@ function noteWatch(watch, note, who) {
   if (watch.tiles > 0) realWatchOptionsSeen = true;
 }
 
+/**
+ * A movie match opens Search with its top-billed cast and 1970 to today filled in.
+ * Closing the sheet saves nothing, so the deck stays the one the rest of the run expects.
+ */
 async function backToStart(actor) {
+  const castLookup = actor.waitOp("MovieCast");
   await actor.page.getByRole("button", { name: "Back to Start" }).click();
+  const cast = (await (await castLookup).json()).data?.movieCast ?? [];
+  assert(cast.length > 0 && cast.length <= 5, `${actor.name}: Back to Start loaded ${cast.length} cast members`);
+  await onPath(actor, "/filters");
+  const filters = actor.page.getByRole("dialog", { name: "Filters" });
+  await filters.getByRole("button", { name: `Remove ${cast[0].name}` }).waitFor();
+  // On Dec 31 the range is whole years, which reads "1970–<year>" instead.
+  await filters.getByRole("button", { name: /^Remove (Jan 1, 1970 to |1970–)/ }).waitFor();
+  await filters.getByRole("button", { name: "Close" }).click();
   await onPath(actor, "/");
 }
 

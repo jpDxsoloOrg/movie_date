@@ -35,6 +35,7 @@ type Documents = {
     "\n  query PlexStatus($movieId: Int!, $mediaType: MediaType) {\n    plexStatus(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": typeof types.PlexStatusDocument,
     "\n  query Genres($mediaType: MediaType) {\n    genres(mediaType: $mediaType) {\n      id\n      name\n    }\n  }\n": typeof types.GenresDocument,
     "\n  query SearchPeople($query: String!) {\n    searchPeople(query: $query) {\n      ...PersonFields\n    }\n  }\n": typeof types.SearchPeopleDocument,
+    "\n  query MovieCast($movieId: Int!) {\n    movieCast(movieId: $movieId) {\n      ...PersonFields\n    }\n  }\n": typeof types.MovieCastDocument,
     "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {\n    matches(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      ignoreCleared: $ignoreCleared\n    ) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": typeof types.MatchesDocument,
     "\n  query SwipeHistory(\n    $limit: Int\n    $nextToken: String\n    $mediaType: MediaType\n    $search: String\n    $direction: SwipeDirection\n  ) {\n    swipeHistory(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      direction: $direction\n    ) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": typeof types.SwipeHistoryDocument,
     "\n  query PendingMatch($mediaType: MediaType) {\n    pendingMatch(mediaType: $mediaType) {\n      ...MatchFields\n    }\n  }\n": typeof types.PendingMatchDocument,
@@ -77,6 +78,7 @@ const documents: Documents = {
     "\n  query PlexStatus($movieId: Int!, $mediaType: MediaType) {\n    plexStatus(movieId: $movieId, mediaType: $mediaType) {\n      ...PlexStatusFields\n    }\n  }\n": types.PlexStatusDocument,
     "\n  query Genres($mediaType: MediaType) {\n    genres(mediaType: $mediaType) {\n      id\n      name\n    }\n  }\n": types.GenresDocument,
     "\n  query SearchPeople($query: String!) {\n    searchPeople(query: $query) {\n      ...PersonFields\n    }\n  }\n": types.SearchPeopleDocument,
+    "\n  query MovieCast($movieId: Int!) {\n    movieCast(movieId: $movieId) {\n      ...PersonFields\n    }\n  }\n": types.MovieCastDocument,
     "\n  query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {\n    matches(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      ignoreCleared: $ignoreCleared\n    ) {\n      nextToken\n      matches {\n        ...MatchFields\n      }\n    }\n  }\n": types.MatchesDocument,
     "\n  query SwipeHistory(\n    $limit: Int\n    $nextToken: String\n    $mediaType: MediaType\n    $search: String\n    $direction: SwipeDirection\n  ) {\n    swipeHistory(\n      limit: $limit\n      nextToken: $nextToken\n      mediaType: $mediaType\n      search: $search\n      direction: $direction\n    ) {\n      nextToken\n      entries {\n        ...HistoryEntryFields\n      }\n    }\n  }\n": types.SwipeHistoryDocument,
     "\n  query PendingMatch($mediaType: MediaType) {\n    pendingMatch(mediaType: $mediaType) {\n      ...MatchFields\n    }\n  }\n": types.PendingMatchDocument,
@@ -179,6 +181,10 @@ export function graphql(source: "\n  query Genres($mediaType: MediaType) {\n    
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query SearchPeople($query: String!) {\n    searchPeople(query: $query) {\n      ...PersonFields\n    }\n  }\n"): typeof import('./graphql').SearchPeopleDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query MovieCast($movieId: Int!) {\n    movieCast(movieId: $movieId) {\n      ...PersonFields\n    }\n  }\n"): typeof import('./graphql').MovieCastDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

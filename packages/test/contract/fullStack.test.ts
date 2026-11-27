@@ -205,6 +205,14 @@ function tmdb(url: URL): Response {
       external_ids: { tvdb_id: 9000 },
     });
   }
+  if (path === `movie/${FULL_MOVIE_ID}/credits`) {
+    return Response.json({
+      cast: [
+        { id: 7, name: "Second Billed", profile_path: "/second.jpg", known_for_department: "Acting", order: 1 },
+        { id: 5, name: "Some Actor", profile_path: null, known_for_department: null, order: 0 },
+      ],
+    });
+  }
   if (path === "genre/movie/list") return Response.json({ genres: [{ id: 18, name: "Drama" }] });
   if (path === "search/person") {
     return Response.json({
@@ -509,6 +517,26 @@ describe("the client against the real backend", () => {
     expect(published).toContainEqual(
       expect.objectContaining({ roomId: room.id, type: "ROUND_RESET", mediaType: "TV", round: 2 }),
     );
+  });
+
+  it("saves a matched movie's cast as Back to Start fills it into Search", async () => {
+    await api.me();
+    const cast = await api.movieCast(FULL_MOVIE_ID);
+    expect(cast.map((person) => person.name)).toEqual(["Some Actor", "Second Billed"]);
+
+    const saved = await api.updateFilters({
+      genreIds: [],
+      cast,
+      services: [],
+      releaseDateGte: "1970-01-01",
+      releaseDateLte: "2026-11-27",
+    });
+    // Saving keeps who they are and drops what they're known for, as it does for a searched actor.
+    expect(saved.filters).toMatchObject({
+      cast: cast.map((person) => ({ ...person, knownForDepartment: null })),
+      releaseDateGte: "1970-01-01",
+      releaseDateLte: "2026-11-27",
+    });
   });
 
   it("round-trips filters the client read back into the mutation that saves them", async () => {

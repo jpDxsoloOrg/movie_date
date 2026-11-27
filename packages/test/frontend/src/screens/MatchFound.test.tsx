@@ -11,10 +11,12 @@ const mocks = vi.hoisted(() => ({
   plexStatus: vi.fn(),
   requestOnPlex: vi.fn(),
   clearMatch: vi.fn(),
+  movieCast: vi.fn(),
 }));
 
 vi.mock("@movie-date/frontend/services/api", () => ({
   api: {
+    movieCast: mocks.movieCast,
     findMatch: mocks.findMatch,
     watchOptions: mocks.watchOptions,
     startNewRound: mocks.startNewRound,
@@ -26,6 +28,8 @@ vi.mock("@movie-date/frontend/services/api", () => ({
 }));
 vi.mock("@movie-date/frontend/services/realtime", () => ({ subscribeToRoom: vi.fn() }));
 
+import { localIsoDate } from "@movie-date/frontend/components/filters/castSearch";
+import { clearFilterDraft, peekFilterDraft } from "@movie-date/frontend/components/filters/filterDraft";
 import { RoomContext, type MatchRouteState, type RoomContextValue, type RoomEventListener } from "@movie-date/frontend/context/RoomProvider";
 import { ToastProvider } from "@movie-date/frontend/context/ToastProvider";
 import MatchFound from "@movie-date/frontend/screens/MatchFound";
@@ -115,7 +119,10 @@ function renderScreen(routerState?: MatchRouteState, currentRoom: Room = room, p
 
 beforeEach(() => {
   vi.resetAllMocks();
+  clearFilterDraft();
   mocks.watchOptions.mockResolvedValue([option()]);
+  // No cast is the plain way home, which most of these tests are about.
+  mocks.movieCast.mockResolvedValue([]);
 });
 
 describe("MatchFound", () => {
@@ -216,13 +223,76 @@ describe("MatchFound", () => {
       expect(screen.getByRole("button", { name: "Back to Start" })).toBeEnabled();
     });
 
-    it("never resets a room the match doesn't belong to", async () => {
+    it("never resets a room the match doesn't belong to, or fills in its search", async () => {
       renderScreen({ match: makeMatch({ roomId: "old-room" }) });
 
       await userEvent.click(screen.getByRole("button", { name: "Back to Start" }));
 
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/));
       expect(mocks.startNewRound).not.toHaveBeenCalled();
+      expect(mocks.movieCast).not.toHaveBeenCalled();
+      expect(peekFilterDraft("room-1", "MOVIE")).toBeNull();
+    });
+
+    describe("searching the matched movie's cast", () => {
+      const cast = [
+        { id: 1158, name: "Al Pacino", profileUrl: null, knownForDepartment: "Acting" },
+        { id: 380, name: "Robert De Niro", profileUrl: null, knownForDepartment: "Acting" },
+      ];
+
+      it("opens Search with the top cast and 1970 to today, without saving anything", async () => {
+        const nextRoom = { ...room, round: 4, filters: { ...room.filters, genreIds: [80], services: ["netflix"] } };
+        mocks.startNewRound.mockResolvedValue(nextRoom);
+        mocks.movieCast.mockResolvedValue(cast);
+        renderScreen({ match: makeMatch() });
+
+        await userEvent.click(screen.getByRole("button", { name: "Back to Start" }));
+
+        await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/filters$/));
+        expect(mocks.movieCast).toHaveBeenCalledWith(949);
+        expect(mocks.setRoom).toHaveBeenCalledWith(nextRoom);
+        // Built on the room the new round returned, so its genres and services carry over.
+        expect(peekFilterDraft("room-1", "MOVIE")).toEqual({
+          ...nextRoom.filters,
+          cast,
+          releaseDateGte: "1970-01-01",
+          releaseDateLte: localIsoDate(new Date()),
+        });
+      });
+
+      it("still fills in the search when leaving a cleared match, which keeps the round", async () => {
+        mocks.movieCast.mockResolvedValue(cast);
+        renderScreen({ match: makeMatch({ cleared: true }) });
+
+        await userEvent.click(screen.getByRole("button", { name: "Back to Start" }));
+
+        await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/filters$/));
+        expect(mocks.startNewRound).not.toHaveBeenCalled();
+        expect(peekFilterDraft("room-1", "MOVIE")?.cast).toEqual(cast);
+      });
+
+      it("goes home as before when the cast can't be loaded", async () => {
+        mocks.startNewRound.mockResolvedValue({ ...room, round: 4 });
+        mocks.movieCast.mockRejectedValue(new Error("TMDB is down"));
+        renderScreen({ match: makeMatch() });
+
+        await userEvent.click(screen.getByRole("button", { name: "Back to Start" }));
+
+        await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/));
+        expect(mocks.startNewRound).toHaveBeenCalled();
+        expect(screen.queryByText("TMDB is down")).not.toBeInTheDocument();
+        expect(peekFilterDraft("room-1", "MOVIE")).toBeNull();
+      });
+
+      it("leaves a show's match alone, since Going Steady has no cast search yet", async () => {
+        mocks.startNewRound.mockResolvedValue({ ...room, tvRound: 2 });
+        renderScreen({ match: makeMatch({ mediaType: "TV", round: 1 }) });
+
+        await userEvent.click(screen.getByRole("button", { name: "Keep Looking" }));
+
+        await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(/^\/shows$/));
+        expect(mocks.movieCast).not.toHaveBeenCalled();
+      });
     });
   });
 
