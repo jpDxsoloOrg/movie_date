@@ -1,87 +1,94 @@
-import { act, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModeContext, modeValue } from "../../../../frontend/src/mode/ModeProvider";
+import { MODE_COPY } from "../../../../frontend/src/mode/modeCopy";
+import { TUTORIAL_STEPS } from "../../../../frontend/src/screens/tutorial/steps";
+import type { MediaType } from "@movie-date/frontend/services/api";
 import Tutorial from "@movie-date/frontend/screens/Tutorial";
 import { hasSeenTutorial, resetTutorialSeen } from "@movie-date/frontend/services/tutorial";
 import { fakeViewport } from "../support/viewport";
+
+// The screen's tests shouldn't depend on the screenshots being in the checkout; whether
+// they are is tutorialSteps.test.ts's job. The file name logic stays the real one.
+vi.mock("../../../../frontend/src/screens/tutorial/steps", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../frontend/src/screens/tutorial/steps")>();
+  return {
+    ...actual,
+    tutorialImage: (...args: Parameters<typeof actual.tutorialImageName>) =>
+      `/assets/${actual.tutorialImageName(...args)}`,
+  };
+});
 
 function Path(): JSX.Element {
   return <div data-testid="path">{useLocation().pathname}</div>;
 }
 
-function renderTutorial(from?: string): void {
+function renderTutorial({ from, mode = "MOVIE" }: { from?: string; mode?: MediaType } = {}): void {
   render(
     <MemoryRouter
       initialEntries={[{ pathname: "/tutorial", state: from ? { from } : null }]}
       future={{ v7_startTransition: false, v7_relativeSplatPath: true }}
     >
-      <Tutorial />
+      <ModeContext.Provider value={modeValue(mode)}>
+        <Tutorial />
+      </ModeContext.Provider>
       <Path />
     </MemoryRouter>,
   );
 }
 
 const next = async (): Promise<void> => userEvent.click(screen.getByRole("button", { name: "Next" }));
+const toStep = async (number: number): Promise<void> => {
+  for (let step = 1; step < number; step += 1) await next();
+};
+const stepTitle = (): string => screen.getByRole("heading", { level: 2 }).textContent ?? "";
+const shot = (): HTMLImageElement => screen.getByRole("img") as HTMLImageElement;
+const STEP_COUNT = TUTORIAL_STEPS.length;
+const MODE_STEP = TUTORIAL_STEPS.findIndex(({ id }) => id === "mode") + 1;
 
 beforeEach(() => resetTutorialSeen());
 
 describe("Tutorial", () => {
-  it("opens as a dialog on the first step, with focus inside", () => {
+  it("opens as a dialog on step 1 of 12, with focus inside", () => {
     renderTutorial();
 
-    const dialog = screen.getByRole("dialog", { name: "Tutorial, step 1 of 7" });
+    const dialog = screen.getByRole("dialog", { name: "Tutorial, step 1 of 12" });
     expect(dialog).toHaveFocus();
-    expect(screen.getByText(/home icon/)).toBeInTheDocument();
+    expect(stepTitle()).toBe("Swipe to vote");
     expect(screen.queryByRole("button", { name: "Prev" })).not.toBeInTheDocument();
   });
 
-  it("steps through Join Room, Search, swiping and the room code to Finish", async () => {
+  it("walks every step in order, to Finish", async () => {
     renderTutorial();
+    const titles = TUTORIAL_STEPS.map((step) => step.title(MODE_COPY.MOVIE));
+    expect(titles).toEqual([
+      "Swipe to vote",
+      "See the details",
+      "Choose what's in the deck",
+      "Match Found",
+      "Invite your people",
+      "Join a room",
+      "Who's in the room",
+      "Set the match rules",
+      "Look back",
+      "Going Steady, for shows",
+      "Plex, if you have it",
+      "Keep it on your home screen",
+    ]);
 
-    await next();
-    expect(screen.getByText(/moves between them/)).toBeInTheDocument();
-    await next();
-    expect(screen.getByText(/Press Join Room/)).toBeInTheDocument();
-    await next();
-    expect(screen.getByText(/Press Search/)).toBeInTheDocument();
-    await next();
-    expect(screen.getByText(/Swipe left/)).toBeInTheDocument();
-    await next();
-    expect(screen.getByText(/Tap on the poster/)).toBeInTheDocument();
-    await next();
-    expect(screen.getByText(/share this room code/)).toBeInTheDocument();
+    for (const [index, title] of titles.entries()) {
+      expect(screen.getByRole("dialog", { name: `Tutorial, step ${index + 1} of 12` })).toBeInTheDocument();
+      expect(stepTitle()).toBe(title);
+      if (index < titles.length - 1) await next();
+    }
 
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
     expect(hasSeenTutorial()).toBe(false);
-
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
     expect(hasSeenTutorial()).toBe(true);
     expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/);
-  });
-
-  it("speaks Going Steady from Going Steady, all the way through", async () => {
-    render(
-      <MemoryRouter
-        initialEntries={["/tutorial"]}
-        future={{ v7_startTransition: false, v7_relativeSplatPath: true }}
-      >
-        <ModeContext.Provider value={modeValue("TV")}>
-          <Tutorial />
-        </ModeContext.Provider>
-      </MemoryRouter>,
-    );
-    expect(screen.getByText("Go Steady")).toBeInTheDocument();
-    expect(screen.getByText("Your Next Show (2019–present)")).toBeInTheDocument();
-    expect(screen.getByText(/show swipe page/)).toBeInTheDocument();
-    await next();
-    await next();
-    await next();
-    expect(screen.getByText(/find shows by/)).toBeInTheDocument();
-    await next();
-    expect(screen.getByText(/the same show/)).toBeInTheDocument();
   });
 
   it("goes back a step, keeping focus in the dialog when Prev disappears", async () => {
@@ -90,18 +97,22 @@ describe("Tutorial", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Prev" }));
 
-    expect(screen.getByText(/home icon/)).toBeInTheDocument();
+    expect(stepTitle()).toBe("Swipe to vote");
     expect(screen.getByRole("dialog")).toHaveFocus();
   });
 
-  it("skips from any step and counts as seen", async () => {
-    renderTutorial();
-    await next();
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+  it.each(Array.from({ length: STEP_COUNT }, (_, index) => index + 1))(
+    "skips from step %i and counts as seen",
+    async (number) => {
+      renderTutorial({ from: "/history" });
+      await toStep(number);
 
-    expect(hasSeenTutorial()).toBe(true);
-    expect(screen.getByTestId("path")).toHaveTextContent(/^\/$/);
-  });
+      await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+      expect(hasSeenTutorial()).toBe(true);
+      expect(screen.getByTestId("path")).toHaveTextContent("/history");
+    },
+  );
 
   it("Escape skips", async () => {
     renderTutorial();
@@ -110,20 +121,81 @@ describe("Tutorial", () => {
   });
 
   it("returns an invite link visitor to their invite", async () => {
-    renderTutorial("/join/ABC234");
+    renderTutorial({ from: "/join/ABC234" });
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     expect(screen.getByTestId("path")).toHaveTextContent("/join/ABC234");
   });
 
-  it("keeps keyboard talk off a phone", async () => {
+  it("shows phone shots on a phone, and keeps keyboard talk off it", async () => {
     renderTutorial();
-    await next();
-    await next();
-    await next();
-    await next();
 
-    expect(screen.queryByText("Backspace")).not.toBeInTheDocument();
+    for (const step of TUTORIAL_STEPS) {
+      expect(shot().src).toMatch(/-phone\.webp$/);
+      expect(shot()).toHaveAttribute("width", "780");
+      expect(shot()).toHaveAttribute("height", "1688");
+      expect(shot()).toHaveAttribute("alt", step.alt(MODE_COPY.MOVIE, "phone"));
+      expect(screen.queryByLabelText("Keyboard shortcuts")).not.toBeInTheDocument();
+      expect(screen.getByRole("dialog")).not.toHaveTextContent(/Backspace|←|→/);
+      if (step !== TUTORIAL_STEPS.at(-1)) await next();
+    }
+  });
+
+  it("speaks Going Steady from Going Steady, with its own shots, all the way through", async () => {
+    renderTutorial({ mode: "TV" });
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(/Go Steady and Just Friends buttons/);
+    for (const step of TUTORIAL_STEPS) {
+      // Lower case: "Movies", the mode's name, and "Movie Date", the app's, are allowed.
+      expect(screen.getByRole("dialog")).not.toHaveTextContent(/movie/);
+      expect(shot().alt).not.toMatch(/movie/);
+      expect(shot().src).toContain(step.id === "mode" ? "tutorial-movies-deck-" : `tutorial-shows-${step.id}-`);
+      if (step !== TUTORIAL_STEPS.at(-1)) await next();
+    }
+  });
+
+  it("shows the other theme's deck on the mode step", async () => {
+    renderTutorial();
+    await toStep(MODE_STEP);
+
+    expect(stepTitle()).toBe("Going Steady, for shows");
+    expect(shot().src).toMatch(/\/tutorial-shows-deck-phone\.webp$/);
+  });
+
+  it("shows a placeholder when a shot won't load, and still moves on", async () => {
+    renderTutorial();
+
+    fireEvent.error(shot());
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(document.querySelector(".tutorial__placeholder")).toHaveTextContent("Swipe to vote");
+    await next();
+    expect(stepTitle()).toBe("See the details");
+    expect(shot().src).toMatch(/tutorial-movies-details-phone\.webp$/);
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(hasSeenTutorial()).toBe(true);
+  });
+
+  it("preloads only the next step's shot", async () => {
+    const created: HTMLImageElement[] = [];
+    const RealImage = window.Image;
+    vi.stubGlobal(
+      "Image",
+      class extends RealImage {
+        constructor() {
+          super();
+          created.push(this);
+        }
+      },
+    );
+    try {
+      renderTutorial();
+      expect(created.map((image) => image.src)).toEqual([
+        expect.stringMatching(/tutorial-movies-details-phone\.webp$/),
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   describe("on desktop", () => {
@@ -133,79 +205,42 @@ describe("Tutorial", () => {
       viewport = fakeViewport(1280);
     });
 
-    afterEach(() => {
-      vi.useRealTimers();
-      viewport.restore();
-    });
+    afterEach(() => viewport.restore());
 
-    const toSwipeStep = async (): Promise<void> => {
-      await next();
-      await next();
-      await next();
-      await next();
-    };
-
-    const card = (): Element | null => document.querySelector(".tutorial__card");
-
-    it("explains the swipe keys, in the words of what they do", async () => {
+    it("shows desktop shots, and the keys on the deck step only", async () => {
       renderTutorial();
-      await toSwipeStep();
 
+      expect(shot().src).toMatch(/tutorial-movies-deck-desktop\.webp$/);
+      expect(shot()).toHaveAttribute("width", "1280");
+      expect(shot()).toHaveAttribute("height", "800");
       const keys = screen.getByLabelText("Keyboard shortcuts");
       expect(keys).toHaveTextContent("←Pass");
       expect(keys).toHaveTextContent("→Like");
       expect(keys).toHaveTextContent("BackspaceUndo");
-      expect(screen.queryByText(/Swipe left/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Swipe right/)).not.toBeInTheDocument();
+
+      for (let step = 2; step <= STEP_COUNT; step += 1) {
+        await next();
+        expect(shot().src).toMatch(/-desktop\.webp$/);
+        expect(screen.queryByLabelText("Keyboard shortcuts")).not.toBeInTheDocument();
+      }
     });
 
-    it("shows the keys only on that step, and points at the details beside the deck", async () => {
+    it("points at the sidebar and beside the deck instead of tapping", async () => {
       renderTutorial();
-      expect(screen.queryByText("Backspace")).not.toBeInTheDocument();
-
-      await toSwipeStep();
       await next();
 
-      expect(screen.queryByText("Backspace")).not.toBeInTheDocument();
       expect(screen.getByText(/sit beside the deck/)).toBeInTheDocument();
-      expect(screen.queryByText(/Tap on the poster/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Tap the poster/)).not.toBeInTheDocument();
     });
 
-    it("answers the arrow keys on the card, and Backspace puts it back", async () => {
-      renderTutorial();
-      await toSwipeStep();
+    it("speaks Going Steady's keys in Going Steady", () => {
+      renderTutorial({ mode: "TV" });
 
-      await userEvent.keyboard("{ArrowRight}");
-      expect(card()).toHaveClass("tutorial__card--tried-like");
-
-      await userEvent.keyboard("{ArrowLeft}");
-      expect(card()).toHaveClass("tutorial__card--tried-pass");
-
-      await userEvent.keyboard("{Backspace}");
-      expect(card()).toHaveClass("tutorial__card--swiping");
-    });
-
-    it("settles the card again after a try", async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-      renderTutorial();
-      for (let press = 0; press < 4; press += 1) {
-        act(() => screen.getByRole("button", { name: "Next" }).click());
-      }
-
-      act(() => {
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-      });
-      expect(card()).toHaveClass("tutorial__card--tried-like");
-
-      act(() => {
-        vi.advanceTimersByTime(2000);
-      });
-      expect(card()).toHaveClass("tutorial__card--swiping");
-    });
-
-    it("leaves the arrow keys alone on the other steps", async () => {
-      renderTutorial();
-      await userEvent.keyboard("{ArrowRight}");
-      expect(card()).not.toHaveClass("tutorial__card--tried-like");
+      const keys = screen.getByLabelText("Keyboard shortcuts");
+      expect(keys).toHaveTextContent("←Just Friends");
+      expect(keys).toHaveTextContent("→Go Steady");
+      expect(shot().src).toMatch(/tutorial-shows-deck-desktop\.webp$/);
     });
   });
 });

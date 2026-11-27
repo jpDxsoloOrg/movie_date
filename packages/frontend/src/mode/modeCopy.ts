@@ -51,13 +51,9 @@ export interface ModeCopy {
   tutorial: TutorialCopy;
 }
 
-/** The Tutorial's sample card and the steps that name what's being swiped. */
+/** Tutorial words that differ by more than the noun. */
 export interface TutorialCopy {
-  sampleTitle: string;
-  sampleGenres: string;
-  sampleFacts: string;
-  /** How the sidebar's way back to this deck is named. */
-  homeDesktop: string;
+  /** What the Search step says the deck can be narrowed by, since shows have more filters. */
   searchFields: string;
 }
 
@@ -93,10 +89,6 @@ export const MODE_COPY: Record<MediaType, ModeCopy> = {
     inviteText: "Pick a movie with me on Movie Date",
     previewEyebrow: "Tonight’s deck",
     tutorial: {
-      sampleTitle: "Your Next Movie (2026)",
-      sampleGenres: "Comedy, Romance",
-      sampleFacts: "112 min | 8.1/10",
-      homeDesktop: "Home",
       searchFields: "genre, actor, streaming service and release date",
     },
   },
@@ -131,10 +123,6 @@ export const MODE_COPY: Record<MediaType, ModeCopy> = {
     inviteText: "Pick a show with me on Going Steady",
     previewEyebrow: "Your next show",
     tutorial: {
-      sampleTitle: "Your Next Show (2019–present)",
-      sampleGenres: "Drama, Mystery",
-      sampleFacts: "4 seasons | 8.1/10",
-      homeDesktop: "Going Steady",
       searchFields: "genre, actor, streaming service, status, commitment level and first air date",
     },
   },
