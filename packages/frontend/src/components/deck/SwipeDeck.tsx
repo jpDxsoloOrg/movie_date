@@ -70,7 +70,7 @@ function ModeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.Element {
   }, [swipe, undo]);
 
   return (
-    <section className="deck" aria-label={copy.deckLabel}>
+    <section className="deck" aria-label={copy.deckLabel} data-tour="deck">
       <div className="deck__stack">
         {status === "loading" && (
           <div className="deck__state" role="status" aria-label={copy.loading}>
@@ -118,7 +118,7 @@ function ModeDeck({ onOpenDetails, onTopChange }: SwipeDeckProps): JSX.Element {
         {top ? `Now showing ${top.card.movie.title}` : ""}
       </p>
 
-      <div className="deck__controls">
+      <div className="deck__controls" data-tour="deck-buttons">
         <IconButton
           className="deck__control deck__control--pass"
           label={copy.passAction}

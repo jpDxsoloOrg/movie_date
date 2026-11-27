@@ -5,6 +5,7 @@ import { currentPath, returnPathFrom, type ReturnState } from "../hooks/useRetur
 import { ModeProvider } from "../mode/ModeProvider";
 import { hasSeenTutorial } from "../services/tutorial";
 import { SkeletonPage } from "./Skeleton";
+import { TourProvider, useTour } from "./tour/TourProvider";
 
 /** Everything behind login. Screens under it can rely on useRoom() having a room. */
 export function RequireAuth(): JSX.Element {
@@ -22,7 +23,9 @@ export function RequireAuth(): JSX.Element {
         <SkeletonPage />
       ) : (
         <RoomProvider>
-          <Outlet />
+          <TourProvider>
+            <Outlet />
+          </TourProvider>
         </RoomProvider>
       )}
     </ModeProvider>
@@ -39,9 +42,11 @@ export function PublicOnly(): JSX.Element {
   return <Outlet />;
 }
 
+/** First run starts the live tour, which then walks through the screens behind this gate. */
 export function TutorialGate(): JSX.Element {
   const location = useLocation();
-  if (hasSeenTutorial()) return <Outlet />;
+  const { active } = useTour();
+  if (active || hasSeenTutorial()) return <Outlet />;
   const state: ReturnState = { from: currentPath(location) };
-  return <Navigate to="/tutorial" replace state={state} />;
+  return <Navigate to="/tour" replace state={state} />;
 }

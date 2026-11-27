@@ -235,6 +235,7 @@ export function PlexLinkCard(): JSX.Element {
     <Card
       as="section"
       className="room-plex"
+      data-tour="plex-link"
       title="Plex Request"
       subtitle={me.plexLinked ? undefined : "Bring your Plex library along."}
       action={

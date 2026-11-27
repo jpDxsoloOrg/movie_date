@@ -101,7 +101,7 @@ describe("Drawer", () => {
       ["Profile", "/profile"],
       ["Room Members", "/members"],
       ["History", "/history"],
-      ["Tutorial", "/tutorial"],
+      ["Tutorial", "/tour"],
       ["Settings", "/settings"],
     ] as const) {
       expect(within(drawer).getByRole("link", { name })).toHaveAttribute("href", href);

@@ -37,12 +37,14 @@ function SideNavButton({
   railLabel,
   rail,
   onClick,
+  tour,
 }: {
   icon: IconName;
   label: string;
   railLabel?: string;
   rail: boolean;
   onClick: () => void;
+  tour?: string;
 }): JSX.Element {
   return (
     <li>
@@ -50,6 +52,7 @@ function SideNavButton({
         type="button"
         className="md-side-nav__item"
         aria-label={rail && railLabel ? label : undefined}
+        data-tour={tour}
         onClick={onClick}
       >
         <Icon name={icon} />
@@ -66,7 +69,7 @@ export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
   const [joinOpen, setJoinOpen] = useState(false);
   const installApp = useInstallApp();
 
-  const renderLink = ({ to, label, railLabel, icon, state }: NavItem): JSX.Element => (
+  const renderLink = ({ to, label, railLabel, icon, state, tour }: NavItem): JSX.Element => (
     <li key={to}>
       <NavLink
         to={to}
@@ -74,6 +77,7 @@ export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
         end={to === "/" || to === SHOWS_HOME}
         className="md-side-nav__item"
         aria-label={rail && railLabel ? label : undefined}
+        data-tour={tour}
       >
         <Icon name={icon} />
         {rail ? (railLabel ?? label) : label}
@@ -90,7 +94,7 @@ export function SideNav({ rail, onOpenMenu }: SideNavProps): JSX.Element {
         <div className="md-side-nav__scroll">
           <ul className="md-side-nav__list">
             {[navHome(mode), NAV_GOING_STEADY, navSearch(mode)].map(renderLink)}
-            <SideNavButton icon="door" label="Join Room" railLabel="Join" rail={rail} onClick={() => setJoinOpen(true)} />
+            <SideNavButton icon="door" label="Join Room" railLabel="Join" rail={rail} onClick={() => setJoinOpen(true)} tour="nav-join" />
           </ul>
           <ul className="md-side-nav__list">{ROOM_LINKS.map(renderLink)}</ul>
           {!rail && (

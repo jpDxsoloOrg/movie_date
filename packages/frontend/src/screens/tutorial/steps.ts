@@ -173,3 +173,12 @@ const IMAGES = import.meta.glob<string>("./*.webp", { eager: true, query: "?url"
 export function tutorialImage(stepId: TutorialStepId, mode: MediaType, device: TutorialDevice): string | undefined {
   return IMAGES[`./${tutorialImageName(stepId, mode, device)}`];
 }
+
+/** The desktop key legend. Stays in step with the handler in SwipeDeck, which is what the keys really do. */
+export function swipeKeys({ passAction, likeAction }: ModeCopy): readonly { key: string; keyLabel: string; action: string }[] {
+  return [
+    { key: "ArrowLeft", keyLabel: "←", action: passAction },
+    { key: "ArrowRight", keyLabel: "→", action: likeAction },
+    { key: "Backspace", keyLabel: "Backspace", action: "Undo" },
+  ];
+}

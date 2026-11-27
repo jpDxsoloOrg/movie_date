@@ -60,7 +60,7 @@ export default function Settings(): JSX.Element {
         <p className="settings__verdict">{verdict}</p>
       </Card>
 
-      <Card className="settings__controls">
+      <Card className="settings__controls" data-tour="match-rules">
         <div className="settings__group">
           <div className="settings__slider-heading">
             <label className="settings__heading" htmlFor="settings-threshold">
