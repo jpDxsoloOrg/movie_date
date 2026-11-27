@@ -8,6 +8,7 @@ import {
   getGenres,
   getLibraryDetails,
   getMovie,
+  getTopCast,
   getTrailerKey,
   hydrateMovies,
   searchPeople,
@@ -264,6 +265,63 @@ describe("searchPeople", () => {
     const url = new URL(fetchStub.mock.calls[0]?.[0] as URL);
     expect(url.searchParams.get("query")).toBe("a & b");
     expect(url.searchParams.get("include_adult")).toBe("false");
+  });
+});
+
+describe("getTopCast", () => {
+  const actor = (id: number, order: number | null) => ({
+    id,
+    name: `Actor ${id}`,
+    profile_path: `/a${id}.jpg`,
+    known_for_department: "Acting",
+    order,
+  });
+
+  it("asks TMDB for the movie's credits", async () => {
+    const fetchStub = stubFetch(() => jsonResponse({ cast: [actor(1, 0)] }));
+    await getTopCast(949);
+    const url = new URL(fetchStub.mock.calls[0]?.[0] as URL);
+    expect(url.pathname).toBe("/3/movie/949/credits");
+  });
+
+  it("keeps the first five by billing order, even when TMDB sends them out of order", async () => {
+    stubFetch(() =>
+      jsonResponse({
+        cast: [actor(7, 6), actor(3, 2), actor(1, 0), actor(6, 5), actor(2, 1), actor(5, 4), actor(4, 3)],
+      }),
+    );
+    expect((await getTopCast(949)).map((person) => person.id)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("puts anyone without a billing position last, and keeps TMDB's order among ties", async () => {
+    stubFetch(() => jsonResponse({ cast: [actor(9, null), actor(1, 0), actor(8, null), actor(2, 1)] }));
+    expect((await getTopCast(949)).map((person) => person.id)).toEqual([1, 2, 9, 8]);
+  });
+
+  it("maps people like a search does and skips anyone without a name", async () => {
+    stubFetch(() => jsonResponse({ cast: [{ id: 5, name: "", order: 0 }, { ...actor(1, 1), profile_path: null }] }));
+    expect(await getTopCast(949)).toEqual([
+      { id: 1, name: "Actor 1", profileUrl: null, knownForDepartment: "Acting" },
+    ]);
+  });
+
+  it("returns an empty list for a movie with no cast", async () => {
+    stubFetch(() => jsonResponse({}));
+    expect(await getTopCast(949)).toEqual([]);
+  });
+
+  it("serves a cached cast without calling TMDB", async () => {
+    const stored = [{ id: 1, name: "Al", profileUrl: null, knownForDepartment: "Acting" }];
+    dynamo.on(GetCommand).resolves({ Item: { value: stored, expiresAt: 9_999_999_999 } });
+    const fetchStub = stubFetch(() => jsonResponse({ cast: [] }));
+    expect(await getTopCast(949)).toEqual(stored);
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid movie id before calling TMDB", async () => {
+    const fetchStub = stubFetch(() => jsonResponse({ cast: [] }));
+    await expect(getTopCast(0)).rejects.toBeInstanceOf(ValidationError);
+    expect(fetchStub).not.toHaveBeenCalled();
   });
 });
 

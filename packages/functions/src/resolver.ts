@@ -6,6 +6,7 @@ import { trailer } from "./handlers/trailer.js";
 import { watchOptions } from "./handlers/watchOptions.js";
 import { genres } from "./handlers/genres.js";
 import { searchPeople } from "./handlers/searchPeople.js";
+import { movieCast } from "./handlers/movieCast.js";
 import { matches } from "./handlers/matches.js";
 import { swipeHistory } from "./handlers/swipeHistory.js";
 import { pendingMatch } from "./handlers/pendingMatch.js";
@@ -55,6 +56,7 @@ const handlers: HandlerTable = {
   plexStatus,
   genres,
   searchPeople,
+  movieCast,
   matches,
   swipeHistory,
   pendingMatch,

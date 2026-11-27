@@ -391,6 +391,14 @@ const SearchPeopleQuery = graphql(`
   }
 `);
 
+const MovieCastQuery = graphql(`
+  query MovieCast($movieId: Int!) {
+    movieCast(movieId: $movieId) {
+      ...PersonFields
+    }
+  }
+`);
+
 const MatchesQuery = graphql(`
   query Matches($limit: Int, $nextToken: String, $mediaType: MediaType, $search: String, $ignoreCleared: Boolean) {
     matches(
@@ -628,6 +636,7 @@ export const api = {
     (await execute(PlexStatusQuery, { movieId, mediaType })).plexStatus ?? null,
   genres: async (mediaType?: MediaType) => (await execute(GenresQuery, { mediaType })).genres,
   searchPeople: async (query: string) => (await execute(SearchPeopleQuery, { query })).searchPeople,
+  movieCast: async (movieId: number) => (await execute(MovieCastQuery, { movieId })).movieCast,
   matches: async (page: MatchPageRequest = {}, mediaType?: MediaType) =>
     (await execute(MatchesQuery, { ...page, mediaType })).matches,
   swipeHistory: async (page: SwipePageRequest = {}, mediaType?: MediaType) =>
